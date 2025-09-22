@@ -2,63 +2,81 @@ import numpy as np
 import sys
 from itertools import count
 import heapq
-import matplotlib.pyplot as plt
+from typing import Any, Dict, Union
 from scipy.spatial.distance import pdist
 
-def minimum_enclosing_ball(points, eps=1e-12):
-    """Welzl-style minimum enclosing ball in arbitrary dimension."""
-    P = np.asarray(points, dtype=float)
-    if P.size == 0:
-        return np.zeros(0, dtype=float), 0.0
-    if P.ndim != 2:
-        raise ValueError("points must be a 2D array")
-    d = P.shape[1]
-    if P.shape[0] == 1:
+def _farthest_point_idx(P, ref):
+    # return index of point in P farthest from ref (both 1D arrays)
+    d2 = np.sum((P - ref) ** 2, axis=1)
+    return int(np.argmax(d2))
+
+def _dedup_points(P, eps=1e-12):
+    if P.shape[0] <= 1:
+        return P
+    # round to grid to kill near-duplicates; preserves dtype=float
+    scale = 1.0 / max(eps, 1e-12)
+    Q = np.unique((P * scale).round().astype(np.int64), axis=0)
+    return (Q.astype(np.float64) / scale).astype(np.float64, copy=False)
+
+def minimum_enclosing_ball(points, eps=1e-12, max_passes=3):
+    """
+    Iterative minimum enclosing ball (Ritter 1990) with tightening passes.
+    Returns (center, radius).
+    No recursion; robust on large n and d.
+    """
+    P = np.asarray(points, dtype=np.float64)
+    if P.ndim == 1:
+        P = P.reshape(1, -1)
+    n, d = P.shape
+
+    if n == 0:
+        return np.zeros(d, dtype=np.float64), 0.0
+    if n == 1:
         return P[0].copy(), 0.0
 
-    P = P.copy()
-    rng.shuffle(P)
-    sys.setrecursionlimit(max(1000, P.shape[0] + 10))
+    # Deduplicate near-identical points to avoid numeric churn
+    P = _dedup_points(P, eps)
+    n = P.shape[0]
+    if n == 1:
+        return P[0].copy(), 0.0
 
-    def ball_from(boundary):
-        if not boundary:
-            return np.zeros(d, dtype=float), -1.0
-        B = np.asarray(boundary, dtype=float)
-        k = B.shape[0]
-        if k == 1:
-            return B[0], 0.0
-        if k == 2:
-            center = (B[0] + B[1]) / 2.0
-            radius = np.linalg.norm(B[0] - center)
-            return center, radius
-        A = 2.0 * (B[1:] - B[0])
-        b = np.sum(B[1:]**2 - B[0]**2, axis=1)
-        try:
-            center = np.linalg.solve(A, b)
-        except np.linalg.LinAlgError:
-            center = np.linalg.lstsq(A, b, rcond=None)[0]
-        radius = np.linalg.norm(B[0] - center)
-        return center, float(radius)
+    # --- Ritter initialisation ---
+    # 1) pick an arbitrary point a (use first)
+    a = P[0]
+    # 2) b = farthest from a
+    ib = _farthest_point_idx(P, a)
+    b = P[ib]
+    # 3) c = farthest from b
+    ic = _farthest_point_idx(P, b)
+    c = P[ic]
+    # 4) initial ball: center at midpoint(b,c), radius half their distance
+    center = 0.5 * (b + c)
+    radius = 0.5 * np.linalg.norm(b - c)
 
-    def welzl(points_list, boundary, m):
-        if m == 0 or len(boundary) == d + 1:
-            return ball_from(boundary)
-        c, r = welzl(points_list, boundary, m - 1)
-        p = points_list[m - 1]
-        if r >= 0 and np.linalg.norm(p - c) <= r + eps:
-            return c, r
-        boundary.append(p)
-        c, r = welzl(points_list, boundary, m - 1)
-        boundary.pop()
-        return c, r
+    # --- Expansion pass: move center toward outside points ---
+    # Single linear pass; then a few tightening passes
+    def _expand_once(center, radius):
+        R = float(radius)
+        C = center.copy()
+        for p in P:
+            diff = p - C
+            dist = np.linalg.norm(diff)
+            if dist > R + eps:
+                # move center toward p just enough to include it
+                new_R = 0.5 * (R + dist)
+                # avoid division by zero
+                if dist > 0:
+                    C += (1.0 - R / dist) * 0.5 * diff
+                R = new_R
+        return C, R
 
-    pts_list = [P[i] for i in range(P.shape[0])]
-    center, radius = welzl(pts_list, [], len(pts_list))
-    if radius < 0:
-        center = P[0]
-        radius = 0.0
-    radius = float(max(radius, 0.0))
-    return np.asarray(center, dtype=float), radius
+    center, radius = _expand_once(center, radius)
+    for _ in range(max_passes):
+        center, radius = _expand_once(center, radius)
+
+    # Final tiny safety inflation to cover eps rounding
+    radius = float(max(0.0, radius))
+    return center.astype(np.float64, copy=False), radius
 
 
 
@@ -187,28 +205,6 @@ def collect_kept_indices(root: BallNode, P=10):
             kept.update(nd.indices.tolist())
         stack.extend(nd.children)
     return np.array(sorted(kept), dtype=int)
-
-# ---------- Visualization ----------
-
-def visualize_levels(X, by_level):
-    if X.shape[1] != 2:
-        raise ValueError("visualize_levels supports only 2D data")
-    levels = sorted(by_level.keys())
-    for L in levels:
-        nodes = by_level[L]
-        fig = plt.figure(figsize=(6,6))
-        ax = plt.gca()
-        ax.scatter(X[:,0], X[:,1], s=6, alpha=0.7)
-        for nd in nodes:
-            circ = plt.Circle((nd.center[0], nd.center[1]), nd.radius, fill=False, linewidth=1.7)
-            ax.add_patch(circ)
-            ax.plot([nd.center[0]], [nd.center[1]], marker='o', markersize=3)
-        ax.set_aspect('equal', 'box')
-        ax.set_title(f"Level {L} | #nodes={len(nodes)}")
-        ax.set_xlim(X[:,0].min()-0.05, X[:,0].max()+0.05)
-        ax.set_ylim(X[:,1].min()-0.05, X[:,1].max()+0.05)
-        plt.show()
-
 
 # ------------------------- Geometry helpers -------------------------
 
@@ -375,6 +371,7 @@ def search_pair(
     dominance_prune: bool = True,
     return_stats: bool = False,
     eps: float = 1e-12,
+    audit: Union[bool, Dict[str, Any]] = False,
 ):
     """
     Branch-and-Bound query search on a k-ary, disjoint ball-tree.
@@ -442,6 +439,9 @@ def search_pair(
         best_origin=None,
         best_distance=None,
         best_pair=None,
+        global_lb=None,
+        lb_gap=None,
+        lb_tightness=None,
     )
 
     H = []                          # min-heap of ((key...), lb, a, b, ub, _tie)
@@ -452,6 +452,7 @@ def search_pair(
     tau_cur = float(tau)
     tie = count()
     best_origin = None
+    best_lb_seen = float("inf")
 
     def kept_pair_mass(a, b) -> int:
         """#(kept points in A) * #(kept points in B)."""
@@ -469,7 +470,7 @@ def search_pair(
 
     def push(a, b):
         """Push (a,b) with all guards. Return True if the search can stop early."""
-        nonlocal tau_cur, stats, best_pair, d_best, best_origin
+        nonlocal tau_cur, stats, best_pair, d_best, best_origin, best_lb_seen
         a, b = (a, b) if id(a) < id(b) else (b, a)
         key = (id(a), id(b))
         if key in uid_pairs:
@@ -487,6 +488,8 @@ def search_pair(
             return False
 
         lb, ub = _bounds_ball_pair(a, b, wc, eps=eps)
+        if lb < best_lb_seen:
+            best_lb_seen = lb
 
         # evaluate center-center distance once (cheap)
         center_dist = _objective_value(a.center, b.center, wc, eps=eps)
@@ -539,6 +542,24 @@ def search_pair(
         stats["best_origin"] = best_origin
         stats["best_distance"] = d_best if best_pair is not None else None
         stats["best_pair"] = best_pair
+
+        candidates = []
+        if best_lb_seen < float("inf"):
+            candidates.append(best_lb_seen)
+        if H:
+            heap_lb = min(item[1] for item in H)
+            if heap_lb < float("inf"):
+                candidates.append(heap_lb)
+        if candidates:
+            global_lb = min(candidates)
+            stats["global_lb"] = float(global_lb)
+            if best_pair is not None and np.isfinite(d_best) and d_best > 0:
+                gap = max(0.0, float(d_best - global_lb))
+                stats["lb_gap"] = gap
+                stats["lb_tightness"] = float(global_lb / d_best)
+
+        if isinstance(audit, dict):
+            audit.update({k: stats.get(k) for k in ("global_lb", "lb_gap", "lb_tightness")})
 
         if best_pair is not None and d_best <= tau:
             result = (best_pair[0], best_pair[1], d_best)
@@ -673,10 +694,8 @@ if __name__ == "__main__":
     k = 10000
     P = 25
 
-    root, levels = build_ball_tree(X, k=k, P=P, radius_divisor=radius_divisor)
+    root, _ = build_ball_tree(X, k=k, P=P, radius_divisor=radius_divisor)
     kept_idx = collect_kept_indices(root, P=P)
-
-    # visualize_levels(X[kept_idx], levels)  # uncomment to plot
 
     total_kept = kept_idx.size
     kept_ratio = total_kept / n if n > 0 else 0.0
@@ -736,12 +755,6 @@ if __name__ == "__main__":
         if Q is not None and len(Q) > 1:
             diversity = pdist(Q).mean()
             print(f"Current Q diversity (mean pairwise distance): {diversity:.4f}")
-
-
-
-
-
-
 
 
 

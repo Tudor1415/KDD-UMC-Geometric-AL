@@ -2,21 +2,24 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import itertools
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
-import matplotlib
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 from scipy.spatial.distance import pdist
 
 from data import Dataset
 from helpers import augment_with_minimums, k_additive_constraints
-from poly_centers import chebyshev_center, minkowski_center
+from poly_centers import (
+    chebyshev_center,
+    minkowski_center,
+    analytical_center,
+    volumetric_center,
+    mse_center,
+)
 from ball_tree import build_ball_tree, collect_kept_indices, search_pair
 
 logger = logging.getLogger(__name__)
@@ -27,13 +30,70 @@ MATRICES_DIR = Path("matrices")
 MEASURES = ["yuleQ", "cosine", "kruskal", "added_value", "certainty"]
 KEEP_ONLY = {"credit", "magic", "mushroom", "tictactoe", "twitter"}
 
+# -----------------------
+# Center function registry
+# -----------------------
+def _cheb(A, b):
+    x, _r = chebyshev_center(A, b)
+    return x
+
+def _mink(A, b):
+    x, _lam = minkowski_center(A, b)
+    return x
+
+def _anal(A, b):
+    return analytical_center(A, b, eps=1e-8)
+
+def _vol(A, b):
+    c, _P = volumetric_center(A, b)
+    return c
+
+def _mse_feasible(A, b):
+    # Use constrained LS to get any feasible point; fallback to analytic if needed
+    n = A.shape[1]
+    X = np.empty((0, n))
+    y = np.empty((0,))
+    c = mse_center(A, b, X, y)
+    if c is None:
+        c = analytical_center(A, b, eps=1e-8)
+    return c
+
 CENTER_FUNCTIONS = {
-    "chebyshev_center": chebyshev_center,
-    "minkowski_center": minkowski_center,
+    "chebyshev_center": _cheb,
+    "minkowski_center": _mink,
+    "analytical_center": _anal,
+    "volumetric_center": _vol,
+    "mse_center": _mse_feasible,
 }
 
 ADD_K = 3
 BALL_TREE_K = 10000
+
+ROW_FIELDS = [
+    "dataset",
+    "center",
+    "P",
+    "fraction",
+    "iteration",
+    "i_idx",
+    "j_idx",
+    "best_distance",
+    "pruned_pairs",
+    "pruned_lb_pairs",
+    "pruned_dom_pairs",
+    "total_pairs",
+    "explored_pairs",
+    "objective_evals",
+    "diversity",
+    "coverage",
+    "radius",
+    "tau",
+    "oracle_label",
+    "best_origin",
+    "global_lb",
+    "lb_gap",
+    "lb_tightness",
+]
 
 
 def parse_args() -> argparse.Namespace:
@@ -188,7 +248,8 @@ def run_single_benchmark(
     iterations: int,
     rng: np.random.Generator,
     max_rules: Optional[int],
-) -> pd.DataFrame:
+    record_callback: Optional[Callable[[Dict[str, object]], None]] = None,
+) -> int:
     ds.load()
     raw_points = ds.points.astype(np.float64, copy=False)
 
@@ -224,7 +285,7 @@ def run_single_benchmark(
     query_aug: List[np.ndarray] = []
     query_raw: List[np.ndarray] = []
 
-    records: List[Dict[str, object]] = []
+    recorded = 0
 
     for iteration in range(1, iterations + 1):
         Q = np.vstack(query_aug) if query_aug else None
@@ -254,6 +315,7 @@ def run_single_benchmark(
         a_raw = raw_points[int(i_idx)]
         b_raw = raw_points[int(j_idx)]
 
+        # Simulated oracle
         oracle_label = int(rng.choice([-1, 1]))
         diff = a_aug - b_aug
         proj_row, proj_rhs = _project_constraint(-oracle_label * diff)
@@ -281,80 +343,36 @@ def run_single_benchmark(
         query_raw.extend([a_raw.copy(), b_raw.copy()])
         diversity = _compute_diversity(query_raw)
 
-        records.append(
-            {
-                "dataset": ds.name,
-                "center": center_name,
-                "P": P,
-                "fraction": fraction,
-                "iteration": iteration,
-                "i_idx": int(i_idx) if sample_idx is None else int(sample_idx[int(i_idx)]),
-                "j_idx": int(j_idx) if sample_idx is None else int(sample_idx[int(j_idx)]),
-                "best_distance": float(best_distance) if np.isfinite(best_distance) else None,
-                "pruned_pairs": int(stats["pruned_point_pairs"]),
-                "pruned_lb_pairs": int(stats["pruned_lb_point_pairs"]),
-                "pruned_dom_pairs": int(stats["pruned_dom_point_pairs"]),
-                "total_pairs": int(stats["total_point_pairs"]),
-                "explored_pairs": int(stats["explored_point_pairs"]),
-                "objective_evals": int(stats["objective_evals"]),
-                "diversity": diversity,
-                "coverage": coverage,
-                "radius": radius,
-                "tau": tau,
-                "oracle_label": oracle_label,
-                "best_origin": stats.get("best_origin"),
-            }
-        )
+        row = {
+            "dataset": ds.name,
+            "center": center_name,
+            "P": P,
+            "fraction": fraction,
+            "iteration": iteration,
+            "i_idx": int(i_idx) if sample_idx is None else int(sample_idx[int(i_idx)]),
+            "j_idx": int(j_idx) if sample_idx is None else int(sample_idx[int(j_idx)]),
+            "best_distance": float(best_distance) if np.isfinite(best_distance) else None,
+            "pruned_pairs": int(stats["pruned_point_pairs"]),
+            "pruned_lb_pairs": int(stats["pruned_lb_point_pairs"]),
+            "pruned_dom_pairs": int(stats["pruned_dom_point_pairs"]),
+            "total_pairs": int(stats["total_point_pairs"]),
+            "explored_pairs": int(stats["explored_point_pairs"]),
+            "objective_evals": int(stats["objective_evals"]),
+            "diversity": diversity,
+            "coverage": coverage,
+            "radius": radius,
+            "tau": tau,
+            "oracle_label": oracle_label,
+            "best_origin": stats.get("best_origin"),
+            "global_lb": float(stats["global_lb"]) if stats.get("global_lb") is not None else None,
+            "lb_gap": float(stats["lb_gap"]) if stats.get("lb_gap") is not None else None,
+            "lb_tightness": float(stats["lb_tightness"]) if stats.get("lb_tightness") is not None else None,
+        }
+        if record_callback is not None:
+            record_callback(row)
+        recorded += 1
 
-    return pd.DataFrame.from_records(records)
-
-
-def plot_diversity_vs_pruned(df: pd.DataFrame, out_path: Path) -> None:
-    if df.empty:
-        return
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-
-    df_sorted = df.sort_values("iteration")
-
-    fig, ax = plt.subplots(figsize=(6.5, 4.5))
-    scatter = ax.scatter(
-        df_sorted["pruned_pairs"],
-        df_sorted["diversity"],
-        c=df_sorted["iteration"],
-        cmap="viridis",
-        s=70,
-        edgecolors="black",
-        linewidths=0.4,
-    )
-    ax.plot(
-        df_sorted["pruned_pairs"],
-        df_sorted["diversity"],
-        color="#999999",
-        linewidth=0.8,
-        alpha=0.6,
-    )
-    for _, row in df_sorted.iterrows():
-        ax.annotate(
-            str(int(row["iteration"])),
-            (row["pruned_pairs"], row["diversity"]),
-            textcoords="offset points",
-            xytext=(4, 4),
-            fontsize=8,
-        )
-
-    coverage = df_sorted["coverage"].iloc[0]
-    ax.set_xlabel("Pruned point pairs")
-    ax.set_ylabel("Query set diversity (mean distance)")
-    title = (
-        f"{df_sorted['dataset'].iloc[0]} · {df_sorted['center'].iloc[0]} · "
-        f"P={df_sorted['P'].iloc[0]} · f={df_sorted['fraction'].iloc[0]:.2f} · "
-        f"coverage={coverage:.2%}"
-    )
-    ax.set_title(title)
-    fig.colorbar(scatter, ax=ax, label="Iteration")
-    fig.tight_layout()
-    fig.savefig(out_path, dpi=160)
-    plt.close(fig)
+    return recorded
 
 
 def main() -> None:
@@ -363,73 +381,77 @@ def main() -> None:
 
     rng = np.random.default_rng(args.seed)
     output_dir: Path = args.output_dir
-    plot_dir = output_dir / "plots"
     output_dir.mkdir(parents=True, exist_ok=True)
-    plot_dir.mkdir(parents=True, exist_ok=True)
 
     datasets = discover_datasets(args.datasets, args.max_rules)
     if not datasets:
         logger.error("No datasets available – aborting.")
         return
 
-    all_records: List[pd.DataFrame] = []
-
-    for ds in datasets:
-        for center_name, center_fn in CENTER_FUNCTIONS.items():
-            for P, fraction in itertools.product(args.p_values, args.fractions):
-                logger.info(
-                    "Benchmarking dataset=%s center=%s P=%d fraction=%.2f",
-                    ds.name,
-                    center_name,
-                    P,
-                    fraction,
-                )
-                try:
-                    df_run = run_single_benchmark(
-                        ds,
-                        center_name=center_name,
-                        center_fn=center_fn,
-                        P=P,
-                        fraction=fraction,
-                        iterations=args.iterations,
-                        rng=rng,
-                        max_rules=args.max_rules,
-                    )
-                except Exception as exc:
-                    logger.exception(
-                        "Run failed for dataset=%s center=%s P=%d f=%.2f: %s",
-                        ds.name,
-                        center_name,
-                        P,
-                        fraction,
-                        exc,
-                    )
-                    continue
-
-                if df_run.empty:
-                    logger.warning(
-                        "No iterations recorded for dataset=%s center=%s P=%d f=%.2f",
-                        ds.name,
-                        center_name,
-                        P,
-                        fraction,
-                    )
-                    continue
-
-                all_records.append(df_run)
-                plot_path = plot_dir / (
-                    f"{ds.name}__{center_name}__P{P}__frac{fraction:.2f}.png"
-                )
-                plot_diversity_vs_pruned(df_run, plot_path)
-
-    if not all_records:
-        logger.warning("No benchmark data collected.")
-        return
-
-    all_df = pd.concat(all_records, ignore_index=True)
     csv_path = output_dir / "ball_tree_benchmark.csv"
-    all_df.to_csv(csv_path, index=False)
-    logger.info("Saved aggregate metrics to %s", csv_path)
+    write_header = True
+    if csv_path.exists():
+        write_header = csv_path.stat().st_size == 0
+
+    total_rows = 0
+    with csv_path.open("a", newline="") as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=ROW_FIELDS)
+        if write_header:
+            writer.writeheader()
+
+        def record_row(row: Dict[str, object]) -> None:
+            writer.writerow(row)
+            csv_file.flush()
+
+        for ds in datasets:
+            for center_name, center_fn in CENTER_FUNCTIONS.items():
+                for P, fraction in itertools.product(args.p_values, args.fractions):
+                    logger.info(
+                        "Benchmarking dataset=%s center=%s P=%d fraction=%.2f",
+                        ds.name,
+                        center_name,
+                        P,
+                        fraction,
+                    )
+                    try:
+                        rows = run_single_benchmark(
+                            ds,
+                            center_name=center_name,
+                            center_fn=center_fn,
+                            P=P,
+                            fraction=fraction,
+                            iterations=args.iterations,
+                            rng=rng,
+                            max_rules=args.max_rules,
+                            record_callback=record_row,
+                        )
+                    except Exception as exc:
+                        logger.exception(
+                            "Run failed for dataset=%s center=%s P=%d f=%.2f: %s",
+                            ds.name,
+                            center_name,
+                            P,
+                            fraction,
+                            exc,
+                        )
+                        continue
+
+                    if rows == 0:
+                        logger.warning(
+                            "No iterations recorded for dataset=%s center=%s P=%d f=%.2f",
+                            ds.name,
+                            center_name,
+                            P,
+                            fraction,
+                        )
+                        continue
+
+                    total_rows += rows
+
+    if total_rows == 0:
+        logger.warning("No benchmark data collected.")
+    else:
+        logger.info("Appended %d rows to %s", total_rows, csv_path)
 
 
 if __name__ == "__main__":

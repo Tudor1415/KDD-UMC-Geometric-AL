@@ -168,19 +168,6 @@ def parse_weights(entry: Any) -> Dict[FrozenSet[int], float]:
     raise TypeError(f"Unsupported weights cell type: {type(entry).__name__}")
 
 
-# ------------------------------- performance → last iteration ---------------------------------
-
-
-def collect_last_iter(df_perf: pd.DataFrame) -> pd.DataFrame:
-    idx = (
-        df_perf.sort_values("iter")
-        .groupby(["oracle", "centre", "dataset", "fold"], as_index=False)
-        .tail(1)
-        .index
-    )
-    return df_perf.loc[idx].reset_index(drop=True)
-
-
 # ------------------------------------ rule scoring ---------------------------------------------
 
 

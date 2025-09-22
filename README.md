@@ -34,7 +34,7 @@ To run the experiments from the paper:
 
 ```bash
 python main.py
-python choquet_rank.py
+python -m sota.learning_to_rank.choquet_rank
 ```
 
 
