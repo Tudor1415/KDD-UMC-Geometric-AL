@@ -114,7 +114,7 @@ def k_additive_constraints(
     b : (p,) ndarray
         Right‑hand side vector.
     index_map : dict
-        Mapping from subset tuple -> column index (in the *projected* vector).
+        Mapping from subset tuple -> column index in the projected vector (excluding the eliminated subset).
     """
     if k < 1 or k > n:
         raise ValueError("Require 1 ≤ k ≤ n")
@@ -196,4 +196,5 @@ def k_additive_constraints(
 
     A = np.vstack(rows) if rows else np.empty((0, L - 1))
     b = np.asarray(rhs)
-    return A, b
+    index_map = dict(col_proj)
+    return A, b, index_map

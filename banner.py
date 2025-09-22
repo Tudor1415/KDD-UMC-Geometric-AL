@@ -11,7 +11,7 @@ Creates three publication-quality PDF figures plus a consolidated legend:
 Changes vs. the previous version
 --------------------------------
 * The initial constraints come from
-      A0, b0 = k_additive_constraints(n_features=2, k_add=2)
+      A0, b0, _ = k_additive_constraints(n_features=2, k_add=2)
   and every hyper-plane in (A0, b0) is drawn as a solid black line.
 * For the ambiguous-pair search we use the same augmentation as `learn.py`:
       points = augment_with_minimums(raw_points, add_k)
@@ -467,7 +467,7 @@ def main():
     tree = build_balltree(pts, min_leaf_size=10)
 
     # ----- initial constraints & centres ---------------------------------
-    A0, b0 = k_additive_constraints(n_features, add_k)
+    A0, b0, _ = k_additive_constraints(n_features, add_k)
     c_cheb0 = chebyshev_center(A0, b0)
     c_mink0 = minkowski_center(A0, b0)
     r0 = _chebyshev_radius(A0, b0, c_cheb0)

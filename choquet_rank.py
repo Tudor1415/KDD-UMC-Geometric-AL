@@ -230,7 +230,7 @@ def run_experiments(
         pts_aug = augment_with_minimums(ds.points, k_add)
         kf = KFold(n_splits=nb_folds, shuffle=True, random_state=rng_seed)
 
-        A_base, b_base = k_additive_constraints(len(ds.measures), k_add)
+        A_base, b_base, _ = k_additive_constraints(len(ds.measures), k_add)
 
         for fold_id, (tr, te) in enumerate(kf.split(ds.points)):
             metrics_rows, diff_rows = [], []  # fresh per-fold buffers

@@ -125,7 +125,7 @@ def _run_pair(
     # ------------------------------------------------------------------
     # constraints & bookkeeping
     n_single = len(ds.measures)
-    A0, b0 = k_additive_constraints(n_single, add_k)
+    A0, b0, _ = k_additive_constraints(n_single, add_k)
     oracle_scores = oracle.score_dataset(ds)[list(test_idx)]
 
     rows: List[Dict[str, Any]] = []

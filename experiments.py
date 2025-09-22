@@ -74,7 +74,7 @@ def run_experiments(config: Config) -> pd.DataFrame:
             root = build_balltree(points_train)
             logger.debug("Built ball tree for training points")
             n_single = ds.points.shape[1]
-            A0, b0 = k_additive_constraints(n_single, config.additivity_k)
+            A0, b0, _ = k_additive_constraints(n_single, config.additivity_k)
             logger.debug(
                 "Initial constraints A0 shape: %s, b0 shape: %s", A0.shape, b0.shape
             )

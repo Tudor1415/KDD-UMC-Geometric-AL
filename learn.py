@@ -177,7 +177,7 @@ if __name__ == "__main__":
         return 1 if (a - b) @ q_true >= 0 else -1
 
     # --- initial constraints -------------------------------------------
-    A0, b0 = k_additive_constraints(n_features, add_k)
+    A0, b0, _ = k_additive_constraints(n_features, add_k)
 
     def reporter(k, c, r, diff):
         print(f"Iter {k:2d}: center={c},  radius={r:.3g}")
