@@ -12,10 +12,10 @@ from itertools import combinations
 from typing import Dict, FrozenSet, List, Sequence, Tuple, Union
 
 import numpy as np
-from data import Dataset
-from learn import project_constraint
-from oracles import ObjectiveMeasureOracle, SurpriseOracle
-from helpers import augment_with_minimums, k_additive_constraints
+from gal.core.data import Dataset
+from gal.learning.learn import project_constraint
+from gal.oracles.oracles import ObjectiveMeasureOracle, SurpriseOracle
+from gal.utils.helpers import augment_with_minimums, k_additive_constraints
 
 R_SCRIPT = Path("scripts/call_kappalab.R")  # ← path to your R file
 EMPTY = frozenset()
@@ -134,7 +134,7 @@ def select_query(
 # --------------------------------------------------------------------------- #
 import pandas as pd
 from sklearn.model_selection import KFold
-from metrics import compute_ranking_metrics
+from gal.metrics.metrics import compute_ranking_metrics
 
 
 # --------------------------------------------------------------------------- #
