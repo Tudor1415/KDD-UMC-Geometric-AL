@@ -1,33 +1,33 @@
 <!doctype html>
-<html class="no-js" lang="en" data-content_root="">
+<html class="no-js" lang="en" data-content_root="./">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="#" /><link rel="search" title="Search" href="search.html" />
 
-    <!-- Generated with Sphinx 7.1.2 and Furo 2024.08.06 --><title>Index - Geometry-Aware Learning 0.1.0 documentation</title>
-<link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=354aac6f" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=302659d7" />
+    <!-- Generated with Sphinx 8.2.3 and Furo 2025.07.19 --><title>Index - Geometry-Aware Learning 0.1.0 documentation</title>
+<link rel="stylesheet" type="text/css" href="_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=25af2a20" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=8dab3a3b" />
     
     
 
 
 <style>
   body {
-    --color-code-background: #f8f8f8;
-  --color-code-foreground: black;
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
   
   }
   @media not print {
     body[data-theme="dark"] {
-      --color-code-background: #202020;
-  --color-code-foreground: #d0d0d0;
+      --color-code-background: #2b2b2b;
+  --color-code-foreground: #f8f8f2;
   
     }
     @media (prefers-color-scheme: dark) {
       body:not([data-theme="light"]) {
-        --color-code-background: #202020;
-  --color-code-foreground: #d0d0d0;
+        --color-code-background: #2b2b2b;
+  --color-code-foreground: #f8f8f2;
   
       }
     }
@@ -191,7 +191,6 @@
       
       <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
   
-  
   <span class="sidebar-brand-text">Geometry-Aware Learning 0.1.0 documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="search.html" role="search">
@@ -203,12 +202,13 @@
   <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ball_tree_builders.html">Ball-tree builders</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
 <ul>
 <li class="toctree-l1 has-children"><a class="reference internal" href="api/index.html">API reference</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle navigation of API reference</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="api/core.html">Core utilities</a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/trees.html">Tree construction and search</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/trees.html">Ball-tree APIs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/centers.html">Centre solvers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/learning.html">Learning and mining</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/metrics.html">Metrics and measures</a></li>
@@ -257,7 +257,7 @@
           
 <section class="genindex-section">
   <h1 id="index">Index</h1>
-  <div class="genindex-jumpbox"><a href="#A"><strong>A</strong></a> | <a href="#B"><strong>B</strong></a> | <a href="#C"><strong>C</strong></a> | <a href="#D"><strong>D</strong></a> | <a href="#E"><strong>E</strong></a> | <a href="#F"><strong>F</strong></a> | <a href="#G"><strong>G</strong></a> | <a href="#I"><strong>I</strong></a> | <a href="#K"><strong>K</strong></a> | <a href="#L"><strong>L</strong></a> | <a href="#M"><strong>M</strong></a> | <a href="#N"><strong>N</strong></a> | <a href="#O"><strong>O</strong></a> | <a href="#P"><strong>P</strong></a> | <a href="#R"><strong>R</strong></a> | <a href="#S"><strong>S</strong></a> | <a href="#V"><strong>V</strong></a> | <a href="#Y"><strong>Y</strong></a></div>
+  <div class="genindex-jumpbox"><a href="#A"><strong>A</strong></a> | <a href="#B"><strong>B</strong></a> | <a href="#C"><strong>C</strong></a> | <a href="#D"><strong>D</strong></a> | <a href="#E"><strong>E</strong></a> | <a href="#F"><strong>F</strong></a> | <a href="#G"><strong>G</strong></a> | <a href="#I"><strong>I</strong></a> | <a href="#K"><strong>K</strong></a> | <a href="#L"><strong>L</strong></a> | <a href="#M"><strong>M</strong></a> | <a href="#N"><strong>N</strong></a> | <a href="#O"><strong>O</strong></a> | <a href="#P"><strong>P</strong></a> | <a href="#R"><strong>R</strong></a> | <a href="#S"><strong>S</strong></a> | <a href="#T"><strong>T</strong></a> | <a href="#U"><strong>U</strong></a> | <a href="#V"><strong>V</strong></a> | <a href="#Y"><strong>Y</strong></a></div>
 </section>
 <section id="A" class="genindex-section">
   <h2>A</h2>
@@ -289,17 +289,13 @@
   <h2>B</h2>
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api/trees.html#gal.trees.ball_tree.BallNode">BallNode (class in gal.trees.ball_tree)</a>
-</li>
-        <li><a href="api/oracles.html#gal.oracles.priors.BayesianNetworkPrior">BayesianNetworkPrior (class in gal.oracles.priors)</a>
+        <li><a href="api/trees.html#trees.common.BallTree">BallTree (class in trees.common)</a>
 </li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
+        <li><a href="api/oracles.html#gal.oracles.priors.BayesianNetworkPrior">BayesianNetworkPrior (class in gal.oracles.priors)</a>
+</li>
         <li><a href="api/oracles.html#gal.oracles.oracles.BiasedOracle">BiasedOracle (class in gal.oracles.oracles)</a>
-</li>
-        <li><a href="api/trees.html#gal.trees.ball_tree.build_ball_tree">build_ball_tree() (in module gal.trees.ball_tree)</a>
-</li>
-        <li><a href="api/trees.html#gal.trees.ball_tree.build_children_variable_radii">build_children_variable_radii() (in module gal.trees.ball_tree)</a>
 </li>
     </ul></td>
   </tr></table>
@@ -309,10 +305,6 @@
   <h2>C</h2>
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api/trees.html#gal.trees.ball_tree.BallNode.center">center (gal.trees.ball_tree.BallNode attribute)</a>
-</li>
-        <li><a href="api/trees.html#gal.trees.ball_tree.BallNode.center_idx">center_idx (gal.trees.ball_tree.BallNode attribute)</a>
-</li>
         <li><a href="api/metrics.html#gal.metrics.measures.certainty">certainty() (in module gal.metrics.measures)</a>
 
         <ul>
@@ -320,8 +312,6 @@
 </li>
         </ul></li>
         <li><a href="api/centers.html#gal.centers.poly_centers.chebyshev_center">chebyshev_center() (in module gal.centers.poly_centers)</a>
-</li>
-        <li><a href="api/trees.html#gal.trees.ball_tree.BallNode.children">children (gal.trees.ball_tree.BallNode attribute)</a>
 </li>
         <li><a href="api/oracles.html#gal.oracles.priors.ChowLiuPrior">ChowLiuPrior (class in gal.oracles.priors)</a>
 </li>
@@ -331,16 +321,14 @@
           <li><a href="api/oracles.html#gal.oracles.oracles.SurpriseOracle.clone">(gal.oracles.oracles.SurpriseOracle method)</a>
 </li>
         </ul></li>
-        <li><a href="api/trees.html#gal.trees.ball_tree.collect_kept_indices">collect_kept_indices() (in module gal.trees.ball_tree)</a>
-</li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/oracles.html#gal.oracles.oracles.Oracle.compare">compare() (gal.oracles.oracles.Oracle method)</a>
 
         <ul>
           <li><a href="api/oracles.html#gal.oracles.oracles.SurpriseOracle.compare">(gal.oracles.oracles.SurpriseOracle method)</a>
 </li>
         </ul></li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/oracles.html#gal.oracles.oracles.Oracle.compare_vectors">compare_vectors() (gal.oracles.oracles.Oracle method)</a>
 
         <ul>
@@ -506,13 +494,6 @@
 </li>
         </ul></li>
         <li>
-    gal.trees.ball_tree
-
-        <ul>
-          <li><a href="api/trees.html#module-gal.trees.ball_tree">module</a>
-</li>
-        </ul></li>
-        <li>
     gal.utils.helpers
 
         <ul>
@@ -530,10 +511,6 @@
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/oracles.html#gal.oracles.priors.IndependentLogLinear">IndependentLogLinear (class in gal.oracles.priors)</a>
-</li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api/trees.html#gal.trees.ball_tree.BallNode.indices">indices (gal.trees.ball_tree.BallNode attribute)</a>
 </li>
     </ul></td>
   </tr></table>
@@ -563,16 +540,14 @@
     <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/learning.html#gal.learning.learn.learn">learn() (in module gal.learning.learn)</a>
 </li>
-        <li><a href="api/trees.html#gal.trees.ball_tree.BallNode.level">level (gal.trees.ball_tree.BallNode attribute)</a>
-</li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/metrics.html#gal.metrics.measures.lift">lift() (in module gal.metrics.measures)</a>
 
         <ul>
           <li><a href="api/metrics.html#gal.metrics.rule_metrics.lift">(in module gal.metrics.rule_metrics)</a>
 </li>
         </ul></li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/core.html#gal.core.data.Dataset.load">load() (gal.core.data.Dataset method)</a>
 </li>
     </ul></td>
@@ -586,8 +561,6 @@
         <li><a href="api/metrics.html#gal.metrics.rule_metrics.main">main() (in module gal.metrics.rule_metrics)</a>
 </li>
         <li><a href="api/oracles.html#gal.oracles.oracles.MDLOracle">MDLOracle (class in gal.oracles.oracles)</a>
-</li>
-        <li><a href="api/trees.html#gal.trees.ball_tree.minimum_enclosing_ball">minimum_enclosing_ball() (in module gal.trees.ball_tree)</a>
 </li>
         <li><a href="api/centers.html#gal.centers.poly_centers.minkowski_center">minkowski_center() (in module gal.centers.poly_centers)</a>
 </li>
@@ -617,9 +590,25 @@
 </li>
           <li><a href="api/oracles.html#module-gal.oracles.priors">gal.oracles.priors</a>
 </li>
-          <li><a href="api/trees.html#module-gal.trees.ball_tree">gal.trees.ball_tree</a>
-</li>
           <li><a href="api/utils.html#module-gal.utils.helpers">gal.utils.helpers</a>
+</li>
+          <li><a href="api/trees.html#module-trees.axis_median">trees.axis_median</a>
+</li>
+          <li><a href="api/trees.html#module-trees.bottom_up">trees.bottom_up</a>
+</li>
+          <li><a href="api/trees.html#module-trees.common">trees.common</a>
+</li>
+          <li><a href="api/trees.html#module-trees.middle_out">trees.middle_out</a>
+</li>
+          <li><a href="api/trees.html#module-trees.pca_ballstar">trees.pca_ballstar</a>
+</li>
+          <li><a href="api/trees.html#module-trees.two_pivot">trees.two_pivot</a>
+</li>
+          <li><a href="api/utils.html#module-utils.geometry">utils.geometry</a>
+</li>
+          <li><a href="api/utils.html#module-utils.meb">utils.meb</a>
+</li>
+          <li><a href="api/utils.html#module-utils.partitions">utils.partitions</a>
 </li>
         </ul></li>
     </ul></td>
@@ -638,6 +627,8 @@
 </li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
+        <li><a href="api/trees.html#trees.common.Node">Node (class in trees.common)</a>
+</li>
         <li><a href="api/oracles.html#gal.oracles.oracles.NoisyOracle">NoisyOracle (class in gal.oracles.oracles)</a>
 </li>
     </ul></td>
@@ -662,8 +653,6 @@
   <h2>P</h2>
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api/trees.html#gal.trees.ball_tree.pairwise_distances">pairwise_distances() (in module gal.trees.ball_tree)</a>
-</li>
         <li><a href="api/metrics.html#gal.metrics.measures.phi">phi() (in module gal.metrics.measures)</a>
 
         <ul>
@@ -684,18 +673,16 @@
   <h2>R</h2>
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api/trees.html#gal.trees.ball_tree.BallNode.radius">radius (gal.trees.ball_tree.BallNode attribute)</a>
-</li>
         <li><a href="api/oracles.html#gal.oracles.oracles.ObjectiveMeasureOracle.random">random() (gal.oracles.oracles.ObjectiveMeasureOracle static method)</a>
 </li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/metrics.html#gal.metrics.measures.revsupport">revsupport() (in module gal.metrics.measures)</a>
 
         <ul>
           <li><a href="api/metrics.html#gal.metrics.rule_metrics.revsupport">(in module gal.metrics.rule_metrics)</a>
 </li>
         </ul></li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/learning.html#gal.learning.miner.MNRBatchMiner.run_all">run_all() (gal.learning.miner.MNRBatchMiner method)</a>
 </li>
     </ul></td>
@@ -740,8 +727,6 @@
         </ul></li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api/trees.html#gal.trees.ball_tree.search_pair">search_pair() (in module gal.trees.ball_tree)</a>
-</li>
         <li><a href="api/oracles.html#gal.oracles.oracles.MDLOracle.set_dataset">set_dataset() (gal.oracles.oracles.MDLOracle method)</a>
 
         <ul>
@@ -760,6 +745,89 @@
         </ul></li>
         <li><a href="api/oracles.html#gal.oracles.oracles.SurpriseOracle">SurpriseOracle (class in gal.oracles.oracles)</a>
 </li>
+    </ul></td>
+  </tr></table>
+</section>
+
+<section id="T" class="genindex-section">
+  <h2>T</h2>
+  <table style="width: 100%" class="indextable genindextable"><tr>
+    <td style="width: 33%; vertical-align: top;"><ul>
+        <li>
+    trees.axis_median
+
+        <ul>
+          <li><a href="api/trees.html#module-trees.axis_median">module</a>
+</li>
+        </ul></li>
+        <li>
+    trees.bottom_up
+
+        <ul>
+          <li><a href="api/trees.html#module-trees.bottom_up">module</a>
+</li>
+        </ul></li>
+        <li>
+    trees.common
+
+        <ul>
+          <li><a href="api/trees.html#module-trees.common">module</a>
+</li>
+        </ul></li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
+        <li>
+    trees.middle_out
+
+        <ul>
+          <li><a href="api/trees.html#module-trees.middle_out">module</a>
+</li>
+        </ul></li>
+        <li>
+    trees.pca_ballstar
+
+        <ul>
+          <li><a href="api/trees.html#module-trees.pca_ballstar">module</a>
+</li>
+        </ul></li>
+        <li>
+    trees.two_pivot
+
+        <ul>
+          <li><a href="api/trees.html#module-trees.two_pivot">module</a>
+</li>
+        </ul></li>
+    </ul></td>
+  </tr></table>
+</section>
+
+<section id="U" class="genindex-section">
+  <h2>U</h2>
+  <table style="width: 100%" class="indextable genindextable"><tr>
+    <td style="width: 33%; vertical-align: top;"><ul>
+        <li>
+    utils.geometry
+
+        <ul>
+          <li><a href="api/utils.html#module-utils.geometry">module</a>
+</li>
+        </ul></li>
+        <li>
+    utils.meb
+
+        <ul>
+          <li><a href="api/utils.html#module-utils.meb">module</a>
+</li>
+        </ul></li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
+        <li>
+    utils.partitions
+
+        <ul>
+          <li><a href="api/utils.html#module-utils.partitions">module</a>
+</li>
+        </ul></li>
     </ul></td>
   </tr></table>
 </section>
@@ -824,9 +892,9 @@
       
     </aside>
   </div>
-</div><script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=2389946f"></script>
-    <script src="_static/doctools.js?v=888ff710"></script>
-    <script src="_static/sphinx_highlight.js?v=4825356b"></script>
-    <script src="_static/scripts/furo.js?v=5fa4622c"></script>
+</div><script src="_static/documentation_options.js?v=01f34227"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/scripts/furo.js?v=46bd48cc"></script>
     </body>
 </html>

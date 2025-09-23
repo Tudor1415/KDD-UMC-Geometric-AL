@@ -8,9 +8,9 @@ from typing import Dict, List
 import numpy as np
 
 from .common import BallTree, Node
-from ..utils.geometry import enclose_many_balls
-from ..utils.meb import meb
-from ..utils.partitions import direction_quantile_splits
+from utils.geometry import enclose_many_balls
+from utils.meb import meb
+from utils.partitions import direction_quantile_splits
 
 SMALL_NORM = 1e-15
 

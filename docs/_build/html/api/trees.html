@@ -1,35 +1,35 @@
 <!doctype html>
-<html class="no-js" lang="en" data-content_root="">
+<html class="no-js" lang="en" data-content_root="../">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="next" title="Centre solvers" href="centers.html" /><link rel="prev" title="Core utilities" href="core.html" />
 
-    <!-- Generated with Sphinx 7.1.2 and Furo 2024.08.06 -->
-        <title>Tree construction and search - Geometry-Aware Learning 0.1.0 documentation</title>
-      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
-    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=354aac6f" />
-    <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?v=302659d7" />
+    <!-- Generated with Sphinx 8.2.3 and Furo 2025.07.19 -->
+        <title>Ball-tree APIs - Geometry-Aware Learning 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=25af2a20" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?v=8dab3a3b" />
     
     
 
 
 <style>
   body {
-    --color-code-background: #f8f8f8;
-  --color-code-foreground: black;
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
   
   }
   @media not print {
     body[data-theme="dark"] {
-      --color-code-background: #202020;
-  --color-code-foreground: #d0d0d0;
+      --color-code-background: #2b2b2b;
+  --color-code-foreground: #f8f8f2;
   
     }
     @media (prefers-color-scheme: dark) {
       body:not([data-theme="light"]) {
-        --color-code-background: #202020;
-  --color-code-foreground: #d0d0d0;
+        --color-code-background: #2b2b2b;
+  --color-code-foreground: #f8f8f2;
   
       }
     }
@@ -193,7 +193,6 @@
       
       <div class="sidebar-sticky"><a class="sidebar-brand" href="../index.html">
   
-  
   <span class="sidebar-brand-text">Geometry-Aware Learning 0.1.0 documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="../search.html" role="search">
@@ -205,12 +204,13 @@
   <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../getting_started.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ball_tree_builders.html">Ball-tree builders</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
 <ul class="current">
 <li class="toctree-l1 current has-children"><a class="reference internal" href="index.html">API reference</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle navigation of API reference</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="core.html">Core utilities</a></li>
-<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Tree construction and search</a></li>
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Ball-tree APIs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="centers.html">Centre solvers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="learning.html">Learning and mining</a></li>
 <li class="toctree-l2"><a class="reference internal" href="metrics.html">Metrics and measures</a></li>
@@ -262,116 +262,28 @@
           </label>
         </div>
         <article role="main" id="furo-main-content">
-          <section id="tree-construction-and-search">
-<h1>Tree construction and search<a class="headerlink" href="#tree-construction-and-search" title="Permalink to this heading">¶</a></h1>
-<p>The <code class="xref py py-mod docutils literal notranslate"><span class="pre">gal.trees</span></code> package provides disjoint ball-tree builders together with
-branch-and-bound query search.</p>
-<span class="target" id="module-gal.trees.ball_tree"></span><dl class="py function">
-<dt class="sig sig-object py" id="gal.trees.ball_tree.minimum_enclosing_ball">
-<span class="sig-prename descclassname"><span class="pre">gal.trees.ball_tree.</span></span><span class="sig-name descname"><span class="pre">minimum_enclosing_ball</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">points</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-12</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_passes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">3</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gal/trees/ball_tree.html#minimum_enclosing_ball"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gal.trees.ball_tree.minimum_enclosing_ball" title="Permalink to this definition">¶</a></dt>
-<dd><p>Iterative minimum enclosing ball (Ritter 1990) with tightening passes.
-Returns (center, radius).
-No recursion; robust on large n and d.</p>
+          <section id="ball-tree-apis">
+<h1>Ball-tree APIs<a class="headerlink" href="#ball-tree-apis" title="Link to this heading">¶</a></h1>
+<p>The refactored tree package exposes a shared data model together with five
+construction strategies.  The modules listed below are imported from
+<code class="docutils literal notranslate"><span class="pre">trees</span></code> (made available by inserting <code class="docutils literal notranslate"><span class="pre">src</span></code> on the <code class="docutils literal notranslate"><span class="pre">PYTHONPATH</span></code>).</p>
+<p id="module-trees.common">Shared data structures for ball-tree builders.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="trees.common.Node">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">trees.common.</span></span><span class="sig-name descname"><span class="pre">Node</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">center</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">radius</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">children</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#trees.common.Node" title="trees.common.Node"><span class="pre">Node</span></a><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">indices</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">is_leaf</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/trees/common.html#Node"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#trees.common.Node" title="Link to this definition">¶</a></dt>
+<dd><p>Generic n-ary ball-tree node.</p>
 </dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="gal.trees.ball_tree.pairwise_distances">
-<span class="sig-prename descclassname"><span class="pre">gal.trees.ball_tree.</span></span><span class="sig-name descname"><span class="pre">pairwise_distances</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gal/trees/ball_tree.html#pairwise_distances"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gal.trees.ball_tree.pairwise_distances" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
 
 <dl class="py class">
-<dt class="sig sig-object py" id="gal.trees.ball_tree.BallNode">
-<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">gal.trees.ball_tree.</span></span><span class="sig-name descname"><span class="pre">BallNode</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">center</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">radius</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">indices</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">level</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">center_idx</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gal/trees/ball_tree.html#BallNode"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gal.trees.ball_tree.BallNode" title="Permalink to this definition">¶</a></dt>
-<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
-<dl class="py attribute">
-<dt class="sig sig-object py" id="gal.trees.ball_tree.BallNode.center">
-<span class="sig-name descname"><span class="pre">center</span></span><a class="headerlink" href="#gal.trees.ball_tree.BallNode.center" title="Permalink to this definition">¶</a></dt>
+<dt class="sig sig-object py" id="trees.common.BallTree">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">trees.common.</span></span><span class="sig-name descname"><span class="pre">BallTree</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">root</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="s"><span class="pre">'Node'</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_samples</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="s"><span class="pre">'int'</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_features</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="s"><span class="pre">'int'</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">leaf_size</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="s"><span class="pre">'int'</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">method</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="s"><span class="pre">'str'</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">config</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="s"><span class="pre">'dict'</span></span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/trees/common.html#BallTree"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#trees.common.BallTree" title="Link to this definition">¶</a></dt>
 <dd></dd></dl>
 
-<dl class="py attribute">
-<dt class="sig sig-object py" id="gal.trees.ball_tree.BallNode.radius">
-<span class="sig-name descname"><span class="pre">radius</span></span><a class="headerlink" href="#gal.trees.ball_tree.BallNode.radius" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="gal.trees.ball_tree.BallNode.indices">
-<span class="sig-name descname"><span class="pre">indices</span></span><a class="headerlink" href="#gal.trees.ball_tree.BallNode.indices" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="gal.trees.ball_tree.BallNode.children">
-<span class="sig-name descname"><span class="pre">children</span></span><a class="headerlink" href="#gal.trees.ball_tree.BallNode.children" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="gal.trees.ball_tree.BallNode.level">
-<span class="sig-name descname"><span class="pre">level</span></span><a class="headerlink" href="#gal.trees.ball_tree.BallNode.level" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py attribute">
-<dt class="sig sig-object py" id="gal.trees.ball_tree.BallNode.center_idx">
-<span class="sig-name descname"><span class="pre">center_idx</span></span><a class="headerlink" href="#gal.trees.ball_tree.BallNode.center_idx" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="gal.trees.ball_tree.build_children_variable_radii">
-<span class="sig-prename descclassname"><span class="pre">gal.trees.ball_tree.</span></span><span class="sig-name descname"><span class="pre">build_children_variable_radii</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parent</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#gal.trees.ball_tree.BallNode" title="gal.trees.ball_tree.BallNode"><span class="pre">BallNode</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">k</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">P</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">50</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">radius_divisor</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1e-12</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gal/trees/ball_tree.html#build_children_variable_radii"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gal.trees.ball_tree.build_children_variable_radii" title="Permalink to this definition">¶</a></dt>
-<dd><p>Greedy: up to k disjoint children inside parent.
-Each child radius &lt;= R/radius_divisor; each child must cover at least P points.
-Centers restricted to data points within parent.</p>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="gal.trees.ball_tree.build_ball_tree">
-<span class="sig-prename descclassname"><span class="pre">gal.trees.ball_tree.</span></span><span class="sig-name descname"><span class="pre">build_ball_tree</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">5</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">P</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">radius_divisor</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">2.0</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_levels</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gal/trees/ball_tree.html#build_ball_tree"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gal.trees.ball_tree.build_ball_tree" title="Permalink to this definition">¶</a></dt>
-<dd><p>Build ball tree with optional radius divisor (child radius &lt;= R/radius_divisor).</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>X</strong> (<em>ndarray</em>) – Input feature matrix.</p></li>
-<li><p><strong>k</strong> (<em>int</em>) – Maximum number of children per internal node.</p></li>
-<li><p><strong>P</strong> (<em>int</em>) – Maximum leaf size.</p></li>
-<li><p><strong>radius_divisor</strong> (<em>float</em>) – Upper bound factor for child radii relative to parent radius.</p></li>
-<li><p><strong>return_levels</strong> (<em>bool</em><em>, </em><em>keyword-only</em>) – When True, also return a dictionary mapping tree level to the nodes at
-that depth (useful for visualisation or diagnostics).</p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="gal.trees.ball_tree.collect_kept_indices">
-<span class="sig-prename descclassname"><span class="pre">gal.trees.ball_tree.</span></span><span class="sig-name descname"><span class="pre">collect_kept_indices</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">root</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#gal.trees.ball_tree.BallNode" title="gal.trees.ball_tree.BallNode"><span class="pre">BallNode</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">P</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">10</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gal/trees/ball_tree.html#collect_kept_indices"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gal.trees.ball_tree.collect_kept_indices" title="Permalink to this definition">¶</a></dt>
-<dd></dd></dl>
-
-<dl class="py function">
-<dt class="sig sig-object py" id="gal.trees.ball_tree.search_pair">
-<span class="sig-prename descclassname"><span class="pre">gal.trees.ball_tree.</span></span><span class="sig-name descname"><span class="pre">search_pair</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">root</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">X</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wc</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tau</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">P</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">50</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Q</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">split_policy</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'one'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dominance_prune</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_stats</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">eps</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">1e-12</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">audit</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Any</span><span class="p"><span class="pre">]</span></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gal/trees/ball_tree.html#search_pair"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gal.trees.ball_tree.search_pair" title="Permalink to this definition">¶</a></dt>
-<dd><p>Branch-and-Bound query search on a k-ary, disjoint ball-tree.</p>
-<dl class="simple">
-<dt>Returns:</dt><dd><ul class="simple">
-<li><p>If return_stats=False (default):           (i_idx, j_idx, best_distance)</p></li>
-<li><p>If return_stats=True:                      (i_idx, j_idx, best_distance, stats)</p></li>
-</ul>
-</dd>
-<dt>‘stats’ fields (counts are over kept points only = node centers plus points covered by leaves):</dt><dd><ul class="simple">
-<li><p>total_point_pairs</p></li>
-<li><p>pruned_lb_point_pairs</p></li>
-<li><p>pruned_dom_point_pairs</p></li>
-<li><p>pruned_point_pairs          = pruned_lb + pruned_dom</p></li>
-<li><p>explored_point_pairs        = pairs evaluated exactly (leaf–leaf + leaf self + credited center-only)</p></li>
-<li><p>unexplored_point_pairs      = 0 (by construction)</p></li>
-<li><p>objective_evals             = #objective evaluations (centers + leaves + center-only pass)</p></li>
-<li><p>best_origin                 = ‘center’, ‘leaf’, ‘bound’, or None</p></li>
-<li><p>best_distance               = best objective value found (None if no candidate)</p></li>
-<li><p>best_pair                   = pair yielding best_distance (or None)</p></li>
-</ul>
-</dd>
-</dl>
-</dd></dl>
-
+<p id="module-trees.axis_median">Axis-aligned (kd-style) median ball-tree builder.</p>
+<p id="module-trees.two_pivot">Two-pivot (farthest-point) ball-tree builder.</p>
+<p id="module-trees.pca_ballstar">PCA / Ball* ball-tree builder.</p>
+<p id="module-trees.bottom_up">Bottom-up (agglomerative) ball-tree builder.</p>
+<p id="module-trees.middle_out">Middle-out (anchors hierarchy) ball-tree builder.</p>
 </section>
 
         </article>
@@ -429,22 +341,9 @@ that depth (useful for visualisation or diagnostics).</p></li>
         <div class="toc-tree-container">
           <div class="toc-tree">
             <ul>
-<li><a class="reference internal" href="#">Tree construction and search</a><ul>
-<li><a class="reference internal" href="#gal.trees.ball_tree.minimum_enclosing_ball"><code class="docutils literal notranslate"><span class="pre">minimum_enclosing_ball()</span></code></a></li>
-<li><a class="reference internal" href="#gal.trees.ball_tree.pairwise_distances"><code class="docutils literal notranslate"><span class="pre">pairwise_distances()</span></code></a></li>
-<li><a class="reference internal" href="#gal.trees.ball_tree.BallNode"><code class="docutils literal notranslate"><span class="pre">BallNode</span></code></a><ul>
-<li><a class="reference internal" href="#gal.trees.ball_tree.BallNode.center"><code class="docutils literal notranslate"><span class="pre">BallNode.center</span></code></a></li>
-<li><a class="reference internal" href="#gal.trees.ball_tree.BallNode.radius"><code class="docutils literal notranslate"><span class="pre">BallNode.radius</span></code></a></li>
-<li><a class="reference internal" href="#gal.trees.ball_tree.BallNode.indices"><code class="docutils literal notranslate"><span class="pre">BallNode.indices</span></code></a></li>
-<li><a class="reference internal" href="#gal.trees.ball_tree.BallNode.children"><code class="docutils literal notranslate"><span class="pre">BallNode.children</span></code></a></li>
-<li><a class="reference internal" href="#gal.trees.ball_tree.BallNode.level"><code class="docutils literal notranslate"><span class="pre">BallNode.level</span></code></a></li>
-<li><a class="reference internal" href="#gal.trees.ball_tree.BallNode.center_idx"><code class="docutils literal notranslate"><span class="pre">BallNode.center_idx</span></code></a></li>
-</ul>
-</li>
-<li><a class="reference internal" href="#gal.trees.ball_tree.build_children_variable_radii"><code class="docutils literal notranslate"><span class="pre">build_children_variable_radii()</span></code></a></li>
-<li><a class="reference internal" href="#gal.trees.ball_tree.build_ball_tree"><code class="docutils literal notranslate"><span class="pre">build_ball_tree()</span></code></a></li>
-<li><a class="reference internal" href="#gal.trees.ball_tree.collect_kept_indices"><code class="docutils literal notranslate"><span class="pre">collect_kept_indices()</span></code></a></li>
-<li><a class="reference internal" href="#gal.trees.ball_tree.search_pair"><code class="docutils literal notranslate"><span class="pre">search_pair()</span></code></a></li>
+<li><a class="reference internal" href="#">Ball-tree APIs</a><ul>
+<li><a class="reference internal" href="#trees.common.Node"><code class="docutils literal notranslate"><span class="pre">Node</span></code></a></li>
+<li><a class="reference internal" href="#trees.common.BallTree"><code class="docutils literal notranslate"><span class="pre">BallTree</span></code></a></li>
 </ul>
 </li>
 </ul>
@@ -456,9 +355,9 @@ that depth (useful for visualisation or diagnostics).</p></li>
       
     </aside>
   </div>
-</div><script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js?v=2389946f"></script>
-    <script src="../_static/doctools.js?v=888ff710"></script>
-    <script src="../_static/sphinx_highlight.js?v=4825356b"></script>
-    <script src="../_static/scripts/furo.js?v=5fa4622c"></script>
+</div><script src="../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/scripts/furo.js?v=46bd48cc"></script>
     </body>
 </html>

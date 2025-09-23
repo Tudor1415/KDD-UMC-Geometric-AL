@@ -8,9 +8,9 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 
 from .common import BallTree, Node
-from ..utils.geometry import enclose_many_balls
-from ..utils.meb import meb
-from ..utils.partitions import axis_median_split
+from utils.geometry import enclose_many_balls
+from utils.meb import meb
+from utils.partitions import axis_median_split
 
 
 def build_tree(X: np.ndarray, config: Dict | None = None) -> BallTree:

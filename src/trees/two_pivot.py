@@ -8,9 +8,9 @@ from typing import Dict, List
 import numpy as np
 
 from .common import BallTree, Node
-from ..utils.geometry import centroid, enclose_many_balls
-from ..utils.meb import meb
-from ..utils.partitions import axis_median_split
+from utils.geometry import centroid, enclose_many_balls
+from utils.meb import meb
+from utils.partitions import axis_median_split
 
 EPSILON = 1e-12
 

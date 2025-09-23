@@ -21,6 +21,7 @@ Contents
    :caption: User Guide
 
    getting_started
+   ball_tree_builders
 
 .. toctree::
    :maxdepth: 2
@@ -33,3 +34,4 @@ Contents
    :caption: Additional Resources
 
    project_layout
+

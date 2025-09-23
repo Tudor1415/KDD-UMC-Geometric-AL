@@ -1,34 +1,34 @@
 <!doctype html>
-<html class="no-js" lang="en" data-content_root="">
+<html class="no-js" lang="en" data-content_root="../../../">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../genindex.html" /><link rel="search" title="Search" href="../../../search.html" />
 
-    <!-- Generated with Sphinx 7.1.2 and Furo 2024.08.06 -->
+    <!-- Generated with Sphinx 8.2.3 and Furo 2025.07.19 -->
         <title>gal.oracles.priors - Geometry-Aware Learning 0.1.0 documentation</title>
-      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=354aac6f" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo-extensions.css?v=302659d7" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=25af2a20" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo-extensions.css?v=8dab3a3b" />
     
     
 
 
 <style>
   body {
-    --color-code-background: #f8f8f8;
-  --color-code-foreground: black;
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
   
   }
   @media not print {
     body[data-theme="dark"] {
-      --color-code-background: #202020;
-  --color-code-foreground: #d0d0d0;
+      --color-code-background: #2b2b2b;
+  --color-code-foreground: #f8f8f2;
   
     }
     @media (prefers-color-scheme: dark) {
       body:not([data-theme="light"]) {
-        --color-code-background: #202020;
-  --color-code-foreground: #d0d0d0;
+        --color-code-background: #2b2b2b;
+  --color-code-foreground: #f8f8f2;
   
       }
     }
@@ -192,7 +192,6 @@
       
       <div class="sidebar-sticky"><a class="sidebar-brand" href="../../../index.html">
   
-  
   <span class="sidebar-brand-text">Geometry-Aware Learning 0.1.0 documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="../../../search.html" role="search">
@@ -201,15 +200,11 @@
   <input type="hidden" name="area" value="default">
 </form>
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
-  <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../../../getting_started.html">Getting started</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+  <p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
 <ul>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../api/index.html">API reference</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle navigation of API reference</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/core.html">Core utilities</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../api/trees.html">Tree construction and search</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/trees.html">Ball-tree APIs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/centers.html">Centre solvers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/learning.html">Learning and mining</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/metrics.html">Metrics and measures</a></li>
@@ -296,19 +291,31 @@
 <span class="c1"># --------------------------------------------------------------------------- #</span>
 <span class="c1">#                       Abstract base for all priors                          #</span>
 <span class="c1"># --------------------------------------------------------------------------- #</span>
-<div class="viewcode-block" id="Prior"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.Prior">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">Prior</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
+<div class="viewcode-block" id="Prior">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.Prior">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">Prior</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Background model API.&quot;&quot;&quot;</span>
 
     <span class="c1"># ---- mandatory ---------------------------------------------------------</span>
-<div class="viewcode-block" id="Prior.fit"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.Prior.fit">[docs]</a>    <span class="nd">@abstractmethod</span>
+<div class="viewcode-block" id="Prior.fit">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.Prior.fit">[docs]</a>
+    <span class="nd">@abstractmethod</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">fit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rules</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="n">Rule</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span> <span class="o">...</span></div>
 
-<div class="viewcode-block" id="Prior.expected"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.Prior.expected">[docs]</a>    <span class="nd">@abstractmethod</span>
+
+<div class="viewcode-block" id="Prior.expected">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.Prior.expected">[docs]</a>
+    <span class="nd">@abstractmethod</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">expected</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rule</span><span class="p">:</span> <span class="n">Rule</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span> <span class="o">...</span></div>
 
+
     <span class="c1"># ---- optional vectorised path -----------------------------------------</span>
-<div class="viewcode-block" id="Prior.expected_batch"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.Prior.expected_batch">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">expected_batch</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># noqa: ANN001</span>
-        <span class="k">return</span> <span class="kc">None</span></div></div>
+<div class="viewcode-block" id="Prior.expected_batch">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.Prior.expected_batch">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">expected_batch</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># noqa: ANN001</span>
+        <span class="k">return</span> <span class="kc">None</span></div>
+</div>
+
 
 
 <span class="c1"># --------------------------------------------------------------------------- #</span>
@@ -405,7 +412,9 @@
 <span class="c1"># --------------------------------------------------------------------------- #</span>
 <span class="c1">#                   A. Independent log-linear  (Xin et al.)                   #</span>
 <span class="c1"># --------------------------------------------------------------------------- #</span>
-<div class="viewcode-block" id="IndependentLogLinear"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.IndependentLogLinear">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">IndependentLogLinear</span><span class="p">(</span><span class="n">Prior</span><span class="p">):</span>
+<div class="viewcode-block" id="IndependentLogLinear">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.IndependentLogLinear">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">IndependentLogLinear</span><span class="p">(</span><span class="n">Prior</span><span class="p">):</span>
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">all_items</span><span class="p">:</span> <span class="n">ItemSet</span><span class="p">):</span>
         <span class="c1"># store the *exact* universe of items, keep natural order</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">all_items</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="nb">sorted</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">all_items</span><span class="p">)),</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">int</span><span class="p">)</span>
@@ -417,7 +426,9 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">device</span> <span class="o">=</span> <span class="n">_pick_device</span><span class="p">(</span><span class="s2">&quot;auto&quot;</span><span class="p">)</span>
 
     <span class="c1"># ---------------------------------------------------------------- fit</span>
-<div class="viewcode-block" id="IndependentLogLinear.fit"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.IndependentLogLinear.fit">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">fit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">transactions</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<div class="viewcode-block" id="IndependentLogLinear.fit">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.IndependentLogLinear.fit">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">fit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">transactions</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="n">n_tx</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">transactions</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">log_n</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">n_tx</span> <span class="o">+</span> <span class="mf">1e-9</span><span class="p">)</span>
 
@@ -430,15 +441,21 @@
 
         <span class="bp">self</span><span class="o">.</span><span class="n">log_p</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">p</span><span class="p">)</span></div>
 
+
     <span class="c1"># ------------------------------------------------------------- scalar rule</span>
-<div class="viewcode-block" id="IndependentLogLinear.expected"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.IndependentLogLinear.expected">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">expected</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rule</span><span class="p">:</span> <span class="n">Rule</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<div class="viewcode-block" id="IndependentLogLinear.expected">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.IndependentLogLinear.expected">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">expected</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rule</span><span class="p">:</span> <span class="n">Rule</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_p</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_n</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Prior not fitted&quot;</span><span class="p">)</span>
         <span class="n">v</span> <span class="o">=</span> <span class="n">_rule_to_indicator</span><span class="p">(</span><span class="n">rule</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">item_to_col</span><span class="p">)</span>
         <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">math</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">log_n</span> <span class="o">+</span> <span class="n">v</span> <span class="o">@</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_p</span><span class="p">))</span></div>
 
+
     <span class="c1"># ------------------------------------------------------------- batch</span>
-<div class="viewcode-block" id="IndependentLogLinear.expected_batch"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.IndependentLogLinear.expected_batch">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">expected_batch</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<div class="viewcode-block" id="IndependentLogLinear.expected_batch">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.IndependentLogLinear.expected_batch">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">expected_batch</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_p</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_n</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Prior not fitted&quot;</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">dataset</span><span class="o">.</span><span class="n">item_rule_map</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">dataset</span><span class="o">.</span><span class="n">items</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -478,13 +495,17 @@
 
         <span class="c1"># CPU fallback</span>
         <span class="n">log_fe</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_n</span> <span class="o">+</span> <span class="n">X</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span> <span class="o">@</span> <span class="n">log_p_subset</span>
-        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">log_fe</span><span class="p">)</span></div></div>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="n">log_fe</span><span class="p">)</span></div>
+</div>
+
 
 
 <span class="c1"># --------------------------------------------------------------------------- #</span>
 <span class="c1">#                     D. Bayesian network prior (IIM flavour)                 #</span>
 <span class="c1"># --------------------------------------------------------------------------- #</span>
-<div class="viewcode-block" id="BayesianNetworkPrior"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.BayesianNetworkPrior">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">BayesianNetworkPrior</span><span class="p">:</span>
+<div class="viewcode-block" id="BayesianNetworkPrior">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.BayesianNetworkPrior">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">BayesianNetworkPrior</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    *Sparse* Bayesian network learned with pgmpy, but evaluated on the GPU</span>
 <span class="sd">    with PyTorch.  Assumes binary (0/1) item variables.</span>
@@ -509,7 +530,9 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">cpd</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># CPTs (GPU tensors)</span>
 
     <span class="c1"># ------------------------------------------------------------------ fit</span>
-<div class="viewcode-block" id="BayesianNetworkPrior.fit"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.BayesianNetworkPrior.fit">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">fit</span><span class="p">(</span>
+<div class="viewcode-block" id="BayesianNetworkPrior.fit">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.BayesianNetworkPrior.fit">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">fit</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
         <span class="n">transactions</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span>
         <span class="o">*</span><span class="p">,</span>
@@ -580,8 +603,11 @@
                 <span class="p">)</span>
             <span class="p">)</span></div>
 
+
     <span class="c1"># ------------------------------------------------------------------ scalar</span>
-<div class="viewcode-block" id="BayesianNetworkPrior.expected"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.BayesianNetworkPrior.expected">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">expected</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rule</span><span class="p">:</span> <span class="n">Rule</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<div class="viewcode-block" id="BayesianNetworkPrior.expected">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.BayesianNetworkPrior.expected">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">expected</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rule</span><span class="p">:</span> <span class="n">Rule</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cpd</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Prior not fitted&quot;</span><span class="p">)</span>
 
@@ -595,8 +621,11 @@
 
         <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_log_prob</span><span class="p">(</span><span class="n">states</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span><span class="o">.</span><span class="n">exp</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">())</span></div>
 
+
     <span class="c1"># ------------------------------------------------------------------ batch</span>
-<div class="viewcode-block" id="BayesianNetworkPrior.expected_batch"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.BayesianNetworkPrior.expected_batch">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">expected_batch</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>  <span class="c1"># noqa: ANN001</span>
+<div class="viewcode-block" id="BayesianNetworkPrior.expected_batch">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.BayesianNetworkPrior.expected_batch">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">expected_batch</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>  <span class="c1"># noqa: ANN001</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cpd</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Prior not fitted&quot;</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">dataset</span><span class="o">.</span><span class="n">item_rule_map</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">dataset</span><span class="o">.</span><span class="n">items</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -626,6 +655,7 @@
             <span class="n">out</span><span class="p">[</span><span class="n">offset</span> <span class="p">:</span> <span class="n">offset</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">slab</span><span class="p">)]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_log_prob</span><span class="p">(</span><span class="n">rows</span><span class="p">)</span><span class="o">.</span><span class="n">exp</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
 
         <span class="k">return</span> <span class="n">out</span></div>
+
 
     <span class="c1"># ------------------------------------------------------------------ internals</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">_log_prob</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">R</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
@@ -657,10 +687,13 @@
         <span class="k">return</span> <span class="n">logp</span></div>
 
 
+
 <span class="c1"># --------------------------------------------------------------------------- #</span>
 <span class="c1">#                   C. Chow-Liu (tree-structured) prior                       #</span>
 <span class="c1"># --------------------------------------------------------------------------- #</span>
-<div class="viewcode-block" id="ChowLiuPrior"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.ChowLiuPrior">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">ChowLiuPrior</span><span class="p">(</span><span class="n">Prior</span><span class="p">):</span>
+<div class="viewcode-block" id="ChowLiuPrior">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.ChowLiuPrior">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ChowLiuPrior</span><span class="p">(</span><span class="n">Prior</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Fast approximation of a Bayesian network: optimal tree structure</span>
 <span class="sd">    learned with the Chow-Liu algorithm, CPDs fitted with Bayesian</span>
@@ -680,7 +713,9 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">cpd</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
     <span class="c1"># ------------------------------------------------------------------ fit</span>
-<div class="viewcode-block" id="ChowLiuPrior.fit"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.ChowLiuPrior.fit">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">fit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">transactions</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<div class="viewcode-block" id="ChowLiuPrior.fit">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.ChowLiuPrior.fit">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">fit</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">transactions</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Learn a Chow-Liu tree from a binary transaction table *fast*.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -718,8 +753,11 @@
                 <span class="p">)</span>
             <span class="p">)</span></div>
 
+
     <span class="c1"># ------------------------------------------------------------------ scalar</span>
-<div class="viewcode-block" id="ChowLiuPrior.expected"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.ChowLiuPrior.expected">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">expected</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rule</span><span class="p">:</span> <span class="n">Rule</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<div class="viewcode-block" id="ChowLiuPrior.expected">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.ChowLiuPrior.expected">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">expected</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rule</span><span class="p">:</span> <span class="n">Rule</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cpd</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Prior not fitted&quot;</span><span class="p">)</span>
 
@@ -733,8 +771,11 @@
 
         <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_log_prob</span><span class="p">(</span><span class="n">states</span><span class="o">.</span><span class="n">unsqueeze</span><span class="p">(</span><span class="mi">0</span><span class="p">))</span><span class="o">.</span><span class="n">exp</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">())</span></div>
 
+
     <span class="c1"># ------------------------------------------------------------------ batch</span>
-<div class="viewcode-block" id="ChowLiuPrior.expected_batch"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.ChowLiuPrior.expected_batch">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">expected_batch</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>  <span class="c1"># noqa: ANN001</span>
+<div class="viewcode-block" id="ChowLiuPrior.expected_batch">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.priors.ChowLiuPrior.expected_batch">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">expected_batch</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>  <span class="c1"># noqa: ANN001</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">cpd</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Prior not fitted&quot;</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">dataset</span><span class="o">.</span><span class="n">item_rule_map</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">dataset</span><span class="o">.</span><span class="n">items</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -773,6 +814,7 @@
         <span class="n">out</span><span class="p">[:]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_log_prob</span><span class="p">(</span><span class="n">batch</span><span class="p">)</span><span class="o">.</span><span class="n">exp</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
         <span class="k">return</span> <span class="n">out</span></div>
 
+
     <span class="c1"># ---------------------------------------------------------------- internals</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">_log_prob</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">R</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
         <span class="n">B</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">R</span><span class="o">.</span><span class="n">shape</span>
@@ -790,6 +832,7 @@
 
             <span class="n">logp</span> <span class="o">+=</span> <span class="n">torch</span><span class="o">.</span><span class="n">log</span><span class="p">(</span><span class="n">probs</span> <span class="o">+</span> <span class="mf">1e-12</span><span class="p">)</span>
         <span class="k">return</span> <span class="n">logp</span></div>
+
 
 
 <span class="c1"># --------------------------------------------------------------------------- #</span>
@@ -832,9 +875,9 @@
       
     </aside>
   </div>
-</div><script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js?v=2389946f"></script>
-    <script src="../../../_static/doctools.js?v=888ff710"></script>
-    <script src="../../../_static/sphinx_highlight.js?v=4825356b"></script>
-    <script src="../../../_static/scripts/furo.js?v=5fa4622c"></script>
+</div><script src="../../../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/scripts/furo.js?v=46bd48cc"></script>
     </body>
 </html>

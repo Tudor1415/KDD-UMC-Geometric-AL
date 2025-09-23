@@ -1,35 +1,35 @@
 <!doctype html>
-<html class="no-js" lang="en" data-content_root="">
+<html class="no-js" lang="en" data-content_root="../">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
 <link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="next" title="Project layout" href="../project_layout.html" /><link rel="prev" title="Oracles and priors" href="oracles.html" />
 
-    <!-- Generated with Sphinx 7.1.2 and Furo 2024.08.06 -->
+    <!-- Generated with Sphinx 8.2.3 and Furo 2025.07.19 -->
         <title>Utility helpers - Geometry-Aware Learning 0.1.0 documentation</title>
-      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
-    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=354aac6f" />
-    <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?v=302659d7" />
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=25af2a20" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?v=8dab3a3b" />
     
     
 
 
 <style>
   body {
-    --color-code-background: #f8f8f8;
-  --color-code-foreground: black;
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
   
   }
   @media not print {
     body[data-theme="dark"] {
-      --color-code-background: #202020;
-  --color-code-foreground: #d0d0d0;
+      --color-code-background: #2b2b2b;
+  --color-code-foreground: #f8f8f2;
   
     }
     @media (prefers-color-scheme: dark) {
       body:not([data-theme="light"]) {
-        --color-code-background: #202020;
-  --color-code-foreground: #d0d0d0;
+        --color-code-background: #2b2b2b;
+  --color-code-foreground: #f8f8f2;
   
       }
     }
@@ -193,7 +193,6 @@
       
       <div class="sidebar-sticky"><a class="sidebar-brand" href="../index.html">
   
-  
   <span class="sidebar-brand-text">Geometry-Aware Learning 0.1.0 documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="../search.html" role="search">
@@ -205,12 +204,13 @@
   <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../getting_started.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ball_tree_builders.html">Ball-tree builders</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
 <ul class="current">
 <li class="toctree-l1 current has-children"><a class="reference internal" href="index.html">API reference</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle navigation of API reference</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
 <li class="toctree-l2"><a class="reference internal" href="core.html">Core utilities</a></li>
-<li class="toctree-l2"><a class="reference internal" href="trees.html">Tree construction and search</a></li>
+<li class="toctree-l2"><a class="reference internal" href="trees.html">Ball-tree APIs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="centers.html">Centre solvers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="learning.html">Learning and mining</a></li>
 <li class="toctree-l2"><a class="reference internal" href="metrics.html">Metrics and measures</a></li>
@@ -262,11 +262,13 @@
           </label>
         </div>
         <article role="main" id="furo-main-content">
-          <section id="module-gal.utils.helpers">
-<span id="utility-helpers"></span><h1>Utility helpers<a class="headerlink" href="#module-gal.utils.helpers" title="Permalink to this heading">¶</a></h1>
-<dl class="py function">
+          <section id="utility-helpers">
+<h1>Utility helpers<a class="headerlink" href="#utility-helpers" title="Link to this heading">¶</a></h1>
+<p>This section lists both the legacy GAL utilities and the new geometry-aware
+helpers consumed by the ball-tree builders.</p>
+<dl class="py function" id="module-gal.utils.helpers">
 <dt class="sig sig-object py" id="gal.utils.helpers.augment_with_minimums">
-<span class="sig-prename descclassname"><span class="pre">gal.utils.helpers.</span></span><span class="sig-name descname"><span class="pre">augment_with_minimums</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_index_map</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/gal/utils/helpers.html#augment_with_minimums"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gal.utils.helpers.augment_with_minimums" title="Permalink to this definition">¶</a></dt>
+<span class="sig-prename descclassname"><span class="pre">gal.utils.helpers.</span></span><span class="sig-name descname"><span class="pre">augment_with_minimums</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">X</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">return_index_map</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/gal/utils/helpers.html#augment_with_minimums"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gal.utils.helpers.augment_with_minimums" title="Link to this definition">¶</a></dt>
 <dd><p>Return <cite>X_aug</cite> where each sample <em>x</em> has, in addition to the original
 <em>n</em> singleton co‑ordinates, one extra feature per subset of indices of size
 2 … <em>k</em> holding the <strong>minimum</strong> of those co‑ordinates:</p>
@@ -295,7 +297,7 @@ augmented co‑ordinates back to the corresponding subset.</p></li>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="gal.utils.helpers.k_additive_constraints">
-<span class="sig-prename descclassname"><span class="pre">gal.utils.helpers.</span></span><span class="sig-name descname"><span class="pre">k_additive_constraints</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/gal/utils/helpers.html#k_additive_constraints"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gal.utils.helpers.k_additive_constraints" title="Permalink to this definition">¶</a></dt>
+<span class="sig-prename descclassname"><span class="pre">gal.utils.helpers.</span></span><span class="sig-name descname"><span class="pre">k_additive_constraints</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/gal/utils/helpers.html#k_additive_constraints"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gal.utils.helpers.k_additive_constraints" title="Link to this definition">¶</a></dt>
 <dd><p>Return a <em>half‑space</em> representation <code class="docutils literal notranslate"><span class="pre">A</span> <span class="pre">x</span> <span class="pre">≤</span> <span class="pre">b</span></code> (with <em>no</em> equality
 constraint) describing the monotonicity inequalities of a <em>k‑additive
 capacity</em> after <strong>eliminating the last variable</strong> via the projection</p>
@@ -321,12 +323,15 @@ last one) and rows implement inequalities of form <code class="docutils literal 
 
 <dl class="py function">
 <dt class="sig sig-object py" id="gal.utils.helpers.enumerate_subsets">
-<span class="sig-prename descclassname"><span class="pre">gal.utils.helpers.</span></span><span class="sig-name descname"><span class="pre">enumerate_subsets</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/gal/utils/helpers.html#enumerate_subsets"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gal.utils.helpers.enumerate_subsets" title="Permalink to this definition">¶</a></dt>
+<span class="sig-prename descclassname"><span class="pre">gal.utils.helpers.</span></span><span class="sig-name descname"><span class="pre">enumerate_subsets</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">n</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">k</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="p"><span class="pre">...</span></span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/gal/utils/helpers.html#enumerate_subsets"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gal.utils.helpers.enumerate_subsets" title="Link to this definition">¶</a></dt>
 <dd><p>Enumerate all non‑empty subsets of <code class="docutils literal notranslate"><span class="pre">{0,…,n−1}</span></code> of size ≤ <code class="docutils literal notranslate"><span class="pre">k</span></code> in the
 canonical order: first singletons, then pairs, triples, …  The returned
 list is used to index the mass vector <em>m</em>.</p>
 </dd></dl>
 
+<p id="module-utils.meb">Minimum enclosing ball (MEB) implementations.</p>
+<p id="module-utils.geometry">Basic geometric helpers for ball-tree construction.</p>
+<p id="module-utils.partitions">Partition helpers for ball-tree builders.</p>
 </section>
 
         </article>
@@ -399,9 +404,9 @@ list is used to index the mass vector <em>m</em>.</p>
       
     </aside>
   </div>
-</div><script data-url_root="../" id="documentation_options" src="../_static/documentation_options.js?v=2389946f"></script>
-    <script src="../_static/doctools.js?v=888ff710"></script>
-    <script src="../_static/sphinx_highlight.js?v=4825356b"></script>
-    <script src="../_static/scripts/furo.js?v=5fa4622c"></script>
+</div><script src="../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/scripts/furo.js?v=46bd48cc"></script>
     </body>
 </html>

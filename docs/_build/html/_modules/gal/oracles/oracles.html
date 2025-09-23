@@ -1,34 +1,34 @@
 <!doctype html>
-<html class="no-js" lang="en" data-content_root="">
+<html class="no-js" lang="en" data-content_root="../../../">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../genindex.html" /><link rel="search" title="Search" href="../../../search.html" />
 
-    <!-- Generated with Sphinx 7.1.2 and Furo 2024.08.06 -->
+    <!-- Generated with Sphinx 8.2.3 and Furo 2025.07.19 -->
         <title>gal.oracles.oracles - Geometry-Aware Learning 0.1.0 documentation</title>
-      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=354aac6f" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo-extensions.css?v=302659d7" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=25af2a20" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo-extensions.css?v=8dab3a3b" />
     
     
 
 
 <style>
   body {
-    --color-code-background: #f8f8f8;
-  --color-code-foreground: black;
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
   
   }
   @media not print {
     body[data-theme="dark"] {
-      --color-code-background: #202020;
-  --color-code-foreground: #d0d0d0;
+      --color-code-background: #2b2b2b;
+  --color-code-foreground: #f8f8f2;
   
     }
     @media (prefers-color-scheme: dark) {
       body:not([data-theme="light"]) {
-        --color-code-background: #202020;
-  --color-code-foreground: #d0d0d0;
+        --color-code-background: #2b2b2b;
+  --color-code-foreground: #f8f8f2;
   
       }
     }
@@ -192,7 +192,6 @@
       
       <div class="sidebar-sticky"><a class="sidebar-brand" href="../../../index.html">
   
-  
   <span class="sidebar-brand-text">Geometry-Aware Learning 0.1.0 documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="../../../search.html" role="search">
@@ -201,15 +200,11 @@
   <input type="hidden" name="area" value="default">
 </form>
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
-  <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
-<ul>
-<li class="toctree-l1"><a class="reference internal" href="../../../getting_started.html">Getting started</a></li>
-</ul>
-<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+  <p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
 <ul>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../api/index.html">API reference</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle navigation of API reference</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/core.html">Core utilities</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../api/trees.html">Tree construction and search</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/trees.html">Ball-tree APIs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/centers.html">Centre solvers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/learning.html">Learning and mining</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/metrics.html">Metrics and measures</a></li>
@@ -277,7 +272,9 @@
 <span class="c1"># --------------------------------------------------------------------------- #</span>
 
 
-<div class="viewcode-block" id="Oracle"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.Oracle">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">Oracle</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
+<div class="viewcode-block" id="Oracle">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.Oracle">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">Oracle</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Scalar-scoring oracle that can work with vectors *after* a dataset is set.&quot;&quot;&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
@@ -288,10 +285,13 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_n_measures</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
 
     <span class="c1"># --------------- lifecycle -------------------------------------------</span>
-<div class="viewcode-block" id="Oracle.set_dataset"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.Oracle.set_dataset">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">:</span> <span class="n">Dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<div class="viewcode-block" id="Oracle.set_dataset">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.Oracle.set_dataset">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">:</span> <span class="n">Dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Attach a dataset so that vector-level calls become possible.&quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">ds</span> <span class="o">=</span> <span class="n">dataset</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_n_measures</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">dataset</span><span class="o">.</span><span class="n">measures</span><span class="p">)</span></div>
+
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_ensure_dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ds</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
@@ -301,28 +301,42 @@
             <span class="p">)</span>
 
     <span class="c1"># --------------- core scoring API ------------------------------------</span>
-<div class="viewcode-block" id="Oracle.score"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.Oracle.score">[docs]</a>    <span class="nd">@abstractmethod</span>
+<div class="viewcode-block" id="Oracle.score">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.Oracle.score">[docs]</a>
+    <span class="nd">@abstractmethod</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">score</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rule</span><span class="p">:</span> <span class="n">Rule</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span> <span class="o">...</span></div>
 
+
     <span class="c1"># --------------- convenience wrappers --------------------------------</span>
-<div class="viewcode-block" id="Oracle.compare"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.Oracle.compare">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">compare</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a_rule</span><span class="p">:</span> <span class="n">Rule</span><span class="p">,</span> <span class="n">b_rule</span><span class="p">:</span> <span class="n">Rule</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<div class="viewcode-block" id="Oracle.compare">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.Oracle.compare">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">compare</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a_rule</span><span class="p">:</span> <span class="n">Rule</span><span class="p">,</span> <span class="n">b_rule</span><span class="p">:</span> <span class="n">Rule</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
         <span class="n">sa</span><span class="p">,</span> <span class="n">sb</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">score</span><span class="p">(</span><span class="n">a_rule</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">score</span><span class="p">(</span><span class="n">b_rule</span><span class="p">)</span>
         <span class="k">return</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">sa</span> <span class="o">&gt;</span> <span class="n">sb</span> <span class="k">else</span> <span class="o">-</span><span class="mi">1</span> <span class="k">if</span> <span class="n">sb</span> <span class="o">&gt;</span> <span class="n">sa</span> <span class="k">else</span> <span class="mi">0</span></div>
 
-<div class="viewcode-block" id="Oracle.compare_vectors"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.Oracle.compare_vectors">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">compare_vectors</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a_vec</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">b_vec</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+
+<div class="viewcode-block" id="Oracle.compare_vectors">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.Oracle.compare_vectors">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">compare_vectors</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a_vec</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">b_vec</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Used by the learner – promotes vectors to rule dicts on the fly.&quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_dataset</span><span class="p">()</span>
         <span class="n">ra</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ds</span><span class="o">.</span><span class="n">vector_to_rule</span><span class="p">(</span><span class="n">a_vec</span><span class="p">[:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_n_measures</span><span class="p">])</span>
         <span class="n">rb</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ds</span><span class="o">.</span><span class="n">vector_to_rule</span><span class="p">(</span><span class="n">b_vec</span><span class="p">[:</span> <span class="bp">self</span><span class="o">.</span><span class="n">_n_measures</span><span class="p">])</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="n">ra</span><span class="p">,</span> <span class="n">rb</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="Oracle.score_dataset"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.Oracle.score_dataset">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">score_dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">:</span> <span class="n">Dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+
+<div class="viewcode-block" id="Oracle.score_dataset">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.Oracle.score_dataset">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">score_dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">:</span> <span class="n">Dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Slow fallback; subclasses can override for speed.&quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">vectorize</span><span class="p">(</span><span class="k">lambda</span> <span class="n">idx</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">score</span><span class="p">(</span><span class="n">dataset</span><span class="o">.</span><span class="n">get_rule_dict</span><span class="p">(</span><span class="n">idx</span><span class="p">)))(</span>
             <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">dataset</span><span class="o">.</span><span class="n">df</span><span class="p">))</span>
         <span class="p">)</span></div>
 
-<div class="viewcode-block" id="Oracle.clone"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.Oracle.clone">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">clone</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">T</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="p">:</span>
+
+<div class="viewcode-block" id="Oracle.clone">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.Oracle.clone">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">clone</span><span class="p">(</span><span class="bp">self</span><span class="p">:</span> <span class="n">T</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">T</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Cheap, concurrency-safe clone.</span>
 
@@ -334,52 +348,77 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">clone</span><span class="p">:</span> <span class="n">T</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>  <span class="c1"># shallow is enough</span>
         <span class="n">clone</span><span class="o">.</span><span class="n">ds</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># detach shared state</span>
-        <span class="k">return</span> <span class="n">clone</span></div></div>
+        <span class="k">return</span> <span class="n">clone</span></div>
+</div>
+
 
 
 <span class="c1"># --------------------------------------------------------------------------- #</span>
 <span class="c1"># 1. Objective-measure oracle</span>
 <span class="c1"># --------------------------------------------------------------------------- #</span>
-<div class="viewcode-block" id="ObjectiveMeasureOracle"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.ObjectiveMeasureOracle">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">ObjectiveMeasureOracle</span><span class="p">(</span><span class="n">Oracle</span><span class="p">):</span>
+<div class="viewcode-block" id="ObjectiveMeasureOracle">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.ObjectiveMeasureOracle">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ObjectiveMeasureOracle</span><span class="p">(</span><span class="n">Oracle</span><span class="p">):</span>
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">measure_name</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">name</span> <span class="ow">or</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">measure_name</span><span class="si">}</span><span class="s2">-oracle&quot;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">measure_name</span> <span class="o">=</span> <span class="n">measure_name</span>
 
-<div class="viewcode-block" id="ObjectiveMeasureOracle.score"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.ObjectiveMeasureOracle.score">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">score</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rule</span><span class="p">):</span>
+<div class="viewcode-block" id="ObjectiveMeasureOracle.score">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.ObjectiveMeasureOracle.score">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">score</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rule</span><span class="p">):</span>
         <span class="k">return</span> <span class="n">rule</span><span class="p">[</span><span class="s2">&quot;measures&quot;</span><span class="p">][</span><span class="bp">self</span><span class="o">.</span><span class="n">measure_name</span><span class="p">]</span></div>
 
-<div class="viewcode-block" id="ObjectiveMeasureOracle.score_dataset"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.ObjectiveMeasureOracle.score_dataset">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">score_dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+
+<div class="viewcode-block" id="ObjectiveMeasureOracle.score_dataset">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.ObjectiveMeasureOracle.score_dataset">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">score_dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
         <span class="n">col</span> <span class="o">=</span> <span class="n">dataset</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">measure_name</span><span class="p">]</span>
         <span class="k">return</span> <span class="n">col</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span></div>
 
-<div class="viewcode-block" id="ObjectiveMeasureOracle.random"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.ObjectiveMeasureOracle.random">[docs]</a>    <span class="nd">@staticmethod</span>
+
+<div class="viewcode-block" id="ObjectiveMeasureOracle.random">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.ObjectiveMeasureOracle.random">[docs]</a>
+    <span class="nd">@staticmethod</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">random</span><span class="p">():</span>
         <span class="n">measure</span> <span class="o">=</span> <span class="s2">&quot;phi&quot;</span>
-        <span class="k">return</span> <span class="n">ObjectiveMeasureOracle</span><span class="p">(</span><span class="n">measure</span><span class="p">)</span></div></div>
+        <span class="k">return</span> <span class="n">ObjectiveMeasureOracle</span><span class="p">(</span><span class="n">measure</span><span class="p">)</span></div>
+</div>
+
 
 
 <span class="c1"># --------------------------------------------------------------------------- #</span>
 <span class="c1"># 2. Item-based oracle</span>
 <span class="c1"># --------------------------------------------------------------------------- #</span>
-<div class="viewcode-block" id="SumOracle"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.SumOracle">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">SumOracle</span><span class="p">(</span><span class="n">Oracle</span><span class="p">):</span>
+<div class="viewcode-block" id="SumOracle">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.SumOracle">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">SumOracle</span><span class="p">(</span><span class="n">Oracle</span><span class="p">):</span>
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">measures</span><span class="p">:</span> <span class="nb">list</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">name</span> <span class="ow">or</span> <span class="sa">f</span><span class="s2">&quot;Sum-Oracle&quot;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">measures</span> <span class="o">=</span> <span class="n">measures</span>
 
-<div class="viewcode-block" id="SumOracle.score"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.SumOracle.score">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">score</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rule</span><span class="p">):</span>
+<div class="viewcode-block" id="SumOracle.score">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.SumOracle.score">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">score</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rule</span><span class="p">):</span>
         <span class="nb">sum</span> <span class="o">=</span> <span class="mf">0.0</span>
         <span class="k">for</span> <span class="n">measure</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">measures</span><span class="p">:</span>
             <span class="nb">sum</span> <span class="o">+=</span> <span class="n">rule</span><span class="p">[</span><span class="s2">&quot;measures&quot;</span><span class="p">][</span><span class="n">measure</span><span class="p">]</span>
         <span class="k">return</span> <span class="nb">sum</span></div>
 
-<div class="viewcode-block" id="SumOracle.score_dataset"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.SumOracle.score_dataset">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">score_dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">):</span>
-        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dataset</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">measures</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></div></div>
+
+<div class="viewcode-block" id="SumOracle.score_dataset">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.SumOracle.score_dataset">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">score_dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="n">dataset</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">measures</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span></div>
+</div>
+
 
 
 <span class="c1"># --------------------------------------------------------------------------- #</span>
 <span class="c1"># 3. Surprise oracle</span>
 <span class="c1"># --------------------------------------------------------------------------- #</span>
-<div class="viewcode-block" id="SurpriseOracle"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.SurpriseOracle">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">SurpriseOracle</span><span class="p">(</span><span class="n">Oracle</span><span class="p">):</span>
+<div class="viewcode-block" id="SurpriseOracle">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.SurpriseOracle">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">SurpriseOracle</span><span class="p">(</span><span class="n">Oracle</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    Parameters</span>
 <span class="sd">    ----------</span>
@@ -417,7 +456,9 @@
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">name</span> <span class="ow">or</span> <span class="sa">f</span><span class="s2">&quot;surprise-</span><span class="si">{</span><span class="n">prior_type</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
 
     <span class="c1"># ------------------------------------------------------------ set_dataset</span>
-<div class="viewcode-block" id="SurpriseOracle.set_dataset"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.SurpriseOracle.set_dataset">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">:</span> <span class="n">Dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<div class="viewcode-block" id="SurpriseOracle.set_dataset">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.SurpriseOracle.set_dataset">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">:</span> <span class="n">Dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">set_dataset</span><span class="p">(</span><span class="n">dataset</span><span class="p">)</span>
 
         <span class="c1"># ------------------------------------------------ instantiate prior</span>
@@ -441,8 +482,11 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">_prior</span> <span class="o">=</span> <span class="n">PRIOR_FACTORY</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">prior_type</span><span class="p">](</span><span class="o">**</span><span class="bp">self</span><span class="o">.</span><span class="n">prior_kwargs</span><span class="p">)</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_prior</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">dataset</span><span class="o">.</span><span class="n">transactions</span><span class="p">)</span></div>
 
+
     <span class="c1"># ---------------------------------------------------------------- single-rule score</span>
-<div class="viewcode-block" id="SurpriseOracle.score"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.SurpriseOracle.score">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">score</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rule</span><span class="p">:</span> <span class="n">Rule</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<div class="viewcode-block" id="SurpriseOracle.score">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.SurpriseOracle.score">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">score</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rule</span><span class="p">:</span> <span class="n">Rule</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prior</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">RuntimeError</span><span class="p">(</span><span class="s2">&quot;Prior not fitted – call set_dataset() first&quot;</span><span class="p">)</span>
 
@@ -450,19 +494,28 @@
         <span class="n">f_exp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_prior</span><span class="o">.</span><span class="n">expected</span><span class="p">(</span><span class="n">rule</span><span class="p">)</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">phi</span><span class="p">(</span><span class="n">f_obs</span> <span class="o">+</span> <span class="mf">1e-12</span><span class="p">,</span> <span class="n">f_exp</span> <span class="o">+</span> <span class="mf">1e-12</span><span class="p">)</span></div>
 
+
     <span class="c1"># ---------------------------------------------------------- compare helpers</span>
-<div class="viewcode-block" id="SurpriseOracle.compare"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.SurpriseOracle.compare">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">compare</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a_rule</span><span class="p">:</span> <span class="n">Rule</span><span class="p">,</span> <span class="n">b_rule</span><span class="p">:</span> <span class="n">Rule</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<div class="viewcode-block" id="SurpriseOracle.compare">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.SurpriseOracle.compare">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">compare</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a_rule</span><span class="p">:</span> <span class="n">Rule</span><span class="p">,</span> <span class="n">b_rule</span><span class="p">:</span> <span class="n">Rule</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
         <span class="n">sa</span><span class="p">,</span> <span class="n">sb</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">score</span><span class="p">(</span><span class="n">a_rule</span><span class="p">),</span> <span class="bp">self</span><span class="o">.</span><span class="n">score</span><span class="p">(</span><span class="n">b_rule</span><span class="p">)</span>
         <span class="k">return</span> <span class="mi">1</span> <span class="k">if</span> <span class="n">sa</span> <span class="o">&gt;</span> <span class="n">sb</span> <span class="k">else</span> <span class="o">-</span><span class="mi">1</span> <span class="k">if</span> <span class="n">sb</span> <span class="o">&gt;</span> <span class="n">sa</span> <span class="k">else</span> <span class="mi">0</span></div>
 
-<div class="viewcode-block" id="SurpriseOracle.compare_vectors"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.SurpriseOracle.compare_vectors">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">compare_vectors</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a_vec</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">b_vec</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+
+<div class="viewcode-block" id="SurpriseOracle.compare_vectors">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.SurpriseOracle.compare_vectors">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">compare_vectors</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a_vec</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">b_vec</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_dataset</span><span class="p">()</span>
         <span class="n">ra</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ds</span><span class="o">.</span><span class="n">vector_to_rule</span><span class="p">(</span><span class="n">a_vec</span><span class="p">[:</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ds</span><span class="o">.</span><span class="n">measures</span><span class="p">)])</span>
         <span class="n">rb</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ds</span><span class="o">.</span><span class="n">vector_to_rule</span><span class="p">(</span><span class="n">b_vec</span><span class="p">[:</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ds</span><span class="o">.</span><span class="n">measures</span><span class="p">)])</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">compare</span><span class="p">(</span><span class="n">ra</span><span class="p">,</span> <span class="n">rb</span><span class="p">)</span></div>
 
+
     <span class="c1"># ---------------------------------------------------------- batch scoring</span>
-<div class="viewcode-block" id="SurpriseOracle.score_dataset"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.SurpriseOracle.score_dataset">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">score_dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">:</span> <span class="n">Dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<div class="viewcode-block" id="SurpriseOracle.score_dataset">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.SurpriseOracle.score_dataset">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">score_dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">:</span> <span class="n">Dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">        Vectorised scoring for all rules in `dataset`.</span>
 <span class="sd">        Falls back to a Python loop only if the prior lacks `expected_batch`.</span>
@@ -486,18 +539,25 @@
 
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">phi</span><span class="p">(</span><span class="n">f_obs_vec</span> <span class="o">+</span> <span class="mf">1e-12</span><span class="p">,</span> <span class="n">f_exp_vec</span> <span class="o">+</span> <span class="mf">1e-12</span><span class="p">)</span></div>
 
+
     <span class="c1"># ---------------------------------------------------------------- clone</span>
-<div class="viewcode-block" id="SurpriseOracle.clone"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.SurpriseOracle.clone">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">clone</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;SurpriseOracle&quot;</span><span class="p">:</span>
+<div class="viewcode-block" id="SurpriseOracle.clone">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.SurpriseOracle.clone">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">clone</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;SurpriseOracle&quot;</span><span class="p">:</span>
         <span class="n">clone</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">copy</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
         <span class="n">clone</span><span class="o">.</span><span class="n">ds</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="n">clone</span><span class="o">.</span><span class="n">_prior</span> <span class="o">=</span> <span class="n">copy</span><span class="o">.</span><span class="n">deepcopy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_prior</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">clone</span></div></div>
+        <span class="k">return</span> <span class="n">clone</span></div>
+</div>
+
 
 
 <span class="c1"># --------------------------------------------------------------------------- #</span>
 <span class="c1"># 4. MDL oracle  (using supportX / supportY column names)</span>
 <span class="c1"># --------------------------------------------------------------------------- #</span>
-<div class="viewcode-block" id="MDLOracle"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.MDLOracle">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">MDLOracle</span><span class="p">(</span><span class="n">Oracle</span><span class="p">):</span>
+<div class="viewcode-block" id="MDLOracle">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.MDLOracle">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">MDLOracle</span><span class="p">(</span><span class="n">Oracle</span><span class="p">):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    MDL-based interestingness: positive values mean the rule compresses</span>
 <span class="sd">    the data better than chance.</span>
@@ -531,7 +591,9 @@
         <span class="k">return</span> <span class="o">-</span><span class="p">(</span><span class="n">p</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log2</span><span class="p">(</span><span class="n">p</span><span class="p">)</span> <span class="o">+</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">p</span><span class="p">)</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">log2</span><span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">p</span><span class="p">))</span>
 
     <span class="c1"># ---------- dataset attachment --------------------------------------</span>
-<div class="viewcode-block" id="MDLOracle.set_dataset"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.MDLOracle.set_dataset">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">set_dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">:</span> <span class="n">Dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<div class="viewcode-block" id="MDLOracle.set_dataset">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.MDLOracle.set_dataset">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">set_dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">:</span> <span class="n">Dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="n">set_dataset</span><span class="p">(</span><span class="n">dataset</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_n_total</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">dataset</span><span class="o">.</span><span class="n">n_transactions</span><span class="p">)</span>
         <span class="c1"># cache |Y| counts for every rule</span>
@@ -548,8 +610,11 @@
         <span class="c1"># cache inside the dataframe for the fast vectorised path</span>
         <span class="n">dataset</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;_mdl_items&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_k_items</span></div>
 
+
     <span class="c1"># ---------- single-rule score ---------------------------------------</span>
-<div class="viewcode-block" id="MDLOracle.score"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.MDLOracle.score">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">score</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rule</span><span class="p">:</span> <span class="n">Rule</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<div class="viewcode-block" id="MDLOracle.score">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.MDLOracle.score">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">score</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rule</span><span class="p">:</span> <span class="n">Rule</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
         <span class="n">n</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_n_total</span>
         <span class="n">nXY</span> <span class="o">=</span> <span class="n">rule</span><span class="p">[</span><span class="s2">&quot;measures&quot;</span><span class="p">][</span><span class="s2">&quot;support&quot;</span><span class="p">]</span>  <span class="c1"># |X∪Y|</span>
         <span class="n">nX</span> <span class="o">=</span> <span class="n">rule</span><span class="p">[</span><span class="s2">&quot;measures&quot;</span><span class="p">][</span><span class="s2">&quot;supportX&quot;</span><span class="p">]</span>  <span class="c1"># |X|</span>
@@ -566,8 +631,11 @@
         <span class="n">model_bits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">c0</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">c_item</span> <span class="o">*</span> <span class="n">k_items</span>
         <span class="k">return</span> <span class="n">data_bits</span> <span class="o">-</span> <span class="n">model_bits</span></div>
 
+
     <span class="c1"># ---------- fast vectorised variant ---------------------------------</span>
-<div class="viewcode-block" id="MDLOracle.score_dataset"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.MDLOracle.score_dataset">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">score_dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">:</span> <span class="n">Dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<div class="viewcode-block" id="MDLOracle.score_dataset">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.MDLOracle.score_dataset">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">score_dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">:</span> <span class="n">Dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_dataset</span><span class="p">()</span>
 
         <span class="n">n</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_n_total</span>
@@ -597,43 +665,61 @@
         <span class="n">k_items</span> <span class="o">=</span> <span class="n">dataset</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;_mdl_items&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(</span><span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int16</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
         <span class="n">model_bits</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">c0</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">c_item</span> <span class="o">*</span> <span class="n">k_items</span>
 
-        <span class="k">return</span> <span class="n">data_bits</span> <span class="o">-</span> <span class="n">model_bits</span></div></div>
+        <span class="k">return</span> <span class="n">data_bits</span> <span class="o">-</span> <span class="n">model_bits</span></div>
+</div>
+
 
 
 <span class="c1"># --------------------------------------------------------------------------- #</span>
 <span class="c1"># 5. Noisy oracle wrapper</span>
 <span class="c1"># --------------------------------------------------------------------------- #</span>
-<div class="viewcode-block" id="NoisyOracle"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.NoisyOracle">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">NoisyOracle</span><span class="p">(</span><span class="n">Oracle</span><span class="p">):</span>
+<div class="viewcode-block" id="NoisyOracle">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.NoisyOracle">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">NoisyOracle</span><span class="p">(</span><span class="n">Oracle</span><span class="p">):</span>
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">base_oracle</span><span class="p">:</span> <span class="n">Oracle</span><span class="p">,</span> <span class="n">noise_rate</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.1</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Noisy(</span><span class="si">{</span><span class="n">base_oracle</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">base_oracle</span> <span class="o">=</span> <span class="n">base_oracle</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">noise_rate</span> <span class="o">=</span> <span class="n">noise_rate</span>
 
-<div class="viewcode-block" id="NoisyOracle.score"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.NoisyOracle.score">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">score</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rule</span><span class="p">):</span>
+<div class="viewcode-block" id="NoisyOracle.score">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.NoisyOracle.score">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">score</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rule</span><span class="p">):</span>
         <span class="k">if</span> <span class="n">random</span><span class="o">.</span><span class="n">random</span><span class="p">()</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise_rate</span><span class="p">:</span>
             <span class="k">return</span> <span class="mi">1</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">base_oracle</span><span class="o">.</span><span class="n">score</span><span class="p">(</span><span class="n">rule</span><span class="p">)</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">base_oracle</span><span class="o">.</span><span class="n">score</span><span class="p">(</span><span class="n">rule</span><span class="p">)</span></div>
 
-<div class="viewcode-block" id="NoisyOracle.score_dataset"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.NoisyOracle.score_dataset">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">score_dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+
+<div class="viewcode-block" id="NoisyOracle.score_dataset">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.NoisyOracle.score_dataset">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">score_dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
         <span class="n">scores</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">base_oracle</span><span class="o">.</span><span class="n">score_dataset</span><span class="p">(</span><span class="n">dataset</span><span class="p">)</span>
         <span class="n">mask</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">random</span><span class="o">.</span><span class="n">rand</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">scores</span><span class="p">))</span> <span class="o">&lt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">noise_rate</span>
         <span class="n">scores</span><span class="p">[</span><span class="n">mask</span><span class="p">]</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">scores</span><span class="p">[</span><span class="n">mask</span><span class="p">]</span>
-        <span class="k">return</span> <span class="n">scores</span></div></div>
+        <span class="k">return</span> <span class="n">scores</span></div>
+</div>
+
 
 
 <span class="c1"># --------------------------------------------------------------------------- #</span>
 <span class="c1"># 6. Biased oracle wrapper</span>
 <span class="c1"># --------------------------------------------------------------------------- #</span>
-<div class="viewcode-block" id="BiasedOracle"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.BiasedOracle">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">BiasedOracle</span><span class="p">(</span><span class="n">Oracle</span><span class="p">):</span>
+<div class="viewcode-block" id="BiasedOracle">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.BiasedOracle">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">BiasedOracle</span><span class="p">(</span><span class="n">Oracle</span><span class="p">):</span>
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">base_oracle</span><span class="p">:</span> <span class="n">Oracle</span><span class="p">,</span> <span class="n">bias_fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">):</span>
         <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Biased(</span><span class="si">{</span><span class="n">base_oracle</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">)&quot;</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">base_oracle</span> <span class="o">=</span> <span class="n">base_oracle</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">bias_fn</span> <span class="o">=</span> <span class="n">bias_fn</span>
 
-<div class="viewcode-block" id="BiasedOracle.score"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.BiasedOracle.score">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">score</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rule</span><span class="p">):</span>
+<div class="viewcode-block" id="BiasedOracle.score">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.BiasedOracle.score">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">score</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">rule</span><span class="p">):</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias_fn</span><span class="p">(</span><span class="n">rule</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">base_oracle</span><span class="o">.</span><span class="n">score</span><span class="p">(</span><span class="n">rule</span><span class="p">))</span></div>
 
-<div class="viewcode-block" id="BiasedOracle.score_dataset"><a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.BiasedOracle.score_dataset">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">score_dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+
+<div class="viewcode-block" id="BiasedOracle.score_dataset">
+<a class="viewcode-back" href="../../../api/oracles.html#gal.oracles.oracles.BiasedOracle.score_dataset">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">score_dataset</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dataset</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
         <span class="n">base_scores</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">base_oracle</span><span class="o">.</span><span class="n">score_dataset</span><span class="p">(</span><span class="n">dataset</span><span class="p">)</span>
         <span class="k">try</span><span class="p">:</span>  <span class="c1"># vectorised bias</span>
             <span class="n">biased</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias_fn</span><span class="p">(</span><span class="n">dataset</span><span class="p">,</span> <span class="n">base_scores</span><span class="p">)</span>
@@ -643,7 +729,9 @@
             <span class="k">pass</span>
         <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">vectorize</span><span class="p">(</span><span class="k">lambda</span> <span class="n">idx</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">bias_fn</span><span class="p">(</span><span class="n">dataset</span><span class="p">[</span><span class="n">idx</span><span class="p">],</span> <span class="n">base_scores</span><span class="p">[</span><span class="n">idx</span><span class="p">]))(</span>
             <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">dataset</span><span class="p">))</span>
-        <span class="p">)</span></div></div>
+        <span class="p">)</span></div>
+</div>
+
 </pre></div>
         </article>
       </div>
@@ -676,9 +764,9 @@
       
     </aside>
   </div>
-</div><script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js?v=2389946f"></script>
-    <script src="../../../_static/doctools.js?v=888ff710"></script>
-    <script src="../../../_static/sphinx_highlight.js?v=4825356b"></script>
-    <script src="../../../_static/scripts/furo.js?v=5fa4622c"></script>
+</div><script src="../../../_static/documentation_options.js?v=01f34227"></script>
+    <script src="../../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../_static/scripts/furo.js?v=46bd48cc"></script>
     </body>
 </html>

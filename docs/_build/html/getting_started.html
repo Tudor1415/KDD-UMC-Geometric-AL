@@ -1,35 +1,35 @@
 <!doctype html>
-<html class="no-js" lang="en" data-content_root="">
+<html class="no-js" lang="en" data-content_root="./">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="API reference" href="api/index.html" /><link rel="prev" title="Geometry-Aware Learning documentation" href="index.html" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Ball-tree builders" href="ball_tree_builders.html" /><link rel="prev" title="Geometry-Aware Learning documentation" href="index.html" />
 
-    <!-- Generated with Sphinx 7.1.2 and Furo 2024.08.06 -->
+    <!-- Generated with Sphinx 8.2.3 and Furo 2025.07.19 -->
         <title>Getting started - Geometry-Aware Learning 0.1.0 documentation</title>
-      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=354aac6f" />
-    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=302659d7" />
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=25af2a20" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=8dab3a3b" />
     
     
 
 
 <style>
   body {
-    --color-code-background: #f8f8f8;
-  --color-code-foreground: black;
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
   
   }
   @media not print {
     body[data-theme="dark"] {
-      --color-code-background: #202020;
-  --color-code-foreground: #d0d0d0;
+      --color-code-background: #2b2b2b;
+  --color-code-foreground: #f8f8f2;
   
     }
     @media (prefers-color-scheme: dark) {
       body:not([data-theme="light"]) {
-        --color-code-background: #202020;
-  --color-code-foreground: #d0d0d0;
+        --color-code-background: #2b2b2b;
+  --color-code-foreground: #f8f8f2;
   
       }
     }
@@ -193,7 +193,6 @@
       
       <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
   
-  
   <span class="sidebar-brand-text">Geometry-Aware Learning 0.1.0 documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="search.html" role="search">
@@ -205,12 +204,13 @@
   <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
 <ul class="current">
 <li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ball_tree_builders.html">Ball-tree builders</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
 <ul>
 <li class="toctree-l1 has-children"><a class="reference internal" href="api/index.html">API reference</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle navigation of API reference</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="api/core.html">Core utilities</a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/trees.html">Tree construction and search</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/trees.html">Ball-tree APIs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/centers.html">Centre solvers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/learning.html">Learning and mining</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/metrics.html">Metrics and measures</a></li>
@@ -263,12 +263,12 @@
         </div>
         <article role="main" id="furo-main-content">
           <section id="getting-started">
-<h1>Getting started<a class="headerlink" href="#getting-started" title="Permalink to this heading">¶</a></h1>
+<h1>Getting started<a class="headerlink" href="#getting-started" title="Link to this heading">¶</a></h1>
 <p>This section walks you through installing the Geometry-Aware Learning package,
 preparing datasets, and running the main experiment pipelines.  It concludes
 with a short Python example that wires together the modular components.</p>
 <section id="installation">
-<h2>Installation<a class="headerlink" href="#installation" title="Permalink to this heading">¶</a></h2>
+<h2>Installation<a class="headerlink" href="#installation" title="Link to this heading">¶</a></h2>
 <p>The repository follows a <code class="docutils literal notranslate"><span class="pre">src/</span></code> layout.  Installing it in editable mode keeps
 your virtual environment in sync with local changes:</p>
 <div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>venv<span class="w"> </span>.venv
@@ -281,7 +281,7 @@ pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </s
 documentation locally with <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">html</span></code> (see the <code class="docutils literal notranslate"><span class="pre">docs/</span></code> folder).</p>
 </section>
 <section id="quick-preprocessing-pass">
-<h2>Quick preprocessing pass<a class="headerlink" href="#quick-preprocessing-pass" title="Permalink to this heading">¶</a></h2>
+<h2>Quick preprocessing pass<a class="headerlink" href="#quick-preprocessing-pass" title="Link to this heading">¶</a></h2>
 <p>Most experiments expect three artefact folders: <code class="docutils literal notranslate"><span class="pre">datasets/</span></code> (transactions),
 <code class="docutils literal notranslate"><span class="pre">mined_rules/</span></code> (rule CSV files) and <code class="docutils literal notranslate"><span class="pre">matrices/</span></code> (rule-item matrices).  Use
 the preprocessing CLI to normalise metrics and create matrices:</p>
@@ -293,7 +293,7 @@ the preprocessing CLI to normalise metrics and create matrices:</p>
 </div>
 </section>
 <section id="running-built-in-experiments">
-<h2>Running built-in experiments<a class="headerlink" href="#running-built-in-experiments" title="Permalink to this heading">¶</a></h2>
+<h2>Running built-in experiments<a class="headerlink" href="#running-built-in-experiments" title="Link to this heading">¶</a></h2>
 <p>The refactored entry point lives under <code class="docutils literal notranslate"><span class="pre">scripts.main</span></code>.  It automatically
 loads every dataset that has matching artefacts and executes the configured set
 of centres, oracles, and metrics:</p>
@@ -312,7 +312,7 @@ so you can analyse them incrementally.</p>
 </div>
 </section>
 <section id="python-api-example">
-<h2>Python API example<a class="headerlink" href="#python-api-example" title="Permalink to this heading">¶</a></h2>
+<h2>Python API example<a class="headerlink" href="#python-api-example" title="Link to this heading">¶</a></h2>
 <p>The package exposes high-level helpers if you prefer building experiments in
 Python rather than using the CLIs.  The example below creates a small synthetic
 problem, builds a ball tree, and runs the active learning loop for a handful of
@@ -348,7 +348,7 @@ iterations.</p>
 </div>
 </section>
 <section id="next-steps">
-<h2>Next steps<a class="headerlink" href="#next-steps" title="Permalink to this heading">¶</a></h2>
+<h2>Next steps<a class="headerlink" href="#next-steps" title="Link to this heading">¶</a></h2>
 <ul class="simple">
 <li><p>Explore the <a class="reference internal" href="api/index.html"><span class="doc">API reference</span></a> section for detailed module documentation.</p></li>
 <li><p>Review <a class="reference internal" href="project_layout.html"><span class="doc">Project layout</span></a> for a high-level map of the repository.</p></li>
@@ -363,12 +363,12 @@ inspect generated CSV files and plots.</p></li>
       <footer>
         
         <div class="related-pages">
-          <a class="next-page" href="api/index.html">
+          <a class="next-page" href="ball_tree_builders.html">
               <div class="page-info">
                 <div class="context">
                   <span>Next</span>
                 </div>
-                <div class="title">API reference</div>
+                <div class="title">Ball-tree builders</div>
               </div>
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
             </a>
@@ -430,9 +430,9 @@ inspect generated CSV files and plots.</p></li>
       
     </aside>
   </div>
-</div><script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=2389946f"></script>
-    <script src="_static/doctools.js?v=888ff710"></script>
-    <script src="_static/sphinx_highlight.js?v=4825356b"></script>
-    <script src="_static/scripts/furo.js?v=5fa4622c"></script>
+</div><script src="_static/documentation_options.js?v=01f34227"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/scripts/furo.js?v=46bd48cc"></script>
     </body>
 </html>
