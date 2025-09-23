@@ -2,27 +2,75 @@ Here are the **main families of ball-tree construction algorithms**:
 
 1. **Axis-aligned (kd-style) median splits**
    Split by the coordinate of largest spread at the median; wrap each side in its minimum enclosing ball. Fast, balanced by count, but balls can be loose.
+@techreport{Omohundro1989Balltrees,
+  author      = {Stephen M. Omohundro},
+  title       = {Five Balltree Construction Algorithms},
+  institution = {International Computer Science Institute (ICSI)},
+  number      = {TR-89-063},
+  address     = {Berkeley, CA, USA},
+  year        = {1989},
+  month       = {December},
+  url         = {https://steveomohundro.com/wp-content/uploads/2009/03/omohundro89_five_balltree_construction_algorithms.pdf}
+}
 
 2. **Farthest-point / max-diameter (“two-pivot”) splits**
    Pick two far-apart pivots; assign points to nearest pivot; wrap in balls. Produces tight siblings, can be unbalanced without extra controls.
+@techreport{Moore2000Anchors,
+  author      = {Andrew W. Moore},
+  title       = {The Anchors Hierarchy: Using the Triangle Inequality to Survive High Dimensional Data},
+  institution = {The Robotics Institute, Carnegie Mellon University},
+  number      = {CMU-RI-TR-00-05},
+  address     = {Pittsburgh, PA, USA},
+  year        = {2000},
+  month       = {February},
+  url         = {https://www.ri.cmu.edu/pub_files/pub3/moore_andrew_2000_1/moore_andrew_2000_1.pdf}
+}
 
 3. **Data-aware balanced splits (e.g., Ball* / PCA-guided / min-volume)**
    Choose a split hyperplane using data shape (PCA axis, min sum of child radii, or an explicit cost proxy); then threshold for balance. Tighter balls *and* shorter trees; slight extra build cost.
+@misc{Dolatshah2015BallStar,
+  author       = {Mohamad Dolatshah and Ali Hadian and Behrouz Minaei-Bidgoli},
+  title        = {Ball*-tree: Efficient spatial indexing for constrained nearest-neighbor search in metric spaces},
+  year         = {2015},
+  eprint       = {1511.00628},
+  archivePrefix= {arXiv},
+  primaryClass = {cs.DB},
+  url          = {https://arxiv.org/abs/1511.00628}
+}
 
 4. **Bottom-up (agglomerative) merging**
    Start with singletons; repeatedly merge the pair whose union increases enclosing-ball cost the least. Very tight clusters; expensive to build (offline use).
+@techreport{Omohundro1989BottomUp,
+  author      = {Stephen M. Omohundro},
+  title       = {Five Balltree Construction Algorithms},
+  institution = {International Computer Science Institute (ICSI)},
+  number      = {TR-89-063},
+  address     = {Berkeley, CA, USA},
+  year        = {1989},
+  month       = {December},
+  url         = {https://steveomohundro.com/wp-content/uploads/2009/03/omohundro89_five_balltree_construction_algorithms.pdf},
+  note        = {Includes the best-first bottom-up agglomerative builder}
+}
 
-5. **Incremental / insertion (incl. “cheap” insertion) & middle-out**
-   Insert points into the leaf that minimally expands its ball (or via a cheaper heuristic), updating up the tree; “middle-out” variants grow a good core first. Supports dynamic data; quality depends on insertion policy.
 
-6. **Sphere-trees (application-specific ball trees for geometry/physics)**
-   Same hierarchical balls but built over mesh parts/objects; top-down or bottom-up recipes tuned for collision/N-body culling (tightness vs depth trade-offs).
+5. ***Anchors Hierarchy* — *Middle-out* construction**
+Grow the tree from the middle outward by first clustering points into a few “anchor” hubs (via triangle-inequality pruning), then merging the most compatible anchors and recursively refining within each cluster to get a balanced, ball-tree-like hierarchy.
+   @techreport{Moore2000MiddleOut,
+  author      = {Andrew W. Moore},
+  title       = {The Anchors Hierarchy: Using the Triangle Inequality to Survive High Dimensional Data},
+  institution = {The Robotics Institute, Carnegie Mellon University},
+  number      = {CMU-RI-TR-00-05},
+  address     = {Pittsburgh, PA, USA},
+  year        = {2000},
+  month       = {February},
+  url         = {https://www.ri.cmu.edu/pub_files/pub3/moore_andrew_2000_1/moore_andrew_2000_1.pdf},
+  note        = {Builds a well-balanced structure similar to a Ball-Tree in a middle-out manner}
+}
 
-   Awesome—here’s a faithful, implementation-ready version of the **k-d construction algorithm for ball trees** as introduced by **Omohundro (ICSI TR-89-063, 1989)**, followed by a plain-English, step-by-step intuition. I’ve adapted the pseudocode into clean, Python-friendly pseudocode (same logic/structure as the original Eiffel-like code with median partition and recursive build). Citations point to the exact section where each piece appears.
 
 ---
 
-1. **Axis-aligned (kd-style) median splits**
+# **Axis-aligned (kd-style) median splits**
 
 **Key helpers you’ll need:**
 
@@ -114,7 +162,7 @@ function BUILD_BALLTREE(points, leaf_size = 1):
 * **Omohundro, S. M. (1989).** *Five Balltree Construction Algorithms*, ICSI Tech Report TR-89-063 — section “K-d Construction Algorithm,” including the median partition routine and the recursive builder (originally shown in Eiffel-like code). See the lines describing the max-spread dimension, median split, and the recursive `build` that sets the parent ball from its two children.&#x20;
 
 
-**Farthest-point / max-diameter (“two-pivot”) splits**
+# **Farthest-point / max-diameter (“two-pivot”) splits**
 
 **Key helpers you’ll need:**
 
@@ -207,7 +255,7 @@ Each split does a few linear passes (centroid, two farthest-point scans, one ass
 5. **Why it works.**
    By targeting the **diameter**, you reduce each child’s **radius** quickly across levels, which strengthens **branch-and-bound pruning** for NN and related searches. This is precisely the recipe used to get **nearly disjoint sibling balls** depicted in the “Ball-Tree Construction Algorithm” (Fig. 2, steps 1–5) where farthest-point partitioning “drives sibling balls away from one another”.
 
-**Data-aware balanced splits (e.g., Ball* / PCA-guided / min-volume)**
+# **Data-aware balanced splits (e.g., Ball* / PCA-guided / min-volume)**
 
 **Key helpers you’ll need:**
 
@@ -299,3 +347,207 @@ function BUILD_BALLTREE_PCA(points, leaf_size = 1):
    Build children the same way; the parent stores the **minimal ball enclosing the two child balls** (closed form), keeping bounds tight for branch-and-bound queries.
 
 ---
+
+# **Bottom-up (agglomerative) merging**
+**Key helpers you’ll need:**
+
+* `min_enclosing_ball(points)` → minimum-enclosing ball (MEB) for a *set* of points (Welzl exact or Ritter approx.).
+* `enclose_two_balls(Bi, Bj)` → minimal ball enclosing **two** balls
+  Let `Bi=(c1,r1)`, `Bj=(c2,r2)`, `d=||c2−c1||`.
+  If `r1 >= r2 + d` return `Bi`; elif `r2 >= r1 + d` return `Bj`; else
+  `R = (d + r1 + r2)/2`, `C = c1 + ((R − r1)/d) * (c2 − c1)`.
+* **Merge cost** (choose one):
+
+  * `cost_radius(Bi,Bj) = radius(enclose_two_balls(Bi,Bj))` (greedily minimize resulting radius), or
+  * `cost_delta(Bi,Bj) = radius(enclose_two_balls(Bi,Bj)) − max(r1,r2)` (minimize radius *increase*), or
+  * `cost_volume(·)` if you prefer volume in ℝᵈ (use `R^d` proxy).
+
+**Node structure:**
+
+* `Node.left`, `Node.right`, `Node.ball = (center, radius)`.
+* For leaves, optionally `Node.points` (or just keep one point per leaf).
+
+---
+
+## Algorithm (bottom-up / agglomerative merging)
+
+```text
+function BUILD_BALLTREE_BOTTOMUP(points):
+    # returns root Node
+
+    # 0) initialize one leaf per point
+    leaves = []
+    for x in points:
+        n = Node()
+        n.left = n.right = None
+        n.points = [x]
+        n.ball = (x, 0.0)                     # single point: radius 0
+        leaves.append(n)
+
+    if len(leaves) == 0:
+        return None
+    if len(leaves) == 1:
+        return leaves[0]
+
+    # 1) priority queue of candidate merges (Bi,Bj) keyed by merge cost
+    #    naive O(n^2) init; can be pruned/blocked in large n implementations
+    H = new_min_heap()
+    for i in range(len(leaves)):
+        for j in range(i+1, len(leaves)):
+            Bij = enclose_two_balls(leaves[i].ball, leaves[j].ball)
+            key = cost_radius(leaves[i].ball, leaves[j].ball)  # or cost_delta / cost_volume
+            heap_push(H, (key, i, j))
+
+    # 2) active set indexes; we'll lazily skip dead pairs
+    active = {i: leaves[i] for i in range(len(leaves))}
+
+    # 3) iteratively merge the best pair until one cluster remains
+    while len(active) > 1:
+        key, i, j = heap_pop(H)
+
+        # skip stale pairs (one or both nodes already merged away)
+        if i not in active or j not in active:
+            continue
+
+        # 3a) create parent merging the two best children
+        Li = active[i]; Lj = active[j]
+        parent = Node()
+        parent.left  = Li
+        parent.right = Lj
+
+        # parent ball: minimal enclosure of the two child balls
+        parent.ball = enclose_two_balls(Li.ball, Lj.ball)
+
+        # (optional) consolidate raw points only if you need them at internal nodes
+        # parent.points = Li.points + Lj.points
+
+        # 3b) remove i,j from active; insert new index k
+        del active[i]; del active[j]
+        k = fresh_index()
+        active[k] = parent
+
+        # 3c) push new candidate merges (parent with every other active node)
+        for t, Nt in active.items():
+            if t == k: 
+                continue
+            Bij = enclose_two_balls(parent.ball, Nt.ball)
+            key = cost_radius(parent.ball, Nt.ball)            # or cost_delta / cost_volume
+            heap_push(H, (key, k, t))
+
+    # 4) return the sole remaining node as root
+    return only_value(active)
+```
+
+**Notes on complexity & engineering.**
+
+* The naive version is **O(n²)** memory and **O(n² log n)** time due to the heap over all pairs.
+* You can reduce overhead with *nearest-neighbor chains* (always merge mutual nearest balls), maintaining for each cluster its current best mate and only recomputing local neighborhoods after merges.
+* You can also **cap leaf size**: start from singleton leaves as above (tightest), or pre-cluster (e.g., with a quick top-down pass) and run bottom-up on those micro-clusters to cut the initial pair count.
+* The tree is **binary by construction** (each merge creates one parent). Internal node balls are **tight** because each step chooses the least harmful merge under your cost.
+
+---
+
+## Step-by-step intuition (natural language)
+
+1. **Start from the tightest possible leaves.**
+   Give each point its own ball (radius 0). This guarantees the starting representation is perfectly tight.
+
+2. **Ask: which two clusters “fit” best together?**
+   For every pair of current balls, imagine the **smallest ball enclosing them both**. Prefer the pair that yields the **smallest resulting radius** (or smallest increase). That pair is *most compatible*.
+
+3. **Merge that pair; create their parent ball.**
+   Attach them as `left`/`right` children and set the parent’s ball via the **closed-form 2-ball enclosure**. This keeps bounds as tight as possible at each step.
+
+4. **Update the neighborhood only where you touched it.**
+   Remove the two children from the active set; insert the new parent, and **only** compute candidate merges between the new parent and the remaining clusters. Everyone else’s best partner is unchanged unless it involved one of the merged nodes.
+
+5. **Repeat until one cluster remains.**
+   The process yields a full **binary tree** whose internal nodes are tight balls over their descendants. Because you always pick the **least damaging** merge, you tend to get **small radii** throughout the hierarchy, which is excellent for later branch-and-bound pruning.
+
+6. **When to use this.**
+   Bottom-up shines when **query speed** (tight bounds) matters more than **build speed**. It’s a great *offline* builder. For very large datasets, combine a quick top-down prepartition with a bottom-up refinement on the resulting superpoints.
+
+---
+
+
+# ***Anchors Hierarchy* — *Middle-out* construction**
+
+**Goal:** Build a **well-balanced, ball-tree-like metric tree** *neither* top-down nor bottom-up. First, create an **anchors hierarchy** (fast clustering with triangle inequality); then **merge the most compatible anchor nodes upward**; finally, **recursively refine leaves**. Moore positions it explicitly as *“neither top-down nor bottom-up but instead middle-out,” producing a structure similar to a Ball-Tree (Omohundro)*.
+
+**Key helpers**
+
+* `choose_anchors(points, k)` → build k anchors with farthest-point style seeding; maintain each anchor’s assigned points using triangle-inequality pruning.
+* `compatibility(A,B)` → **radius of minimal parent ball** that encloses both anchors (smaller is better).
+* `merge(A,B)` → parent node with ball = `enclose_two_balls(A.ball, B.ball)`; children A,B become its left/right.
+* `refine_leaf(node)` → if a leaf holds many raw points, **recurse**: rebuild a local anchors hierarchy inside the leaf and repeat the middle-out process within that subcluster.
+
+## Pseudocode (middle-out builder)
+
+```text
+function BUILD_MIDDLE_OUT(points, k_anchor, leaf_size):
+    # 1) Build anchors hierarchy (fast clustering in metric space)
+    anchors = choose_anchors(points, k_anchor)    # uses farthest-point seeding with TI pruning
+
+    # 2) Promote all anchors to initial tree nodes (each with a ball over its assigned points)
+    nodes = []
+    for A in anchors:
+        n = Node()
+        n.left = n.right = None
+        n.is_leaf = True
+        n.points = A.points
+        n.ball = min_enclosing_ball(A.points)
+        nodes.append(n)
+
+    # 3) Bottom-up agglomeration of anchors by "compatibility" (middle-out core)
+    #    Compatibility = radius(enclose_two_balls(n_i.ball, n_j.ball))
+    H = MinHeap()
+    for i<j: push(H, (compatibility(nodes[i], nodes[j]), i, j))
+    active = {i: nodes[i] for i in range(len(nodes))}
+    while len(active) > 1:
+        _, i, j = pop(H)
+        if i not in active or j not in active: continue
+        ni, nj = active[i], active[j]
+        parent = Node()
+        parent.left, parent.right = ni, nj
+        parent.is_leaf = False
+        parent.ball = enclose_two_balls(ni.ball, nj.ball)
+        del active[i]; del active[j]
+        k = fresh_index(); active[k] = parent
+        for t, Nt in active.items():
+            if t == k: continue
+            push(H, (compatibility(parent, Nt), k, t))
+
+    root = only_value(active)
+
+    # 4) Refine leaves that still hold many points (recursive middle-out inside each leaf)
+    def refine(node):
+        if node.is_leaf and len(node.points) > leaf_size:
+            sub = BUILD_MIDDLE_OUT(node.points, k_anchor, leaf_size)
+            # graft sub in place of node
+            return sub
+        if not node.is_leaf:
+            node.left  = refine(node.left)
+            node.right = refine(node.right)
+            node.ball  = enclose_two_balls(node.left.ball, node.right.ball)
+        return node
+
+    return refine(root)
+```
+
+**Where this comes from**
+
+* Moore: anchors hierarchy → **build nodes “middle-out”**; merge by **compatibility** = radius of minimal enclosing parent; then **subdivide leaves recursively**. The paper explicitly states it yields a **well-balanced structure similar to a Ball-Tree** by a method that is **neither top-down nor bottom-up**.
+
+**Intuition (step-by-step)**
+
+1. **Localize first (anchors).** Rapidly carve the space into k coherent “anchor” clusters using triangle inequality to **avoid many distance checks**.
+2. **Treat anchors as proto-nodes.** Wrap each cluster with a tight ball (MEB).
+3. **Grow upward by compatibility.** Merge the two nodes whose **combined ball** would be smallest; repeat—this builds a **balanced core** quickly (the “middle-out” trunk).
+4. **Then zoom in.** Each leaf still holds many raw points—**recurse** the same procedure inside it.
+5. Result: a **ball-tree-like** metric tree that is balanced and geometry-aware, built efficiently even in high dimensions.
+
+---
+
+### Primary sources
+
+* **Moore (2000)**, *The Anchors Hierarchy: Using the Triangle Inequality to Survive High Dimensional Data*, CMU-RI-TR-00-05 — **middle-out** construction producing a structure *similar to a Ball-Tree*; compatibility = radius of minimal enclosing parent; recursive leaf refinement.
