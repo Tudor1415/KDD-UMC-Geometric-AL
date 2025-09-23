@@ -2,5 +2,5 @@
 !*/
 !*.py
 !docs/**
-!ball_tree_construct.md
+!*.md
 !.gitignore
