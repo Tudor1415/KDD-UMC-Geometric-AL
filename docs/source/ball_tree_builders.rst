@@ -1,4 +1,4 @@
-Ball-tree builders
+﻿Ball-tree builders
 ==================
 
 This page documents the geometry-aware ball-tree builders introduced in
@@ -15,6 +15,7 @@ and can be overridden per call.
 .. contents::
    :local:
    :depth: 2
+   :class: this-will-duplicate-information-and-it-is-still-useful-here
 
 Helper utilities
 ----------------
@@ -180,6 +181,21 @@ Complexity: building :math:`k` anchors from :math:`m` points costs
 :math:`O(k m d)` per assignment round.  The hierarchical merging behaves like
 :math:`O(k^2 d)` for the number of anchor nodes.  Recursive leaf refinement
 only triggers when a leaf exceeds ``leaf_size``.
+
+Legacy compatibility
+~~~~~~~~~~~~~~~~~~~~
+Module: :mod:`gal.trees.ball_tree`.
+
+``gal.trees.ball_tree`` forwards to the modular builders so existing code can
+keep importing the historical module.  The ``build_tree`` function mirrors the
+new constructors: it accepts ``X`` and an optional configuration dictionary, and
+algorithm selection happens through the keyword-only ``method`` parameter,
+which defaults to ``"axis_median"``.
+
+Internally the wrapper simply dispatches to the concrete modules documented
+above (:mod:`trees.axis_median`, :mod:`trees.two_pivot`, :mod:`trees.pca_ballstar`,
+:mod:`trees.bottom_up`, and :mod:`trees.middle_out`), so all invariants and
+helper usage carry over unchanged.
 
 Testing strategy
 ----------------

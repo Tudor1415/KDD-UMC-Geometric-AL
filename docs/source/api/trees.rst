@@ -5,6 +5,10 @@ The refactored tree package exposes a shared data model together with five
 construction strategies.  The modules listed below are imported from
 ``trees`` (made available by inserting ``src`` on the ``PYTHONPATH``).
 
+.. automodule:: gal.trees.ball_tree
+   :members:
+   :member-order: bysource
+
 .. automodule:: trees.common
    :members:
    :member-order: bysource
