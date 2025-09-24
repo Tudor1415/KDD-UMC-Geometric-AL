@@ -9,7 +9,7 @@ import numpy as np
 
 try:
     from sklearn.neighbors import KDTree
-except ImportError:  # pragma: no cover
+except ImportError:
     KDTree = None
 
 from .common import BallTree, Node
@@ -107,10 +107,7 @@ def _greedy_children_kdtree(
     radius_divisor: float,
     eps: float = EPS,
 ) -> List[Tuple[np.ndarray, np.ndarray, float]]:
-    """Greedy child selection accelerated with :class:~sklearn.neighbors.KDTree."""
-
-    if indices.size == 0 or parent_radius <= 0.0 or max_children <= 0:
-        return []
+    """Find disjoint children using a greedy strategy accelerated by a KDTree."""
 
     if KDTree is None:
         return _greedy_children_bruteforce(
@@ -124,18 +121,20 @@ def _greedy_children_kdtree(
             eps=eps,
         )
 
-    local_points = data[indices]
-    if indices.size == 1:
-        return [(indices.copy(), local_points[0].copy(), 0.0)]
+    if indices.size < 2 or parent_radius <= 0.0 or max_children <= 0:
+        return []
 
-    kdtree = KDTree(local_points)
+    local_points = data[indices]
+
+    # Build KD-tree once per node; replaces the O(N^2) distance computation.
+    local_kdtree = KDTree(local_points)
 
     dist_to_center = np.linalg.norm(local_points - parent_center[None, :], axis=1)
     radius_cap = np.minimum(parent_radius / radius_divisor, parent_radius - dist_to_center)
     np.maximum(radius_cap, 0.0, out=radius_cap)
 
     chosen: List[Tuple[int, np.ndarray, float]] = []
-    chosen_centers: List[int] = []
+    chosen_centers_indices: List[int] = []
     chosen_radii: List[float] = []
 
     while len(chosen) < max_children:
@@ -149,41 +148,43 @@ def _greedy_children_kdtree(
                 continue
 
             candidate_point = local_points[li]
-            for cj, rj in zip(chosen_centers, chosen_radii):
-                centre_dist = float(np.linalg.norm(candidate_point - local_points[cj]))
-                rmax = min(rmax, centre_dist - rj)
+            for c_idx, rj in zip(chosen_centers_indices, chosen_radii):
+                dist_to_cj = float(np.linalg.norm(candidate_point - local_points[c_idx]))
+                rmax = min(rmax, dist_to_cj - rj)
                 if rmax <= 0.0:
                     break
+
             if rmax <= 0.0:
                 continue
 
-            cover_local = kdtree.query_radius(candidate_point[None, :], r=rmax + eps)[0]
-            gain = int(cover_local.size)
+            cover_indices_local = local_kdtree.query_radius(
+                candidate_point.reshape(1, -1), r=rmax + eps
+            )[0]
+
+            gain = cover_indices_local.size
             if gain < min_child_size:
                 continue
 
             if gain > best_gain or (gain == best_gain and rmax > best_radius):
-                rsel = float(max(rmax, 0.0))
-                best_choice = (li, cover_local, rsel)
+                best_choice = (li, cover_indices_local, float(rmax))
                 best_gain = gain
-                best_radius = rsel
+                best_radius = float(rmax)
 
         if best_choice is None:
             break
 
-        li_sel, cover_sel, rsel = best_choice
-        chosen.append((li_sel, cover_sel, rsel))
-        chosen_centers.append(li_sel)
+        li_local, cover_local, rsel = best_choice
+        chosen.append((li_local, cover_local, rsel))
+        chosen_centers_indices.append(li_local)
         chosen_radii.append(rsel)
 
     results: List[Tuple[np.ndarray, np.ndarray, float]] = []
-    for li_sel, cover_sel, rsel in chosen:
-        cover_sel = np.asarray(cover_sel, dtype=np.int64)
-        child_indices = indices[cover_sel]
-        child_center = local_points[li_sel]
-        results.append((child_indices, child_center.copy(), float(rsel)))
+    for li_local, cover_local, rsel in chosen:
+        cover_local = np.asarray(cover_local, dtype=np.int64)
+        child_indices_global = indices[cover_local]
+        child_center = local_points[li_local]
+        results.append((child_indices_global, child_center.copy(), float(rsel)))
     return results
-
 
 
 def build_tree(X: np.ndarray, config: Dict | None = None) -> BallTree:
