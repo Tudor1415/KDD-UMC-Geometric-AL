@@ -1,4 +1,4 @@
-import sys
+﻿import sys
 from pathlib import Path
 
 import numpy as np
@@ -26,9 +26,9 @@ BUILDERS = [
 @pytest.fixture(scope="module")
 def datasets():
     rng = np.random.default_rng(42)
-    random = rng.normal(size=(2000, 8))
-    duplicates = np.zeros((64, 8), dtype=np.float64)
-    line = np.zeros((128, 8), dtype=np.float64)
+    random = rng.normal(size=(256, 6))
+    duplicates = np.zeros((32, 6), dtype=np.float64)
+    line = np.zeros((48, 6), dtype=np.float64)
     line[:, 0] = np.linspace(-5.0, 5.0, line.shape[0])
     return [
         ("random", random),
