@@ -1,4 +1,4 @@
-"""Greedy ball-tree builder that enforces pairwise-disjoint child balls with flexible (n-ary) branching."""
+"""Disjoint greedy ball-tree builder."""
 
 from __future__ import annotations
 
@@ -19,6 +19,84 @@ from utils.meb import meb
 EPS = 1e-12
 
 
+def _pairwise_distances(points: np.ndarray) -> np.ndarray:
+    gram = points @ points.T
+    sq = np.diag(gram)
+    d2 = sq[:, None] + sq[None, :] - 2.0 * gram
+    np.maximum(d2, 0.0, out=d2)
+    return np.sqrt(d2, out=d2)
+
+
+def _greedy_children_bruteforce(
+    data: np.ndarray,
+    indices: np.ndarray,
+    parent_center: np.ndarray,
+    parent_radius: float,
+    max_children: int,
+    min_child_size: int,
+    radius_divisor: float,
+    eps: float = EPS,
+) -> List[Tuple[np.ndarray, np.ndarray, float]]:
+    if indices.size == 0 or parent_radius <= 0.0 or max_children <= 0:
+        return []
+
+    local_points = data[indices]
+    if indices.size == 1:
+        return [(indices.copy(), local_points[0].copy(), 0.0)]
+
+    distances = _pairwise_distances(local_points)
+    dist_to_center = np.linalg.norm(local_points - parent_center[None, :], axis=1)
+    radius_cap = np.minimum(parent_radius / radius_divisor, parent_radius - dist_to_center)
+    np.maximum(radius_cap, 0.0, out=radius_cap)
+
+    chosen: List[Tuple[int, np.ndarray, float]] = []
+    chosen_centers: List[int] = []
+    chosen_radii: List[float] = []
+
+    while len(chosen) < max_children:
+        best_choice = None
+        best_gain = -1
+        best_radius = 0.0
+
+        for li in range(indices.size):
+            rmax = radius_cap[li]
+            if rmax <= 0.0:
+                continue
+            for cj, rj in zip(chosen_centers, chosen_radii):
+                rmax = min(rmax, distances[li, cj] - rj)
+                if rmax <= 0.0:
+                    break
+            if rmax <= 0.0:
+                continue
+
+            cover = np.where(distances[li] <= rmax + eps)[0]
+            gain = cover.size
+            if gain < min_child_size:
+                continue
+
+            if gain > best_gain or (gain == best_gain and rmax > best_radius):
+                best_choice = (li, cover, float(rmax))
+                best_gain = gain
+                best_radius = float(rmax)
+
+        if best_choice is None:
+            break
+
+        li, cover, rsel = best_choice
+        chosen.append((li, cover, rsel))
+        chosen_centers.append(li)
+        chosen_radii.append(rsel)
+
+    results: List[Tuple[np.ndarray, np.ndarray, float]] = []
+    for li, cover, rsel in chosen:
+        child_indices = indices[cover]
+        child_center = local_points[li]
+        results.append((child_indices, child_center.copy(), float(rsel)))
+    return results
+
+
+
+
 def _greedy_children_kdtree(
     data: np.ndarray,
     indices: np.ndarray,
@@ -29,11 +107,18 @@ def _greedy_children_kdtree(
     radius_divisor: float,
     eps: float = EPS,
 ) -> List[Tuple[np.ndarray, np.ndarray, float]]:
-    """Greedily place pairwise-disjoint child balls using a KDTree-accelerated search."""
+    """Find disjoint children using a greedy strategy accelerated by a KDTree."""
 
     if KDTree is None:
-        raise RuntimeError(
-            "disjoint_greedy requires scikit-learn's KDTree; install scikit-learn before use."
+        return _greedy_children_bruteforce(
+            data,
+            indices,
+            parent_center,
+            parent_radius,
+            max_children,
+            min_child_size,
+            radius_divisor,
+            eps=eps,
         )
 
     if indices.size < 2 or parent_radius <= 0.0 or max_children <= 0:
@@ -109,11 +194,6 @@ def build_tree(X: np.ndarray, config: Dict | None = None) -> BallTree:
     if not np.isfinite(data).all():
         raise ValueError("X must contain only finite values")
 
-    if KDTree is None:
-        raise RuntimeError(
-            "disjoint_greedy requires scikit-learn's KDTree; install scikit-learn before use."
-        )
-
     defaults = dict(importlib.import_module("configs.disjoint_greedy").DEFAULT)
     cfg = defaults if config is None else {**defaults, **config}
 
@@ -171,6 +251,7 @@ def build_tree(X: np.ndarray, config: Dict | None = None) -> BallTree:
             continue
 
         child_nodes: List[Node] = []
+        child_balls: List[Tuple[np.ndarray, float]] = []
         for child_idx, child_center, child_radius in children_specs:
             if child_idx.size == 0:
                 continue
@@ -183,6 +264,7 @@ def build_tree(X: np.ndarray, config: Dict | None = None) -> BallTree:
                 c_radius = child_radius
             child = Node(center=c_center, radius=float(c_radius), indices=indices_attr, children=[], is_leaf=is_leaf)
             child_nodes.append(child)
+            child_balls.append((child.center, child.radius))
             if not is_leaf:
                 queue.append((child, child_idx))
         if len(child_nodes) < 2:
@@ -200,11 +282,19 @@ def build_tree(X: np.ndarray, config: Dict | None = None) -> BallTree:
         node.center, node.radius = enclose_many_balls([(ch.center, ch.radius) for ch in child_nodes])
 
 
-    if root.is_leaf and root.indices is not None and root.indices.size > leaf_size:
-        raise RuntimeError(
-            "disjoint_greedy could not find disjoint children under the current configuration."
-        )
+    fallback_method = cfg.get("degeneracy_fallback", "axis_median")
 
+    if root.is_leaf and root.indices is not None and root.indices.size > leaf_size:
+        if fallback_method == "axis_median":
+            from . import axis_median
+
+            fallback_tree = axis_median.build_tree(data, {"leaf_size": leaf_size})
+            fallback_tree.method = "disjoint_greedy"
+            fallback_tree.config = cfg
+            return fallback_tree
+        raise RuntimeError(
+            "disjoint_greedy failed to split data; consider adjusting configuration"
+        )
     return BallTree(
         root=root,
         n_samples=n_samples,
