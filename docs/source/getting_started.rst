@@ -1,4 +1,4 @@
-Getting started
+﻿Getting started
 ===============
 
 This section walks you through installing the Geometry-Aware Learning package,
@@ -69,7 +69,7 @@ iterations.
 .. code-block:: python
 
    import numpy as np
-   from gal.trees.ball_tree import build_ball_tree
+   from gal.trees import build_ball_tree
    from gal.utils.helpers import augment_with_minimums, k_additive_constraints
    from gal.centers.poly_centers import chebyshev_center
    from gal.learning.learn import learn
@@ -87,7 +87,8 @@ iterations.
        return 1 if (a_vec - b_vec) @ q_star >= 0 else -1
 
    center, A, b = learn(
-       root=tree,
+       tree=tree,
+       data=augmented,
        A0=A0,
        b0=b0,
        center_fn=chebyshev_center,
@@ -96,6 +97,9 @@ iterations.
    )
    print("Final centre", center)
 
+The search routine powering ``learn`` now lives in ``gal.search``; see
+:doc:`api/search` for details on swapping bounds or visiting objectives.
+
 Next steps
 ----------
 
@@ -103,3 +107,7 @@ Next steps
 * Review :doc:`project_layout` for a high-level map of the repository.
 * Check the ``benchmark_outputs/`` directory after running experiments to
   inspect generated CSV files and plots.
+
+
+
+

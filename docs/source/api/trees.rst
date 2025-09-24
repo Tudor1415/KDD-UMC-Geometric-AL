@@ -2,33 +2,38 @@ Ball-tree APIs
 ==============
 
 The refactored tree package exposes a shared data model together with five
-construction strategies.  The modules listed below are imported from
-``trees`` (made available by inserting ``src`` on the ``PYTHONPATH``).
+construction strategies.  The modules listed below live under
+``gal.trees`` when the package is installed in editable mode or when
+``src`` is present on the ``PYTHONPATH``.
 
-.. automodule:: gal.trees.ball_tree
+.. automodule:: gal.trees
    :members:
    :member-order: bysource
 
-.. automodule:: trees.common
+.. automodule:: gal.trees.common
    :members:
    :member-order: bysource
 
-.. automodule:: trees.axis_median
+.. automodule:: gal.trees.axis_median
    :members:
    :member-order: bysource
 
-.. automodule:: trees.two_pivot
+.. automodule:: gal.trees.two_pivot
    :members:
    :member-order: bysource
 
-.. automodule:: trees.pca_ballstar
+.. automodule:: gal.trees.pca_ballstar
    :members:
    :member-order: bysource
 
-.. automodule:: trees.bottom_up
+.. automodule:: gal.trees.bottom_up
    :members:
    :member-order: bysource
 
-.. automodule:: trees.middle_out
+.. automodule:: gal.trees.middle_out
+   :members:
+   :member-order: bysource
+
+.. automodule:: gal.trees.disjoint_greedy
    :members:
    :member-order: bysource

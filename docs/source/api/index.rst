@@ -10,6 +10,7 @@ source of truth.
 
    core
    trees
+   search
    centers
    learning
    metrics

@@ -7,6 +7,11 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 
+try:
+    from sklearn.neighbors import KDTree
+except ImportError:  # pragma: no cover
+    KDTree = None
+
 from .common import BallTree, Node
 from utils.geometry import enclose_many_balls
 from utils.meb import meb
@@ -22,7 +27,7 @@ def _pairwise_distances(points: np.ndarray) -> np.ndarray:
     return np.sqrt(d2, out=d2)
 
 
-def _greedy_children(
+def _greedy_children_bruteforce(
     data: np.ndarray,
     indices: np.ndarray,
     parent_center: np.ndarray,
@@ -206,3 +211,6 @@ def build_tree(X: np.ndarray, config: Dict | None = None) -> BallTree:
         method="disjoint_greedy",
         config=cfg,
     )
+
+
+

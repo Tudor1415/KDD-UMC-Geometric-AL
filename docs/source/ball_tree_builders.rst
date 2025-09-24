@@ -8,7 +8,7 @@ complexity bounds, and explains how the test-suite exercises the
 implementation.
 
 All builders operate on dense ``numpy.ndarray`` inputs, reuse the common
-:class:`~trees.common.Node` data model, and rely on the same minimum enclosing
+:class:`~gal.trees.common.Node` data model, and rely on the same minimum enclosing
 ball (MEB) primitives.  Configuration dictionaries are loaded from ``configs``
 and can be overridden per call.
 
@@ -31,8 +31,8 @@ Minimum enclosing ball (``utils.meb``)
   [Omohundro1989]_.  It scans the point set a constant number of times and
   therefore runs in :math:`O(m d)` time for :math:`m` points of dimension
   :math:`d`.  Builders use it for leaf nodes (when ``meb="ritter"``), for
-  heuristic balance evaluation in :mod:`trees.pca_ballstar`, and during
-  pre-clustering in :mod:`trees.bottom_up`.
+  heuristic balance evaluation in :mod:`gal.trees.pca_ballstar`, and during
+  pre-clustering in :mod:`gal.trees.bottom_up`.
 * :func:`~utils.meb.welzl` follows Welzl's recursive incremental algorithm
   [Welzl1991]_ with an expected :math:`O(m d)` running time.  It is chosen
   whenever ``config["meb"] == "welzl"`` and guarantees exact leaf balls.
@@ -49,10 +49,10 @@ Geometry helpers (``utils.geometry``)
   :math:`k` children is :math:`O(k d)`.  All builders therefore inherit the
   :math:`O(d)` per-node cost for updating parent radii.
 * :func:`~utils.geometry.centroid` provides the mean vector in
-  :mod:`trees.two_pivot`; the computation is :math:`O(m d)` for the active
+  :mod:`gal.trees.two_pivot`; the computation is :math:`O(m d)` for the active
   index view.
 * :func:`~utils.geometry.project` realises projection onto a unit vector for
-  :mod:`trees.pca_ballstar`, costing :math:`O(m d)`.
+  :mod:`gal.trees.pca_ballstar`, costing :math:`O(m d)`.
 * :func:`~utils.geometry.dist2` is used indirectly inside the MEB routines and
   has constant :math:`O(d)` cost.
 
@@ -62,11 +62,11 @@ Partition helpers (``utils.partitions``)
 * :func:`~utils.partitions.nth_element_inplace` and
   :func:`~utils.partitions.axis_median_split` wrap :func:`numpy.argpartition`
   to supply :math:`O(m)` median splits without allocating intermediate arrays.
-  :mod:`trees.axis_median`, :mod:`trees.two_pivot` (for degeneracy handling),
-  and :mod:`trees.bottom_up` all reuse them.
+  :mod:`gal.trees.axis_median`, :mod:`gal.trees.two_pivot` (for degeneracy handling),
+  and :mod:`gal.trees.bottom_up` all reuse them.
 * :func:`~utils.partitions.direction_quantile_splits` partitions projections
   into quantile bins in :math:`O(m)` time.  It is central to the k-ary general
-  cases in :mod:`trees.pca_ballstar` and :mod:`trees.axis_median` (when
+  cases in :mod:`gal.trees.pca_ballstar` and :mod:`gal.trees.axis_median` (when
   ``max_children > 2``).
 
 Ball-tree construction methods
@@ -74,7 +74,7 @@ Ball-tree construction methods
 
 Axis-aligned median splits
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
-Module: :mod:`trees.axis_median`.
+Module: :mod:`gal.trees.axis_median`.
 
 Intuition (after [Omohundro1989]_): split along the coordinate with the largest
 spread so that sibling subtrees are balanced by count.  The builder evaluates
@@ -94,7 +94,7 @@ expected running time is :math:`O(n \log n \cdot d)` for balanced inputs with
 
 Two-pivot / max-diameter splits
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Module: :mod:`trees.two_pivot`.
+Module: :mod:`gal.trees.two_pivot`.
 
 Intuition (after [Moore2000]_): choose a pair of far-apart pivots and assign
 points to the nearer ball so that siblings are tight.  Degenerate cases fall
@@ -117,7 +117,7 @@ for the binary default.
 
 PCA / Ball* splits
 ~~~~~~~~~~~~~~~~~~
-Module: :mod:`trees.pca_ballstar`.
+Module: :mod:`gal.trees.pca_ballstar`.
 
 Intuition (after [Dolatshah2015]_): align the split with the dominant principal
 component and - optionally - refine the threshold to minimise the sum of child
@@ -139,7 +139,7 @@ contribute :math:`O(m d)`.  Overall the builder is near
 
 Bottom-up agglomeration
 ~~~~~~~~~~~~~~~~~~~~~~~
-Module: :mod:`trees.bottom_up`.
+Module: :mod:`gal.trees.bottom_up`.
 
 Intuition (after [Omohundro1989]_): start from very small clusters and merge
 the most compatible pair at each step so that node radii stay compact.  An
@@ -161,7 +161,7 @@ TODO note for NN-chain acceleration.
 
 Middle-out anchors hierarchy
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Module: :mod:`trees.middle_out`.
+Module: :mod:`gal.trees.middle_out`.
 
 Intuition (after [Moore2000]_): seed the space with far-apart anchors, grow a
 balanced core by merging the most compatible anchor groups, and recursively
@@ -171,10 +171,10 @@ well-balanced depth.
 Helper interplay:
 
 * Farthest-point seeding mirrors the logic in
-  :mod:`trees.two_pivot`, repeatedly applying vectorised distance scans.
+  :mod:`gal.trees.two_pivot`, repeatedly applying vectorised distance scans.
 * Anchor assignments loop through ``numpy`` distance computations and reuse the
   MEB dispatcher for every anchor cluster.
-* Agglomeration mirrors :mod:`trees.bottom_up`, relying on
+* Agglomeration mirrors :mod:`gal.trees.bottom_up`, relying on
   :func:`~utils.geometry.enclose_many_balls` to score candidate groups.
 
 Complexity: building :math:`k` anchors from :math:`m` points costs
@@ -184,7 +184,7 @@ only triggers when a leaf exceeds ``leaf_size``.
 
 Disjoint Greedy
 ~~~~~~~~~~~~~~~~~~~
-Module: :mod:`trees.disjoint_greedy`.
+Module: :mod:`gal.trees.disjoint_greedy`.
 
 Intuition (proposed method): greedily carve a handful of pairwise-disjoint child balls inside a parent so each child captures many points while staying well within the parent radius. The builder repeatedly seeds a candidate centre, grows a ball until the radius cap is hit, and locks it before moving to the next best candidate, emphasising tight siblings with minimal overlap.
 
@@ -196,23 +196,46 @@ Helper interplay:
 
 Complexity: the naive greedy search examines up to :math:`O(k m)` candidate centres per node (``k`` targeted children, ``m`` local points) and recomputes leaf MEBs in :math:`O(m d)` time, giving an :math:`O(k m^2 d)` upper bound per internal node. In practice ``k`` is small and the greedy pruning keeps the routine tractable on medium-sized datasets.
 
-Dispatcher compatibility
-~~~~~~~~~~~~~~~~~~~~~~~~
-Module: :mod:`gal.trees.ball_tree`.
+Package entry-points
+~~~~~~~~~~~~~~~~~~~~~~
+Module: :mod:`gal.trees`.
 
-Intuition: provide a drop-in upgrade path for older code that imported
-``gal.trees.ball_tree`` directly.  The wrapper keeps the historical module
-stable while delegating all logic to the new builders.
+Intuition: expose a uniform registry so callers can request any builder with
+``gal.trees.build_tree`` or use the convenience ``build_ball_tree`` shortcut
+for the disjoint-greedy strategy. The package also publishes
+``AVAILABLE_METHODS`` for discoverability.
 
 Helper interplay:
 
-* The :func:`gal.trees.ball_tree.build_tree` dispatcher validates the selected
-  ``method`` (default ``"axis_median"``).
-* Configuration dictionaries are forwarded unchanged to the target builder so
-  features such as ``meb`` or ``leaf_size`` work exactly as documented above.
+* ``build_tree`` looks up the chosen method inside ``AVAILABLE_METHODS`` and
+  forwards keyword arguments unchanged to the underlying module.
+* ``build_ball_tree`` normalises legacy keyword arguments (``k``, ``P``, and
+  ``radius_divisor``) into a configuration dictionary before delegating to
+  :mod:`gal.trees.disjoint_greedy`.
 
-Complexity: identical to the chosen backend because the wrapper performs only a
-constant-time lookup before calling the concrete builder.
+Complexity: the registry lookup runs in constant time before handing control to
+whichever builder is selected.
+
+Search primitives
+~~~~~~~~~~~~~~~~~
+Module: :mod:`gal.search`.
+
+Intuition: ship a modular branch-and-bound engine whose queue objective and
+bounding strategy can be injected. The default configuration reproduces the
+behaviour described in the paper while allowing experiments with alternative
+pruning heuristics.
+
+Helper interplay:
+
+* :class:`gal.search.engine.Search` accepts optional ``bounder`` and
+  ``objective`` instances, defaulting to :class:`gal.search.bounds.AngularBounds`
+  and :class:`gal.search.objectives.LowerBoundObjective`.
+* The engine gathers leaf statistics and, when requested, falls back to an
+  exhaustive check within the ``tau`` threshold to guarantee optimality.
+
+Complexity: identical to the legacy implementation - dual-tree traversal with
+sub-linear pruning when bounds remain tight.
+
 
 Testing strategy
 ----------------
@@ -225,7 +248,7 @@ to be read alongside the builders:
   every node radius covers all of its descendant points within a :math:`10^{-9}`
   tolerance.
 * ``tests/test_builders_api.py`` checks the user-facing API: each builder must
-  return a populated :class:`~trees.common.BallTree`, propagate default or
+  return a populated :class:`~gal.trees.common.BallTree`, propagate default or
   overridden leaf sizes, and record the selected MEB backend.
 * ``tests/test_builders_correctness.py`` verifies structural invariants and
   the PCA balance heuristic.  It ensures that leaves respect ``leaf_size``,

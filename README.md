@@ -48,7 +48,8 @@ python -m sota.learning_to_rank.choquet_rank
 ```
 src/gal/
   core/          # datasets & shared datatypes
-  trees/         # ball-tree construction + search
+  trees/         # ball-tree construction strategies
+  search/        # modular branch-and-bound search (engine, bounds, objectives)
   centers/       # polyhedral centre solvers
   learning/      # active-learning loop and data miners
   metrics/       # ranking and rule-quality metrics
