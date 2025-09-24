@@ -95,6 +95,97 @@ def _greedy_children_bruteforce(
     return results
 
 
+
+
+def _greedy_children_kdtree(
+    data: np.ndarray,
+    indices: np.ndarray,
+    parent_center: np.ndarray,
+    parent_radius: float,
+    max_children: int,
+    min_child_size: int,
+    radius_divisor: float,
+    eps: float = EPS,
+) -> List[Tuple[np.ndarray, np.ndarray, float]]:
+    """Greedy child selection accelerated with :class:~sklearn.neighbors.KDTree."""
+
+    if indices.size == 0 or parent_radius <= 0.0 or max_children <= 0:
+        return []
+
+    if KDTree is None:
+        return _greedy_children_bruteforce(
+            data,
+            indices,
+            parent_center,
+            parent_radius,
+            max_children,
+            min_child_size,
+            radius_divisor,
+            eps=eps,
+        )
+
+    local_points = data[indices]
+    if indices.size == 1:
+        return [(indices.copy(), local_points[0].copy(), 0.0)]
+
+    kdtree = KDTree(local_points)
+
+    dist_to_center = np.linalg.norm(local_points - parent_center[None, :], axis=1)
+    radius_cap = np.minimum(parent_radius / radius_divisor, parent_radius - dist_to_center)
+    np.maximum(radius_cap, 0.0, out=radius_cap)
+
+    chosen: List[Tuple[int, np.ndarray, float]] = []
+    chosen_centers: List[int] = []
+    chosen_radii: List[float] = []
+
+    while len(chosen) < max_children:
+        best_choice = None
+        best_gain = -1
+        best_radius = 0.0
+
+        for li in range(local_points.shape[0]):
+            rmax = radius_cap[li]
+            if rmax <= 0.0:
+                continue
+
+            candidate_point = local_points[li]
+            for cj, rj in zip(chosen_centers, chosen_radii):
+                centre_dist = float(np.linalg.norm(candidate_point - local_points[cj]))
+                rmax = min(rmax, centre_dist - rj)
+                if rmax <= 0.0:
+                    break
+            if rmax <= 0.0:
+                continue
+
+            cover_local = kdtree.query_radius(candidate_point[None, :], r=rmax + eps)[0]
+            gain = int(cover_local.size)
+            if gain < min_child_size:
+                continue
+
+            if gain > best_gain or (gain == best_gain and rmax > best_radius):
+                rsel = float(max(rmax, 0.0))
+                best_choice = (li, cover_local, rsel)
+                best_gain = gain
+                best_radius = rsel
+
+        if best_choice is None:
+            break
+
+        li_sel, cover_sel, rsel = best_choice
+        chosen.append((li_sel, cover_sel, rsel))
+        chosen_centers.append(li_sel)
+        chosen_radii.append(rsel)
+
+    results: List[Tuple[np.ndarray, np.ndarray, float]] = []
+    for li_sel, cover_sel, rsel in chosen:
+        cover_sel = np.asarray(cover_sel, dtype=np.int64)
+        child_indices = indices[cover_sel]
+        child_center = local_points[li_sel]
+        results.append((child_indices, child_center.copy(), float(rsel)))
+    return results
+
+
+
 def build_tree(X: np.ndarray, config: Dict | None = None) -> BallTree:
     data = np.ascontiguousarray(X, dtype=np.float64)
     if data.ndim != 2:
@@ -211,6 +302,7 @@ def build_tree(X: np.ndarray, config: Dict | None = None) -> BallTree:
         method="disjoint_greedy",
         config=cfg,
     )
+
 
 
 

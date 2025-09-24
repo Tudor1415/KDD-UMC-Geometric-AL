@@ -190,11 +190,11 @@ Intuition (proposed method): greedily carve a handful of pairwise-disjoint child
 
 Helper interplay:
 
-* Uses :func:`utils.meb.meb` (configured backend) for leaf minimum enclosing balls while respecting the greedy radius cap.
-* Relies on :func:`utils.geometry.enclose_many_balls` to tighten parent balls after accepting children.
-* Employs pairwise distance caps derived from :func:`numpy.linalg.norm` to keep child balls disjoint while honouring ``radius_divisor``.
+* Builds a local :class:`~sklearn.neighbors.KDTree` (when available) to accelerate radius queries while honouring the greedy ``radius_divisor`` cap; falls back to the brute-force pairwise distance scan otherwise.
+* Uses :func:`utils.meb.meb` for minimum enclosing balls at leaves and whenever a candidate cluster needs re-enclosing.
+* Relies on :func:`utils.geometry.enclose_many_balls` to tighten parent balls once children are locked in.
 
-Complexity: the naive greedy search examines up to :math:`O(k m)` candidate centres per node (``k`` targeted children, ``m`` local points) and recomputes leaf MEBs in :math:`O(m d)` time, giving an :math:`O(k m^2 d)` upper bound per internal node. In practice ``k`` is small and the greedy pruning keeps the routine tractable on medium-sized datasets.
+Complexity: constructing the KD-tree costs :math:`O(m \log m)` per internal node with :math:`m` local points, and each greedy radius query is :math:`O(\log m + s)` where ``s`` is the number of neighbours returned. The fallback brute-force routine reverts to the previous :math:`O(k m^2)` upper bound (``k`` candidate children). In practice ``k`` is small and the KDTree keeps the routine tractable on medium-sized datasets.
 
 Package entry-points
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -215,6 +215,9 @@ Helper interplay:
 
 Complexity: the registry lookup runs in constant time before handing control to
 whichever builder is selected.
+
+Legacy compatibility: the historical :mod:`gal.trees.ball_tree` module remains as a thin shim that re-exports ``build_tree`` and ``build_ball_tree`` from :mod:`gal.trees`, so existing imports continue to work unchanged.
+
 
 Search primitives
 ~~~~~~~~~~~~~~~~~
