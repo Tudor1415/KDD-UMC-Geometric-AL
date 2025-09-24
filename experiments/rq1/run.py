@@ -108,7 +108,8 @@ def run_dataset(
 ) -> Dict[str, Any]:
     eps = float(cfg.get("global", "epsilon", default=1e-12))
     n_runs = int(cfg.get("global", "num_runs", default=5))
-    timing_repeats = int(cfg.get("global", "timing_repeats", default=3))
+    # Always use a single timing repeat for T_max normalization
+    timing_repeats = 1
     t_fracs: List[float] = list(cfg.get("budgets", "time_checkpoints", default=[0.05, 0.1, 0.2, 0.5, 1.0]))
     c_fracs: List[float] = list(cfg.get("budgets", "calls_checkpoints", default=[0.05, 0.1, 0.2, 0.5, 1.0]))
     kd_strategy = str(cfg.get("methods", "dual_kdtree_bnb", "strategy", default="lower_bound"))
