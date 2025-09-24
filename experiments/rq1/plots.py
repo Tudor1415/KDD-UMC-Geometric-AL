@@ -40,6 +40,7 @@ def plot_anytime_curves(
     title: str | None = None,
     use_seaborn: bool = False,
     line_width: float | None = None,
+    xscale: str | None = None,
 ) -> plt.Figure:
     if use_seaborn:
         _maybe_sns()
@@ -54,7 +55,20 @@ def plot_anytime_curves(
     ax.set_ylabel(ylabel)
     if title:
         ax.set_title(title)
-    ax.set_xlim(0, 1)
+    # Axis scaling
+    if xscale is not None and str(xscale).lower() in {"log", "symlog", "logit"}:
+        # In log scale, ensure lower bound is > 0
+        try:
+            min_pos = min(float(np.min(c.x[c.x > 0])) for c in curves.values())
+            if np.isfinite(min_pos) and min_pos > 0:
+                ax.set_xscale(str(xscale).lower())
+                ax.set_xlim(left=min_pos)
+            else:
+                ax.set_xscale(str(xscale).lower())
+        except Exception:
+            ax.set_xscale(str(xscale).lower())
+    else:
+        ax.set_xlim(0, 1)
     ax.set_ylim(0, 1.05)
     ax.legend()
     fig.tight_layout()

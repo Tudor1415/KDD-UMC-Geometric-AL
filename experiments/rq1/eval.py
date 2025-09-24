@@ -83,8 +83,8 @@ def evaluate_dataset(
     # Sample a shared center
     wc = _sample_center(X.shape[1], rng) if center is None else np.asarray(center, dtype=float)
     # Oracle d*: min of exact BnB using kd- and ball-tree
-    kd_i, kd_j, kd_star = kd_engine.search_pair(kd_tree, X, wc, tau=float("inf"), ensure_optimal=True)
-    bt_i, bt_j, bt_star = bt_engine.search_pair(bt_tree, X, wc, tau=float("inf"), ensure_optimal=True)
+    kd_i, kd_j, kd_star = kd_engine.search_pair(kd_tree, X, wc, tau=float("inf"))
+    bt_i, bt_j, bt_star = bt_engine.search_pair(bt_tree, X, wc, tau=float("inf"))
     d_star = min(kd_star, bt_star)
 
     # Time normalization: run both methods to completion multiple times
@@ -115,7 +115,6 @@ def evaluate_dataset(
         return_stats=True,
         dominance_prune=True,
         eps=eps,
-        ensure_optimal=False,
         time_checkpoints=time_grid,
         calls_checkpoints=calls_grid,
         collect_bound_gaps=True,
@@ -128,7 +127,6 @@ def evaluate_dataset(
         return_stats=True,
         dominance_prune=True,
         eps=eps,
-        ensure_optimal=False,
         time_checkpoints=time_grid,
         calls_checkpoints=calls_grid,
         collect_bound_gaps=True,
@@ -137,8 +135,9 @@ def evaluate_dataset(
     def to_A(trace: Dict[str, Any]) -> Tuple[np.ndarray, np.ndarray]:
         tb = np.array(trace["time_best"], dtype=float)
         cb = np.array(trace["calls_best"], dtype=float)
-        A_t = np.minimum(1.0, d_star / np.maximum(tb, np.finfo(float).tiny))
-        A_m = np.minimum(1.0, d_star / np.maximum(cb, np.finfo(float).tiny))
+        # Use eps in numerator and denominator to avoid 0/0 when d* = 0 and best = 0
+        A_t = np.minimum(1.0, (d_star + eps) / (tb + eps))
+        A_m = np.minimum(1.0, (d_star + eps) / (cb + eps))
         return A_t, A_m
 
     kd_A_t, kd_A_m = to_A(kd_stats["trace"])  # type: ignore

@@ -126,6 +126,8 @@ def run_dataset(
     # Plot/export style
     dpi = int(cfg.get("evaluation", "plot_style", "dpi", default=150))
     line_w = float(cfg.get("evaluation", "plot_style", "line_width", default=2.0))
+    time_xscale = str(cfg.get("evaluation", "plot_style", "time_xscale", default="linear")).lower()
+    calls_xscale = str(cfg.get("evaluation", "plot_style", "calls_xscale", default="linear")).lower()
     export_csv = bool(cfg.get("evaluation", "exports", "csv", default=False))
     export_json = bool(cfg.get("evaluation", "exports", "json", default=True))
     export_figs = list(cfg.get("evaluation", "exports", "figures", default=["png"]))
@@ -332,12 +334,12 @@ def run_dataset(
         }
 
         # Figures per group
-        fig1 = plot_anytime_curves(curves_t, xlabel="Normalized Wall-Clock Time (t/T_max)", ylabel="Anytime Performance (A@t)", title=f"A@time on {dataset_name} ({add_label})", line_width=line_w)
+        fig1 = plot_anytime_curves(curves_t, xlabel="Normalized Wall-Clock Time (t/T_max)", ylabel="Anytime Performance (A@t)", title=f"A@time on {dataset_name} ({add_label})", line_width=line_w, xscale=time_xscale)
         if "png" in export_figs:
             fig1.savefig(group_dir / "A_at_time.png", dpi=dpi)
         if "pdf" in export_figs:
             fig1.savefig(group_dir / "A_at_time.pdf", dpi=dpi)
-        fig2 = plot_anytime_curves(curves_c, xlabel="Normalized Objective Calls (m/P_max)", ylabel="Anytime Performance (A@m)", title=f"A@calls on {dataset_name} ({add_label})", line_width=line_w)
+        fig2 = plot_anytime_curves(curves_c, xlabel="Normalized Objective Calls (m/P_max)", ylabel="Anytime Performance (A@m)", title=f"A@calls on {dataset_name} ({add_label})", line_width=line_w, xscale=calls_xscale)
         if "png" in export_figs:
             fig2.savefig(group_dir / "A_at_calls.png", dpi=dpi)
         if "pdf" in export_figs:
