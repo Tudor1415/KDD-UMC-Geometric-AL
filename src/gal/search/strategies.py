@@ -12,32 +12,6 @@ from .bounds import BoundsResult
 TNode = TypeVar('TNode')
 
 
-def _collect_nodes(root: Node) -> List[Node]:
-    """Return a flat list of all nodes in the subtree rooted at `root`."""
-    stack = [root]
-    nodes: List[Node] = []
-    while stack:
-        nd = stack.pop()
-        nodes.append(nd)
-        stack.extend(nd.children)
-    return nodes
-
-
-def _precompute_diversity(root: Node, Q: np.ndarray | None) -> Dict[int, float]:
-    """Novelty score per node: min distance to any reference query point."""
-    nodes = _collect_nodes(root)
-    diversity: Dict[int, float] = {}
-    if Q is None or len(Q) == 0:
-        for nd in nodes:
-            diversity[id(nd)] = 0.0
-        return diversity
-
-    Q = np.asarray(Q, dtype=float)
-    for nd in nodes:
-        diversity[id(nd)] = float(np.min(np.linalg.norm(Q - nd.center, axis=1)))
-    return diversity
-
-
 class VisitStrategy(Generic[TNode]):
     """Base class for visit-ordering strategies."""
 
@@ -57,20 +31,43 @@ class LowerBoundVisitStrategy(VisitStrategy[Node]):
 
 
 class DiversityVisitStrategy(VisitStrategy[Node]):
-    """Order candidate pairs by decreasing diversity, then by bound tightness."""
+    """
+    Order candidate pairs by decreasing diversity, then by bound tightness.
+    """
 
     def __init__(self, queries: np.ndarray | None = None) -> None:
         self.queries = None if queries is None else np.asarray(queries, dtype=float)
-        self._diversity: Dict[int, float] = {}
+        self._diversity_cache: Dict[int, float] = {}
+
+    def _get_diversity_score(self, node: Node) -> float:
+        """
+        Retrieves the diversity score for a node, computing it if not cached.
+        """
+        node_id = id(node)
+        if node_id not in self._diversity_cache:
+            if self.queries is None or len(self.queries) == 0:
+                self._diversity_cache[node_id] = 0.0
+            else:
+                self._diversity_cache[node_id] = float(
+                    np.min(np.linalg.norm(self.queries - node.center, axis=1))
+                )
+        return self._diversity_cache[node_id]
 
     def setup(self, root: Node, *, data: np.ndarray | None = None) -> None:
-        queries = self.queries
-        if queries is None and data is not None:
-            queries = np.asarray(data, dtype=float)
-        self._diversity = _precompute_diversity(root, queries)
+        """
+        Pre-computes diversity scores for all nodes in the tree.
+        """
+        if self.queries is None and data is not None:
+            self.queries = np.asarray(data, dtype=float)
+
+        stack = [root]
+        while stack:
+            node = stack.pop()
+            self._get_diversity_score(node)  # This will compute and cache the score
+            stack.extend(node.children)
 
     def priority(self, a: Node, b: Node, bounds: BoundsResult, mass: int) -> Tuple[float, ...]:
-        div_a = self._diversity.get(id(a), 0.0)
-        div_b = self._diversity.get(id(b), 0.0)
+        div_a = self._get_diversity_score(a)
+        div_b = self._get_diversity_score(b)
         diversity_score = max(div_a, div_b)
         return (-diversity_score, bounds.lower, bounds.upper, float(mass))
