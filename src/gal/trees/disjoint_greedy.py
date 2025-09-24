@@ -184,6 +184,20 @@ def build_tree(X: np.ndarray, config: Dict | None = None) -> BallTree:
         node.indices = None
         node.center, node.radius = enclose_many_balls([(ch.center, ch.radius) for ch in child_nodes])
 
+
+    fallback_method = cfg.get("degeneracy_fallback", "axis_median")
+
+    if root.is_leaf and root.indices is not None and root.indices.size > leaf_size:
+        if fallback_method == "axis_median":
+            from . import axis_median
+
+            fallback_tree = axis_median.build_tree(data, {"leaf_size": leaf_size})
+            fallback_tree.method = "disjoint_greedy"
+            fallback_tree.config = cfg
+            return fallback_tree
+        raise RuntimeError(
+            "disjoint_greedy failed to split data; consider adjusting configuration"
+        )
     return BallTree(
         root=root,
         n_samples=n_samples,

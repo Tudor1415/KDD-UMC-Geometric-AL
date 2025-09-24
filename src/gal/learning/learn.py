@@ -26,7 +26,8 @@ from typing import Callable, Tuple, Optional
 
 import numpy as np
 from gal.utils.helpers import augment_with_minimums, k_additive_constraints
-from gal.trees.ball_tree import build_ball_tree, search_pair
+from gal.trees import BallTree, build_ball_tree
+from gal.search import search_pair
 
 try:
     from gal.plots.viz import visualize_iteration  # type: ignore
@@ -72,11 +73,13 @@ def project_constraint(h):
 
 
 def learn(
-    root,  # ball‑tree root
+    tree: BallTree,
+    data: Array,
     A0: Array,
     b0: Array,
     center_fn: CenterFn,
     oracle: OracleFn,
+    *,
     n_iter: int = 10,
     report_hook: ReportHook = None,
     viz_2D: bool = False,
@@ -104,6 +107,9 @@ def learn(
     # Copy so we do not mutate caller’s arrays
     A = np.asarray(A0, dtype=float).copy()
     b = np.asarray(b0, dtype=float).copy()
+    data = np.asarray(data, dtype=float)
+    if data.ndim != 2:
+        raise ValueError("data must be a 2D array")
 
     # --- iteration 0: compute initial center & radius --------------------
     center = center_fn(A, b)  # ignore extra outputs
@@ -122,17 +128,23 @@ def learn(
                 )
             visualize_iteration(A, b, center, radius, iter_idx=it, show=True)
         # 1) pick most ambiguous pair wrt current center
-        pair, score, *_ = search_pair(root, complete_center, radius / 2.0)
+        i_idx, j_idx, score = search_pair(
+            tree,
+            data,
+            complete_center,
+            tau=radius / 2.0,
+        )
         if score > radius:
-            # no more ambiguous pairs – terminate early
+            # no more ambiguous pairs - terminate early
             break
 
-        if pair is None:
+        if i_idx is None or j_idx is None:
             print("No more pairs found, terminating early.")
             break
 
         # 2) ask the oracle
-        a_pt, b_pt = pair
+        a_pt = data[int(i_idx)]
+        b_pt = data[int(j_idx)]
         if np.linalg.norm(a_pt - b_pt) == 0:
             print("Degenerate pair found, skipping.")
             return center, A, b

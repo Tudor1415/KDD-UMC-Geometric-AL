@@ -33,7 +33,7 @@ import pandas as pd
 from sklearn.model_selection import KFold
 
 from gal.learning.learn import learn
-from gal.trees.ball_tree import build_ball_tree
+from gal.trees import build_ball_tree
 from gal.metrics.metrics import compute_ranking_metrics
 from gal.core.data import Dataset
 from .experiments import Config
@@ -179,11 +179,12 @@ def _run_pair(
     # ------------------------------------------------------------------
     with _timed(f"[{ds_name} f{fold_id}] {oracle_name} × {centre_name}"):
         learn(
-            root,
-            A0,
-            b0,
-            centre_fn,
-            oracle.compare_vectors,
+            tree=root,
+            data=pts_all[list(train_idx)],
+            A0=A0,
+            b0=b0,
+            center_fn=centre_fn,
+            oracle=oracle.compare_vectors,
             n_iter=n_iters,
             report_hook=_hook,
         )

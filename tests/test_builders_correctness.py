@@ -11,8 +11,8 @@ if str(SRC) not in sys.path:
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.trees import axis_median, two_pivot, pca_ballstar, bottom_up, middle_out, disjoint_greedy
-from src.trees.common import BallTree
+from gal.trees import axis_median, two_pivot, pca_ballstar, bottom_up, middle_out, disjoint_greedy
+from gal.trees.common import BallTree
 
 BUILDERS = [
     ("axis_median", axis_median.build_tree),

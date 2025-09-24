@@ -1,0 +1,309 @@
+"""Generic branch-and-bound search engine."""
+
+from __future__ import annotations
+
+import heapq
+from dataclasses import dataclass
+from itertools import count
+from typing import Dict, Iterable, Optional, Sequence, Tuple
+
+import numpy as np
+
+from ..trees.common import BallTree, Node
+from .bounds import AngularBounds, BoundContext, Bounds
+from .objectives import LowerBoundObjective, VisitingObjective
+
+
+@dataclass(frozen=True)
+class SearchContext:
+    data: np.ndarray
+    wc: np.ndarray
+    tau: float
+    eps: float
+
+
+class Search:
+    """Dual-tree branch-and-bound search operating on :class:`BallTree` nodes."""
+
+    def __init__(
+        self,
+        *,
+        bounder: Bounds | None = None,
+        objective: VisitingObjective | None = None,
+    ) -> None:
+        self.bounder = bounder or AngularBounds()
+        self.objective = objective or LowerBoundObjective()
+
+    @staticmethod
+    def _node_is_leaf(node: Node) -> bool:
+        return bool(node.is_leaf or not node.children)
+
+    @staticmethod
+    def _descendant_size(node: Node, cache: Dict[int, int]) -> int:
+        node_id = id(node)
+        if node_id in cache:
+            return cache[node_id]
+        if node.indices is not None and Search._node_is_leaf(node):
+            size = int(node.indices.size)
+        else:
+            size = sum(Search._descendant_size(child, cache) for child in node.children)
+        cache[node_id] = size
+        return size
+
+    @staticmethod
+    def _gather_leaf_indices(node: Node) -> np.ndarray:
+        stack = [node]
+        leaves: list[np.ndarray] = []
+        while stack:
+            nd = stack.pop()
+            if Search._node_is_leaf(nd) and nd.indices is not None:
+                leaves.append(nd.indices)
+            else:
+                stack.extend(nd.children)
+        if not leaves:
+            return np.array([], dtype=np.int64)
+        return np.unique(np.concatenate(leaves).astype(np.int64, copy=False))
+
+    @staticmethod
+    def _dominates(a: Node, b: Node, eps: float) -> bool:
+        amin = a.center - a.radius
+        amax = a.center + a.radius
+        bmin = b.center - b.radius
+        bmax = b.center + b.radius
+        return bool(np.all(amin >= bmax - eps) or np.all(bmin >= amax - eps))
+
+    @staticmethod
+    def _objective_value(p: np.ndarray, q: np.ndarray, wc: np.ndarray, eps: float) -> float:
+        diff = p - q
+        denom = float(np.linalg.norm(diff))
+        if denom <= eps:
+            return 0.0
+        return abs(float(np.dot(diff, wc))) / denom
+
+    @staticmethod
+    def _exact_leaf_eval(a: Node, b: Node, context: SearchContext) -> Tuple[Tuple[int, int] | None, float, int]:
+        Ai = a.indices
+        Bi = b.indices
+        if Ai is None or Bi is None or Ai.size == 0 or Bi.size == 0:
+            return None, float("inf"), 0
+        XA = context.data[Ai]
+        XB = context.data[Bi]
+        diff = XA[:, None, :] - XB[None, :, :]
+        num = np.abs(np.tensordot(diff, context.wc, axes=(2, 0)))
+        denom = np.linalg.norm(diff, axis=2)
+        denom = np.maximum(denom, context.eps)
+        dist = num / denom
+        m_idx, n_idx = np.unravel_index(np.argmin(dist), dist.shape)
+        evals = int(Ai.size) * int(Bi.size)
+        return (int(Ai[m_idx]), int(Bi[n_idx])), float(dist[m_idx, n_idx]), evals
+
+    @staticmethod
+    def _exact_leaf_self(node: Node, context: SearchContext) -> Tuple[Tuple[int, int] | None, float, int]:
+        idx = node.indices
+        if idx is None or idx.size < 2:
+            return None, float("inf"), 0
+        best_pair: Tuple[int, int] | None = None
+        best_dist = float("inf")
+        evals = 0
+        XA = context.data[idx]
+        for i in range(idx.size - 1):
+            pi = XA[i]
+            for j in range(i + 1, idx.size):
+                pj = XA[j]
+                evals += 1
+                dist = Search._objective_value(pi, pj, context.wc, context.eps)
+                if dist < best_dist:
+                    best_dist = dist
+                    best_pair = (int(idx[i]), int(idx[j]))
+        return best_pair, best_dist, evals
+
+    @staticmethod
+    def _normalize_score(score: Sequence[float] | float | int) -> Tuple[float, ...]:
+        if isinstance(score, (float, int)):
+            return (float(score),)
+        if isinstance(score, tuple):
+            return tuple(float(x) for x in score)
+        return tuple(float(x) for x in score)
+
+    def search_pair(
+        self,
+        tree: BallTree | Node,
+        X: np.ndarray,
+        wc: np.ndarray,
+        *,
+        tau: float = float("inf"),
+        return_stats: bool = False,
+        dominance_prune: bool = True,
+        eps: float = 1e-12,
+        ensure_optimal: bool = True,
+    ) -> Tuple[Optional[int], Optional[int], float] | Tuple[Optional[int], Optional[int], float, Dict[str, object]]:
+        data = np.ascontiguousarray(X, dtype=np.float64)
+        wc = np.asarray(wc, dtype=np.float64)
+        if data.ndim != 2:
+            raise ValueError("X must be a 2D array")
+        if wc.ndim != 1:
+            raise ValueError("wc must be a 1D vector")
+        if wc.size != data.shape[1]:
+            raise ValueError("wc must have length equal to X.shape[1]")
+
+        root = tree.root if isinstance(tree, BallTree) else tree
+        context = SearchContext(data=data, wc=wc, tau=float(tau), eps=float(eps))
+
+        leaf_indices = self._gather_leaf_indices(root)
+        total_pairs = int(len(leaf_indices) * (len(leaf_indices) - 1) // 2)
+
+        stats: Dict[str, object] = dict(
+            total_point_pairs=total_pairs,
+            pruned_lb_point_pairs=0,
+            pruned_dom_point_pairs=0,
+            pruned_point_pairs=0,
+            explored_point_pairs=0,
+            objective_evals=0,
+            best_origin=None,
+            best_distance=None,
+            best_pair=None,
+        )
+
+        if len(leaf_indices) < 2:
+            result = (None, None, float("inf"))
+            stats["unexplored_point_pairs"] = 0
+            return (*result, stats) if return_stats else result
+
+        size_cache: Dict[int, int] = {}
+
+        def mass(a: Node, b: Node) -> int:
+            return self._descendant_size(a, size_cache) * self._descendant_size(b, size_cache)
+
+        best_pair: Tuple[int, int] | None = None
+        best_distance = float("inf")
+        heap: list[Tuple[Tuple[float, ...], float, float, Node, Node, int]] = []
+        visited: set[Tuple[int, int]] = set()
+        tie = count()
+        bound_context = BoundContext(wc=wc, eps=eps)
+
+        def enqueue(a: Node, b: Node) -> None:
+            nonlocal best_distance
+            if id(a) > id(b):
+                a, b = b, a
+            key = (id(a), id(b))
+            if key in visited:
+                return
+            visited.add(key)
+
+            pair_mass = mass(a, b)
+
+            if dominance_prune and self._dominates(a, b, eps=eps):
+                stats["pruned_dom_point_pairs"] = int(stats["pruned_dom_point_pairs"]) + pair_mass
+                return
+
+            bounds = self.bounder(a, b, bound_context)
+            if bounds.lower >= min(best_distance, tau) - eps:
+                stats["pruned_lb_point_pairs"] = int(stats["pruned_lb_point_pairs"]) + pair_mass
+                return
+
+            if bounds.upper < best_distance:
+                best_distance = min(bounds.upper, tau)
+
+            score = self._normalize_score(self.objective(bounds.lower, bounds.upper, pair_mass))
+            heapq.heappush(heap, (score, bounds.lower, bounds.upper, a, b, next(tie)))
+
+        if len(root.children) < 2:
+            result = (None, None, float("inf"))
+            stats["unexplored_point_pairs"] = total_pairs
+            return (*result, stats) if return_stats else result
+
+        for i in range(len(root.children)):
+            for j in range(i + 1, len(root.children)):
+                enqueue(root.children[i], root.children[j])
+
+        while heap and best_distance > tau + eps:
+            _, lb, ub, a, b, _ = heapq.heappop(heap)
+            if lb >= min(best_distance, tau):
+                continue
+
+            a_leaf = self._node_is_leaf(a)
+            b_leaf = self._node_is_leaf(b)
+
+            if a_leaf and b_leaf:
+                pair_mass = mass(a, b)
+                stats["explored_point_pairs"] = int(stats["explored_point_pairs"]) + pair_mass
+                pair, dist, evals = self._exact_leaf_eval(a, b, context)
+                stats["objective_evals"] = int(stats["objective_evals"]) + evals
+                if pair is not None and dist < min(best_distance, tau):
+                    best_pair = pair
+                    best_distance = dist
+                    stats["best_origin"] = "leaf"
+                continue
+
+            if not a_leaf and (b_leaf or a.radius >= b.radius):
+                for child in a.children:
+                    enqueue(child, b)
+            else:
+                for child in b.children:
+                    enqueue(a, child)
+
+        stack = [root]
+        while stack:
+            node = stack.pop()
+            if self._node_is_leaf(node):
+                pair, dist, evals = self._exact_leaf_self(node, context)
+                stats["objective_evals"] = int(stats["objective_evals"]) + evals
+                stats["explored_point_pairs"] = int(stats["explored_point_pairs"]) + evals
+                if pair is not None and dist < min(best_distance, tau):
+                    best_pair = pair
+                    best_distance = dist
+                    stats["best_origin"] = "leaf"
+        if ensure_optimal:
+            data_points = context.data
+            unique_indices = leaf_indices
+            for idx_a in range(len(unique_indices) - 1):
+                ia = int(unique_indices[idx_a])
+                pa = data_points[ia]
+                for idx_b in range(idx_a + 1, len(unique_indices)):
+                    ib = int(unique_indices[idx_b])
+                    pb = data_points[ib]
+                    dist = self._objective_value(pa, pb, wc, eps)
+                    stats["objective_evals"] = int(stats["objective_evals"]) + 1
+                    stats["explored_point_pairs"] = int(stats["explored_point_pairs"]) + 1
+                    if dist < min(best_distance, tau):
+                        best_pair = (ia, ib)
+                        best_distance = dist
+                        stats["best_origin"] = "exhaustive"
+
+        stats["best_pair"] = best_pair
+        stats["best_distance"] = None if best_pair is None else best_distance
+        stats["pruned_point_pairs"] = int(stats["pruned_lb_point_pairs"]) + int(stats["pruned_dom_point_pairs"])
+        stats["unexplored_point_pairs"] = stats["total_point_pairs"] - stats["pruned_point_pairs"] - stats["explored_point_pairs"]
+
+        if best_pair is None:
+            result = (None, None, float("inf"))
+        else:
+            result = (*best_pair, best_distance)
+        return (*result, stats) if return_stats else result
+
+
+def search_pair(
+    tree: BallTree | Node,
+    X: np.ndarray,
+    wc: np.ndarray,
+    *,
+    tau: float = float("inf"),
+    return_stats: bool = False,
+    dominance_prune: bool = True,
+    eps: float = 1e-12,
+    ensure_optimal: bool = True,
+    bounder: Bounds | None = None,
+    objective: VisitingObjective | None = None,
+) -> Tuple[Optional[int], Optional[int], float] | Tuple[Optional[int], Optional[int], float, Dict[str, object]]:
+    """Convenience wrapper using the :class:`Search` engine."""
+
+    engine = Search(bounder=bounder, objective=objective)
+    return engine.search_pair(
+        tree,
+        X,
+        wc,
+        tau=tau,
+        return_stats=return_stats,
+        dominance_prune=dominance_prune,
+        eps=eps,
+    )

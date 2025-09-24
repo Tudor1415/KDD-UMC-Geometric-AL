@@ -9,8 +9,8 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from src.trees import axis_median
-from src.trees.search import search_pair
+from gal.trees import axis_median
+from gal.search import search_pair
 
 
 def brute_force_metric(X: np.ndarray, wc: np.ndarray):

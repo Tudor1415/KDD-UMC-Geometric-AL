@@ -1,4 +1,4 @@
-﻿"""Benchmark ball-tree pruning and query diversity on real datasets."""
+"""Benchmark ball-tree pruning and query diversity on real datasets."""
 from __future__ import annotations
 
 import argparse
@@ -20,7 +20,8 @@ from gal.centers.poly_centers import (
     volumetric_center,
     mse_center,
 )
-from gal.trees.ball_tree import build_ball_tree, collect_kept_indices, search_pair
+from gal.trees import build_ball_tree
+from gal.search import search_pair
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,25 @@ MATRICES_DIR = Path("matrices")
 MEASURES = ["yuleQ", "cosine", "kruskal", "added_value", "certainty"]
 KEEP_ONLY = {"credit", "magic", "mushroom", "tictactoe", "twitter"}
 
+def collect_leaf_indices(tree, *, min_leaf_size: int = 1) -> np.ndarray:
+    """Return indices stored in leaves meeting the size threshold."""
+    if hasattr(tree, "root"):
+        node = tree.root
+    else:
+        node = tree
+    stack = [node]
+    leaves: list[np.ndarray] = []
+    while stack:
+        current = stack.pop()
+        children = getattr(current, "children", [])
+        if getattr(current, "is_leaf", False) and current.indices is not None:
+            if current.indices.size >= min_leaf_size:
+                leaves.append(current.indices)
+        elif children:
+            stack.extend(children)
+    if not leaves:
+        return np.empty(0, dtype=np.int64)
+    return np.unique(np.concatenate(leaves))
 # -----------------------
 # Center function registry
 # -----------------------
@@ -269,7 +289,7 @@ def run_single_benchmark(
         radius_divisor=radius_divisor,
         return_levels=True,
     )
-    coverage = len(collect_kept_indices(root, P=P)) / float(augmented.shape[0])
+    coverage = len(collect_leaf_indices(root, min_leaf_size=P)) / float(augmented.shape[0])
 
     n_single = ds.points.shape[1]
     A0, b0, _ = k_additive_constraints(n_single, ADD_K)
@@ -386,7 +406,7 @@ def main() -> None:
 
     datasets = discover_datasets(args.datasets, args.max_rules)
     if not datasets:
-        logger.error("No datasets available – aborting.")
+        logger.error("No datasets available � aborting.")
         return
 
     csv_path = output_dir / "ball_tree_benchmark.csv"
@@ -457,3 +477,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

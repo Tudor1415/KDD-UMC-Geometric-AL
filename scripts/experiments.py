@@ -14,7 +14,7 @@ from sklearn.model_selection import KFold
 
 from gal.learning.learn import learn
 from gal.core.data import Dataset
-from gal.trees.ball_tree import build_ball_tree
+from gal.trees import build_ball_tree
 from gal.oracles.oracles import Oracle  # <- NEW
 from gal.metrics.metrics import compute_ranking_metrics  # <- NEW
 from gal.utils.helpers import k_additive_constraints, augment_with_minimums
@@ -118,7 +118,8 @@ def run_experiments(config: Config) -> pd.DataFrame:
                         )
 
                     learn(
-                        root=root,
+                        tree=root,
+                        data=points_train,
                         A0=A,
                         b0=b,
                         center_fn=center_fn,

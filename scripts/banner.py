@@ -38,7 +38,8 @@ except ImportError:  # pragma: no cover
 
 from gal.utils.helpers import augment_with_minimums, k_additive_constraints
 from gal.centers.poly_centers import chebyshev_center, minkowski_center
-from gal.trees.ball_tree import build_ball_tree, search_pair
+from gal.trees import build_ball_tree
+from gal.search import search_pair
 from gal.learning.learn import _chebyshev_radius
 
 # ---------------------------------------------------------------------------
@@ -465,7 +466,8 @@ def main():
     from gal.learning.learn import learn
 
     centre_final, A_fin, b_fin = learn(
-        root=tree,
+        tree=tree,
+        data=pts,
         A0=A0,
         b0=b0,
         center_fn=chebyshev_center,

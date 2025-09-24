@@ -11,7 +11,7 @@ if str(SRC) not in sys.path:
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from gal.trees.ball_tree import AVAILABLE_METHODS, build_tree
+from gal.trees import AVAILABLE_METHODS, build_tree
 
 
 def test_default_method_matches_axis_median():
