@@ -10,8 +10,8 @@ from typing import Dict, Iterable, Optional, Sequence, Tuple
 import numpy as np
 
 from ..trees.common import BallTree, Node
-from .bounds import AngularBounds, BoundContext, Bounds
-from .objectives import LowerBoundObjective, VisitingObjective
+from .bounds import BallTreeBounds, BoundContext, BoundsStrategy
+from .strategies import DiversityVisitStrategy, VisitStrategy
 
 
 @dataclass(frozen=True)
@@ -28,11 +28,11 @@ class Search:
     def __init__(
         self,
         *,
-        bounder: Bounds | None = None,
-        objective: VisitingObjective | None = None,
+        bounder: BoundsStrategy[Node] | None = None,
+        strategy: VisitStrategy[Node] | None = None,
     ) -> None:
-        self.bounder = bounder or AngularBounds()
-        self.objective = objective or LowerBoundObjective()
+        self.bounder = bounder or BallTreeBounds()
+        self.strategy = strategy or DiversityVisitStrategy()
 
     @staticmethod
     def _node_is_leaf(node: Node) -> bool:
@@ -179,7 +179,8 @@ class Search:
         heap: list[Tuple[Tuple[float, ...], float, float, Node, Node, int]] = []
         visited: set[Tuple[int, int]] = set()
         tie = count()
-        bound_context = BoundContext(wc=wc, eps=eps)
+        bound_context = BoundContext(wc=wc, eps=float(eps))
+        self.strategy.setup(root, data=data)
 
         def enqueue(a: Node, b: Node) -> None:
             nonlocal best_distance
@@ -204,7 +205,7 @@ class Search:
             if bounds.upper < best_distance:
                 best_distance = min(bounds.upper, tau)
 
-            score = self._normalize_score(self.objective(bounds.lower, bounds.upper, pair_mass))
+            score = self._normalize_score(self.strategy.priority(a, b, bounds, pair_mass))
             heapq.heappush(heap, (score, bounds.lower, bounds.upper, a, b, next(tie)))
 
         if len(root.children) < 2:
@@ -292,12 +293,12 @@ def search_pair(
     dominance_prune: bool = True,
     eps: float = 1e-12,
     ensure_optimal: bool = True,
-    bounder: Bounds | None = None,
-    objective: VisitingObjective | None = None,
+    bounder: BoundsStrategy[Node] | None = None,
+    strategy: VisitStrategy[Node] | None = None,
 ) -> Tuple[Optional[int], Optional[int], float] | Tuple[Optional[int], Optional[int], float, Dict[str, object]]:
     """Convenience wrapper using the :class:`Search` engine."""
 
-    engine = Search(bounder=bounder, objective=objective)
+    engine = Search(bounder=bounder, strategy=strategy)
     return engine.search_pair(
         tree,
         X,

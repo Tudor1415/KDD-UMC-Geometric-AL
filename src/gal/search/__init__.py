@@ -1,16 +1,28 @@
 """GAL search package."""
 
-from .bounds import AngularBounds, BoundContext, Bounds, BoundsResult
+from .bounds import BallTreeBounds, BoundContext, BoundsResult, BoundsStrategy
 from .engine import Search, search_pair
-from .objectives import LowerBoundObjective, VisitingObjective
+from .strategies import DiversityVisitStrategy, LowerBoundVisitStrategy, VisitStrategy
+
+# Backwards compatibility aliases (deprecated)
+AngularBounds = BallTreeBounds
+Bounds = BoundsStrategy
+LowerBoundObjective = LowerBoundVisitStrategy
+VisitingObjective = VisitStrategy
 
 __all__ = [
-    "AngularBounds",
+    "BallTreeBounds",
     "BoundContext",
-    "Bounds",
     "BoundsResult",
-    "LowerBoundObjective",
+    "BoundsStrategy",
+    "DiversityVisitStrategy",
+    "LowerBoundVisitStrategy",
     "Search",
-    "VisitingObjective",
+    "VisitStrategy",
     "search_pair",
+    # Deprecated aliases
+    "AngularBounds",
+    "Bounds",
+    "LowerBoundObjective",
+    "VisitingObjective",
 ]

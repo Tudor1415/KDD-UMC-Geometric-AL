@@ -186,15 +186,15 @@ Disjoint Greedy
 ~~~~~~~~~~~~~~~~~~~
 Module: :mod:`gal.trees.disjoint_greedy`.
 
-Intuition (proposed method): greedily carve a handful of pairwise-disjoint child balls inside a parent so each child captures many points while staying well within the parent radius. The builder repeatedly seeds a candidate centre, grows a ball until the radius cap is hit, and locks it before moving to the next best candidate, emphasising tight siblings with minimal overlap.
+Intuition (proposed method): greedily pack pairwise-disjoint child balls inside each parent node so that every accepted child captures many local points while staying well within the parent's radius budget. The builder repeatedly seeds a candidate centre, expands its ball until either the ``radius_divisor`` cap or a sibling boundary is met, then locks the child and moves on to the next best candidate. Because every parent may accept more than two children, the resulting tree is naturally :math:`k`-ary when the data supports it.
 
 Helper interplay:
 
-* Builds a local :class:`~sklearn.neighbors.KDTree` (when available) to accelerate radius queries while honouring the greedy ``radius_divisor`` cap; falls back to the brute-force pairwise distance scan otherwise.
+* Builds a mandatory local :class:`~sklearn.neighbors.KDTree` to accelerate radius queries while honouring the greedy ``radius_divisor`` cap; the module raises a runtime error when scikit-learn is unavailable, keeping the routine squarely in the KD-tree regime.
 * Uses :func:`utils.meb.meb` for minimum enclosing balls at leaves and whenever a candidate cluster needs re-enclosing.
 * Relies on :func:`utils.geometry.enclose_many_balls` to tighten parent balls once children are locked in.
 
-Complexity: constructing the KD-tree costs :math:`O(m \log m)` per internal node with :math:`m` local points, and each greedy radius query is :math:`O(\log m + s)` where ``s`` is the number of neighbours returned. The fallback brute-force routine reverts to the previous :math:`O(k m^2)` upper bound (``k`` candidate children). In practice ``k`` is small and the KDTree keeps the routine tractable on medium-sized datasets.
+Complexity: constructing the KD-tree costs :math:`O(m \log m)` per internal node with :math:`m` local points, and each greedy radius query is :math:`O(\log m + s)` where ``s`` is the number of neighbours returned. The number of admitted children ``k`` is typically small, so the KD-tree acceleration keeps the routine tractable on medium-sized datasets.
 
 Package entry-points
 ~~~~~~~~~~~~~~~~~~~~~~
