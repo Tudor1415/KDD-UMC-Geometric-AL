@@ -229,7 +229,7 @@ def build_tree(X: np.ndarray, config: Dict | None = None) -> BallTree:
             node.is_leaf = True
             continue
 
-        children_specs = _greedy_children(
+        children_specs = _greedy_children_kdtree(
             data,
             node_indices,
             node.center,

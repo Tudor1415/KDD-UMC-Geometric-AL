@@ -3,18 +3,24 @@ Project layout
 
 The repository keeps installable source code under ``src`` and supporting
 artifacts at the top level.  The listing below highlights the directories that
-matter for the new ball-tree implementation.
+matter for the new ball-tree and search implementations.
 
 .. code-block:: text
 
    repo/
    |-- src/
-   |   |-- gal/                # Legacy GAL package (active learning stack)
-   |   |-- trees/              # New n-ary ball-tree builders (this work)
-   |   |-- utils/              # Geometry, MEB, and partition helpers
+   |   |-- gal/                # Geometry-Aware Learning package
+   |   |   |-- core/           # datasets & shared datatypes
+   |   |   |-- trees/          # ball-tree construction strategies
+   |   |   |-- search/         # branch-and-bound search engine primitives
+   |   |   |-- centers/        # polyhedral centre solvers
+   |   |   |-- learning/       # active-learning loop and data miners
+   |   |   |-- metrics/        # ranking and rule-quality metrics
+   |   |   |-- oracles/        # oracle implementations & priors
+   |   |   `-- utils/          # feature augmentation helpers
    |   `-- __init__.py
    |-- configs/               # Default configs (Python dict modules)
-   |-- tests/                 # Pytest suites for builders and helpers
+   |-- tests/                 # Pytest suites for builders, search, and helpers
    |-- docs/                  # Sphinx documentation project
    |-- scripts/               # Command-line entry points & benchmarking tools
    |-- datasets/              # Raw transactional datasets
@@ -35,7 +41,8 @@ Configuration files
 
 ``docs/source/*.rst``
     ReStructuredText sources for the documentation, including the
-    ``ball_tree_builders`` page that explains the new constructors.
+    ``ball_tree_builders`` and ``api/search`` pages that explain the new
+    constructors and search engine.
 
 Generated artefacts
 -------------------
