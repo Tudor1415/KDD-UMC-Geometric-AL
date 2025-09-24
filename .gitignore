@@ -3,4 +3,6 @@
 !*.py
 !docs/**
 !*.md
+!*.yaml
+!.pyproject.toml
 !.gitignore

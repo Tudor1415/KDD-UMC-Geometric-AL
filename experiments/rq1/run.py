@@ -12,6 +12,7 @@ import yaml
 
 from .eval import aggregate_runs, evaluate_dataset
 from .plots import CurveCI, plot_anytime_curves, plot_bound_tightness_kde, plot_scaling_bars
+from gal.utils.helpers import augment_with_minimums
 
 
 @dataclass
@@ -69,27 +70,40 @@ def run_dataset(
         add_vals = [add_vals]
 
     def apply_additivity(Xin: np.ndarray, add: Any, all_vals: List[Any]) -> Tuple[np.ndarray, str, int, int]:
+        """Apply Choquet additivity by augmenting with minimums up to order k.
+
+        Rules:
+        - If add is an int k>=1: X_aug = augment_with_minimums(Xin, k)
+        - If add is a dict: supports keys {k, n}; slice rows to n (if given), then augment with k.
+        - If add is None: no augmentation.
+        Returns X_aug and a label including k and resulting dimensionality.
+        """
         n0, d0 = Xin.shape
+        # Defaults
+        k = None
+        n_rows = n0
         if isinstance(add, dict):
-            n = min(int(add.get("n", n0)), n0)
-            d = min(int(add.get("d", d0)), d0)
-            label = f"n={n}, d={d}"
+            if "n" in add:
+                n_rows = max(1, min(int(add.get("n", n0)), n0))
+            if "k" in add:
+                k = int(add["k"])
         elif add is None:
-            n, d = n0, d0
-            label = f"n={n}, d={d}"
+            k = None
         else:
-            # Map scalar add to fraction of size
+            # Treat scalar add as k-additivity
             try:
-                vals_num = [float(v) for v in all_vals if v is not None]
-                vmax = max(vals_num) if vals_num else 1.0
-                frac = float(add) / float(vmax) if vmax > 0 else 1.0
+                k = int(add)
             except Exception:
-                frac = 1.0
-            n = max(2, min(n0, int(round(n0 * frac))))
-            d = max(1, min(d0, int(round(d0 * frac))))
-            label = f"add={add} (n={n}, d={d})"
-        Xsub = Xin[:n, :d]
-        return Xsub, label, n, d
+                k = None
+
+        Xsub = Xin[:n_rows, :]
+        if k is None or k <= 1:
+            Xaug = Xsub.copy()
+            label = f"k=1 (n={Xsub.shape[0]}, d={Xsub.shape[1]})"
+        else:
+            Xaug = augment_with_minimums(Xsub, k)
+            label = f"k={k} (n={Xaug.shape[0]}, d={Xaug.shape[1]})"
+        return Xaug, label, Xaug.shape[0], Xaug.shape[1]
 
     figs_dir = out_dir / dataset_name
     figs_dir.mkdir(parents=True, exist_ok=True)
