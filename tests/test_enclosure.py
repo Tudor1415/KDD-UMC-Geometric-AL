@@ -1,4 +1,4 @@
-﻿import sys
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -11,7 +11,7 @@ if str(SRC) not in sys.path:
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.trees import axis_median, two_pivot, pca_ballstar, bottom_up, middle_out
+from src.trees import axis_median, two_pivot, pca_ballstar, bottom_up, middle_out, disjoint_greedy
 
 BUILDERS = [
     ("axis_median", axis_median.build_tree),
@@ -19,6 +19,7 @@ BUILDERS = [
     ("pca_ballstar", pca_ballstar.build_tree),
     ("bottom_up", bottom_up.build_tree),
     ("middle_out", middle_out.build_tree),
+    ("disjoint_greedy", disjoint_greedy.build_tree),
 ]
 
 

@@ -289,10 +289,11 @@ and can be overridden per call.</p>
 <li><p><a class="reference internal" href="#pca-ball-splits" id="id15">PCA / Ball* splits</a></p></li>
 <li><p><a class="reference internal" href="#bottom-up-agglomeration" id="id16">Bottom-up agglomeration</a></p></li>
 <li><p><a class="reference internal" href="#middle-out-anchors-hierarchy" id="id17">Middle-out anchors hierarchy</a></p></li>
+<li><p><a class="reference internal" href="#disjoint-greedy" id="id18">Disjoint Greedy</a></p></li>
 </ul>
 </li>
-<li><p><a class="reference internal" href="#testing-strategy" id="id18">Testing strategy</a></p></li>
-<li><p><a class="reference internal" href="#references" id="id19">References</a></p></li>
+<li><p><a class="reference internal" href="#testing-strategy" id="id19">Testing strategy</a></p></li>
+<li><p><a class="reference internal" href="#references" id="id20">References</a></p></li>
 </ul>
 </nav>
 <section id="helper-utilities">
@@ -452,9 +453,49 @@ MEB dispatcher for every anchor cluster.</p></li>
 <span class="math notranslate nohighlight">\(O(k^2 d)\)</span> for the number of anchor nodes.  Recursive leaf refinement
 only triggers when a leaf exceeds <code class="docutils literal notranslate"><span class="pre">leaf_size</span></code>.</p>
 </section>
+<section id="disjoint-greedy">
+<h3><a class="toc-backref" href="#id18" role="doc-backlink">Disjoint Greedy</a><a class="headerlink" href="#disjoint-greedy" title="Link to this heading">¶</a></h3>
+<p>Module: <a class="reference internal" href="api/trees.html#module-gal.trees.ball_tree" title="gal.trees.ball_tree"><code class="xref py py-mod docutils literal notranslate"><span class="pre">gal.trees.ball_tree</span></code></a> (legacy helper).</p>
+<p>Intuition: greedily carve a handful of pairwise-disjoint child balls inside an
+ancestor so that each child captures many points while staying well within the
+parent radius.  The builder repeatedly seeds a candidate centre, grows a ball
+until the radius cap is hit, and locks it in before moving on to the next best
+candidate.  The resulting hierarchy emphasises tight inner balls and keeps
+sibling overlap minimal.</p>
+<p>Helper interplay:</p>
+<ul class="simple">
+<li><p>Uses <code class="xref py py-func docutils literal notranslate"><span class="pre">utils.meb.ritter()</span></code> for quick leaf balls and whenever a candidate
+cluster must be (re)enclosed.</p></li>
+<li><p>Relies on <code class="xref py py-func docutils literal notranslate"><span class="pre">utils.geometry.dist2()</span></code> and
+<code class="xref py py-func docutils literal notranslate"><span class="pre">utils.geometry.enclose_two_balls()</span></code> to evaluate coverage gains and to
+update the parent ball after greedily accepting a child.</p></li>
+<li><p>Falls back to <code class="xref py py-func docutils literal notranslate"><span class="pre">utils.geometry.enclose_many_balls()</span></code> when merging locked-in
+children during backtracking.</p></li>
+</ul>
+<p>Complexity: the naive greedy search evaluates <span class="math notranslate nohighlight">\(O(k m)\)</span> candidates per
+node (<code class="docutils literal notranslate"><span class="pre">k</span></code> chosen children, <code class="docutils literal notranslate"><span class="pre">m</span></code> local points) and recomputes MEBs in
+<span class="math notranslate nohighlight">\(O(m d)\)</span> time, yielding an overall <span class="math notranslate nohighlight">\(O(k m^2 d)\)</span> upper bound per
+internal node.  In practice <code class="docutils literal notranslate"><span class="pre">k</span></code> is small and the greedy pruning keeps the
+implementation tractable for medium-sized datasets.
+Legacy compatibility
+~~~~~~~~~~~~~~~~~~~~
+Module: <a class="reference internal" href="api/trees.html#module-gal.trees.ball_tree" title="gal.trees.ball_tree"><code class="xref py py-mod docutils literal notranslate"><span class="pre">gal.trees.ball_tree</span></code></a>.</p>
+<p>Intuition: provide a drop-in upgrade path for older code that imported
+<code class="docutils literal notranslate"><span class="pre">gal.trees.ball_tree</span></code> directly.  The wrapper keeps the historical module
+stable while delegating all logic to the new builders.</p>
+<p>Helper interplay:</p>
+<ul class="simple">
+<li><p>The <a class="reference internal" href="api/trees.html#gal.trees.ball_tree.build_tree" title="gal.trees.ball_tree.build_tree"><code class="xref py py-func docutils literal notranslate"><span class="pre">gal.trees.ball_tree.build_tree()</span></code></a> dispatcher validates the selected
+<code class="docutils literal notranslate"><span class="pre">method</span></code> (default <code class="docutils literal notranslate"><span class="pre">&quot;axis_median&quot;</span></code>).</p></li>
+<li><p>Configuration dictionaries are forwarded unchanged to the target builder so
+features such as <code class="docutils literal notranslate"><span class="pre">meb</span></code> or <code class="docutils literal notranslate"><span class="pre">leaf_size</span></code> work exactly as documented above.</p></li>
+</ul>
+<p>Complexity: identical to the chosen backend because the wrapper performs only a
+constant-time lookup before calling the concrete builder.</p>
+</section>
 </section>
 <section id="testing-strategy">
-<h2><a class="toc-backref" href="#id18" role="doc-backlink">Testing strategy</a><a class="headerlink" href="#testing-strategy" title="Link to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id19" role="doc-backlink">Testing strategy</a><a class="headerlink" href="#testing-strategy" title="Link to this heading">¶</a></h2>
 <p>The test-suite in <code class="docutils literal notranslate"><span class="pre">tests/</span></code> documents the behavioural contract and is designed
 to be read alongside the builders:</p>
 <ul class="simple">
@@ -473,7 +514,7 @@ synthetic dataset.</p></li>
 </ul>
 </section>
 <section id="references">
-<h2><a class="toc-backref" href="#id19" role="doc-backlink">References</a><a class="headerlink" href="#references" title="Link to this heading">¶</a></h2>
+<h2><a class="toc-backref" href="#id20" role="doc-backlink">References</a><a class="headerlink" href="#references" title="Link to this heading">¶</a></h2>
 <div role="list" class="citation-list">
 <div class="citation" id="omohundro1989" role="doc-biblioentry">
 <span class="label"><span class="fn-bracket">[</span>Omohundro1989<span class="fn-bracket">]</span></span>
@@ -570,6 +611,7 @@ H. Maurer (ed.), <em>New Results and New Trends in Computer Science</em>, 1991.<
 <li><a class="reference internal" href="#pca-ball-splits">PCA / Ball* splits</a></li>
 <li><a class="reference internal" href="#bottom-up-agglomeration">Bottom-up agglomeration</a></li>
 <li><a class="reference internal" href="#middle-out-anchors-hierarchy">Middle-out anchors hierarchy</a></li>
+<li><a class="reference internal" href="#disjoint-greedy">Disjoint Greedy</a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#testing-strategy">Testing strategy</a></li>

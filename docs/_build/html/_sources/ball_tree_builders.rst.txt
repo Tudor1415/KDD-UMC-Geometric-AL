@@ -1,4 +1,4 @@
-Ball-tree builders
+﻿Ball-tree builders
 ==================
 
 This page documents the geometry-aware ball-tree builders introduced in
@@ -181,6 +181,50 @@ Complexity: building :math:`k` anchors from :math:`m` points costs
 :math:`O(k m d)` per assignment round.  The hierarchical merging behaves like
 :math:`O(k^2 d)` for the number of anchor nodes.  Recursive leaf refinement
 only triggers when a leaf exceeds ``leaf_size``.
+
+Disjoint Greedy
+~~~~~~~~~~~~~~~
+Module: :mod:`gal.trees.ball_tree` (legacy helper).
+
+Intuition: greedily carve a handful of pairwise-disjoint child balls inside an
+ancestor so that each child captures many points while staying well within the
+parent radius.  The builder repeatedly seeds a candidate centre, grows a ball
+until the radius cap is hit, and locks it in before moving on to the next best
+candidate.  The resulting hierarchy emphasises tight inner balls and keeps
+sibling overlap minimal.
+
+Helper interplay:
+
+* Uses :func:`utils.meb.ritter` for quick leaf balls and whenever a candidate
+  cluster must be (re)enclosed.
+* Relies on :func:`utils.geometry.dist2` and
+  :func:`utils.geometry.enclose_two_balls` to evaluate coverage gains and to
+  update the parent ball after greedily accepting a child.
+* Falls back to :func:`utils.geometry.enclose_many_balls` when merging locked-in
+  children during backtracking.
+
+Complexity: the naive greedy search evaluates :math:`O(k m)` candidates per
+node (``k`` chosen children, ``m`` local points) and recomputes MEBs in
+:math:`O(m d)` time, yielding an overall :math:`O(k m^2 d)` upper bound per
+internal node.  In practice ``k`` is small and the greedy pruning keeps the
+implementation tractable for medium-sized datasets.
+Legacy compatibility
+~~~~~~~~~~~~~~~~~~~~
+Module: :mod:`gal.trees.ball_tree`.
+
+Intuition: provide a drop-in upgrade path for older code that imported
+``gal.trees.ball_tree`` directly.  The wrapper keeps the historical module
+stable while delegating all logic to the new builders.
+
+Helper interplay:
+
+* The :func:`gal.trees.ball_tree.build_tree` dispatcher validates the selected
+  ``method`` (default ``"axis_median"``).
+* Configuration dictionaries are forwarded unchanged to the target builder so
+  features such as ``meb`` or ``leaf_size`` work exactly as documented above.
+
+Complexity: identical to the chosen backend because the wrapper performs only a
+constant-time lookup before calling the concrete builder.
 
 Testing strategy
 ----------------

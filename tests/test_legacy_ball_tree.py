@@ -1,4 +1,4 @@
-﻿import sys
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -47,4 +47,5 @@ def test_available_methods_matches_keys():
         "pca_ballstar",
         "bottom_up",
         "middle_out",
+        "disjoint_greedy",
     }
