@@ -71,3 +71,21 @@ class DiversityVisitStrategy(VisitStrategy[Node]):
         div_b = self._get_diversity_score(b)
         diversity_score = max(div_a, div_b)
         return (-diversity_score, bounds.lower, bounds.upper, float(mass))
+
+
+def get_strategy(name: str, **kwargs) -> VisitStrategy[Node]:
+    """Factory for visit-ordering strategies.
+
+    Parameters
+    ----------
+    name:
+        Strategy name. Supported: "lower_bound", "diversity".
+    kwargs:
+        Additional keyword arguments forwarded to the strategy constructor.
+    """
+    key = str(name).strip().lower()
+    if key in {"lb", "lower", "lower_bound"}:
+        return LowerBoundVisitStrategy()
+    if key in {"diversity", "div"}:
+        return DiversityVisitStrategy(**kwargs)
+    raise ValueError(f"Unknown search strategy: {name}")

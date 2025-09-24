@@ -4,16 +4,23 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+# Add the source directory to the path to import the necessary modules.
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from gal.trees import axis_median
 from gal.search import search_pair
 
 
 def brute_force_metric(X: np.ndarray, wc: np.ndarray):
+    """
+    A brute-force search for the pair of points with the smallest metric value.
+    This provides a ground truth for testing the more efficient search algorithm.
+    """
     n = X.shape[0]
     best_pair = None
     best_val = float("inf")
@@ -22,6 +29,7 @@ def brute_force_metric(X: np.ndarray, wc: np.ndarray):
             diff = X[i] - X[j]
             denom = np.linalg.norm(diff)
             if denom == 0:
+                # If the points are identical, the distance is 0.
                 val = 0.0
             else:
                 val = abs(np.dot(diff, wc)) / denom
@@ -32,6 +40,9 @@ def brute_force_metric(X: np.ndarray, wc: np.ndarray):
 
 
 def test_search_pair_matches_bruteforce():
+    """
+    Tests if the result from search_pair matches the brute-force approach.
+    """
     rng = np.random.default_rng(123)
     X = rng.normal(size=(128, 4))
     wc = rng.normal(size=4)
@@ -46,15 +57,64 @@ def test_search_pair_matches_bruteforce():
 
 
 def test_search_pair_respects_tau():
+    """
+    Tests if the search correctly terminates early when a pair is found with a
+    distance less than the given tau.
+    """
     rng = np.random.default_rng(321)
     X = rng.normal(size=(64, 3))
     wc = rng.normal(size=3)
     tree = axis_median.build_tree(X)
 
     pair_bf, dist_bf = brute_force_metric(X, wc)
+    # Set tau to half the actual minimum distance.
     tau = dist_bf * 0.5
 
     i, j, dist = search_pair(tree, X, wc, tau=tau)
+    # The search should not find any pair and return None.
     assert (i, j) == (None, None)
     assert dist == float("inf")
 
+
+def test_search_with_single_point():
+    """
+    Tests the search function with a dataset containing only a single point.
+    """
+    X = np.array([[1.0, 2.0, 3.0]])
+    wc = np.array([1.0, 1.0, 1.0])
+    tree = axis_median.build_tree(X)
+    i, j, dist = search_pair(tree, X, wc, tau=float("inf"))
+    assert (i, j) == (None, None)
+    assert dist == float("inf")
+
+
+def test_search_with_duplicate_points():
+    """
+    Tests the search with a dataset that includes duplicate points.
+    The search should correctly identify the duplicate pair as having the
+    minimum distance of 0.
+    """
+    X = np.array([[1.0, 1.0], [2.0, 2.0], [1.0, 1.0], [3.0, 3.0]])
+    wc = np.array([1.0, 1.0])
+    tree = axis_median.build_tree(X)
+    i, j, dist = search_pair(tree, X, wc, tau=float("inf"))
+    pair_bf, dist_bf = brute_force_metric(X, wc)
+    assert {i, j} == set(pair_bf)
+    assert pytest.approx(dist, abs=1e-12) == dist_bf
+    assert dist_bf == 0.0
+
+
+def test_search_with_zero_query_vector():
+    """
+    Tests the search with a zero vector as the query.
+    In this case, the distance for all pairs should be 0.
+    The search should return the first pair it evaluates.
+    """
+    rng = np.random.default_rng(42)
+    X = rng.normal(size=(32, 3))
+    wc = np.zeros(3)
+    tree = axis_median.build_tree(X)
+
+    i, j, dist = search_pair(tree, X, wc, tau=float("inf"))
+    assert i is not None and j is not None
+    assert dist == 0.0

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import heapq
 from dataclasses import dataclass
+import math
 from itertools import count
 from typing import Dict, Iterable, Optional, Sequence, Tuple
 
@@ -208,16 +209,15 @@ class Search:
             score = self._normalize_score(self.strategy.priority(a, b, bounds, pair_mass))
             heapq.heappush(heap, (score, bounds.lower, bounds.upper, a, b, next(tie)))
 
-        if len(root.children) < 2:
-            result = (None, None, float("inf"))
-            stats["unexplored_point_pairs"] = total_pairs
-            return (*result, stats) if return_stats else result
+        # Even if the root has fewer than two children, we can still evaluate
+        # within-leaf pairs and/or fall back to exhaustive evaluation.
 
         for i in range(len(root.children)):
             for j in range(i + 1, len(root.children)):
                 enqueue(root.children[i], root.children[j])
 
-        while heap and best_distance > tau + eps:
+        # If tau is infinite, explore all queued pairs; otherwise stop early when possible.
+        while heap and (math.isinf(tau) or best_distance > tau + eps):
             _, lb, ub, a, b, _ = heapq.heappop(heap)
             if lb >= min(best_distance, tau):
                 continue
@@ -243,6 +243,7 @@ class Search:
                 for child in b.children:
                     enqueue(a, child)
 
+        # Evaluate pairs within the same leaf across the whole tree.
         stack = [root]
         while stack:
             node = stack.pop()
@@ -254,6 +255,9 @@ class Search:
                     best_pair = pair
                     best_distance = dist
                     stats["best_origin"] = "leaf"
+            else:
+                # Continue traversing to reach all leaves
+                stack.extend(node.children)
         if ensure_optimal:
             data_points = context.data
             unique_indices = leaf_indices
@@ -308,4 +312,3 @@ def search_pair(
         dominance_prune=dominance_prune,
         eps=eps,
     )
-

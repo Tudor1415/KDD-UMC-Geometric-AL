@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
-from typing import Callable, Dict
+from typing import Callable, Dict, Optional
 
 import numpy as np
 
-from . import axis_median, bottom_up, disjoint_greedy, middle_out, pca_ballstar, two_pivot
+from . import axis_median, bottom_up, disjoint_greedy, kd_tree, middle_out, pca_ballstar, two_pivot
 from .common import GeometricTree, Node
 
-BuilderFn = Callable[[np.ndarray, dict | None], GeometricTree]
+BuilderFn = Callable[[np.ndarray, Optional[dict]], GeometricTree]
 
 AVAILABLE_BUILDERS: Dict[str, BuilderFn] = {
     "axis_median": axis_median.build_tree,
+    "kd_tree": kd_tree.build_tree,
     "two_pivot": two_pivot.build_tree,
     "pca_ballstar": pca_ballstar.build_tree,
     "bottom_up": bottom_up.build_tree,
@@ -35,7 +36,7 @@ def get_builder(method: str) -> BuilderFn:
 
 def build_tree(
     X: np.ndarray,
-    config: dict | None = None,
+    config: Optional[dict] = None,
     *,
     method: str = "axis_median",
 ) -> GeometricTree:
@@ -47,10 +48,10 @@ def build_tree(
 def build_ball_tree(
     X: np.ndarray,
     *,
-    k: int | None = None,
-    P: int | None = None,
-    radius_divisor: float | None = None,
-    config: dict | None = None,
+    k: Optional[int] = None,
+    P: Optional[int] = None,
+    radius_divisor: Optional[float] = None,
+    config: Optional[dict] = None,
 ) -> GeometricTree:
     cfg = {} if config is None else dict(config)
     if k is not None and "max_children" not in cfg:
@@ -69,6 +70,7 @@ __all__ = [
     "GeometricTree",
     "BuilderFn",
     "Node",
+    "kd_tree",
     "axis_median",
     "bottom_up",
     "build_ball_tree",
@@ -78,4 +80,3 @@ __all__ = [
     "pca_ballstar",
     "two_pivot",
 ]
-

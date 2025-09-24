@@ -28,7 +28,7 @@ class Node:
         self.is_leaf = is_leaf
 
 
-@dataclass(slots=True)
+@dataclass
 class GeometricTree:
     root: Node
     n_samples: int

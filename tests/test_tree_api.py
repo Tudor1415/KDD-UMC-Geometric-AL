@@ -43,6 +43,7 @@ def test_unknown_method_raises():
 def test_available_methods_matches_keys():
     assert set(AVAILABLE_METHODS) == {
         "axis_median",
+        "kd_tree",
         "two_pivot",
         "pca_ballstar",
         "bottom_up",
