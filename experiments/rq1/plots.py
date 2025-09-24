@@ -44,7 +44,7 @@ def plot_anytime_curves(
 ) -> plt.Figure:
     if use_seaborn:
         _maybe_sns()
-    fig, ax = plt.subplots(figsize=(7, 4))
+    fig, ax = plt.subplots(figsize=(10, 6))
     for label, c in curves.items():
         if line_width is None:
             ax.plot(c.x, c.median, label=label)

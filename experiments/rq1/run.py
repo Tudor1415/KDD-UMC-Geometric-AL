@@ -133,7 +133,8 @@ def run_dataset(
     export_csv = bool(cfg.get("evaluation", "exports", "csv", default=False))
     export_json = bool(cfg.get("evaluation", "exports", "json", default=True))
     export_figs = list(cfg.get("evaluation", "exports", "figures", default=["png"]))
-    scaling_xscale = str(cfg.get("evaluation", "plot_style", "scaling_xscale", default="log")).lower()
+    # Hard-code scaling x-axis to linear (no config option)
+    scaling_xscale = "linear"
 
     # Centers per dataset
     per_ds = int(cfg.get("centers", "per_dataset", default=1))
@@ -405,7 +406,7 @@ def run_dataset(
     los = np.array(scaling_los, dtype=float)
     his = np.array(scaling_his, dtype=float)
     x_arr = np.asarray(scaling_x, dtype=float)
-    fig_scale = plot_scaling_lines(x_arr, methods, vals, los, his, title=f"Scaling on {dataset_name}", xlabel="d (log)", xscale=scaling_xscale)
+    fig_scale = plot_scaling_lines(x_arr, methods, vals, los, his, title=f"Scaling on {dataset_name}", xlabel="d", xscale=scaling_xscale)
     if "png" in export_figs:
         fig_scale.savefig(figs_dir / "scaling.png", dpi=dpi)
     if "pdf" in export_figs:
@@ -586,7 +587,7 @@ def main(config_path: str) -> None:  # pragma: no cover - convenience entry
         los = np.array(global_scaling_los, dtype=float)
         his = np.array(global_scaling_his, dtype=float)
         x_arr = np.asarray(global_scaling_x, dtype=float)
-        fig = plot_scaling_lines(x_arr, methods, vals, los, his, title="Scaling Across Datasets", xlabel="d (log)", xscale=str(cfg.get("evaluation", "plot_style", "scaling_xscale", default="log")).lower())
+        fig = plot_scaling_lines(x_arr, methods, vals, los, his, title="Scaling Across Datasets", xlabel="d", xscale="linear")
         if cfg.get("evaluation", "exports", "figures", default=["png"]) and ("png" in cfg.get("evaluation", "exports", "figures", default=["png"])):
             fig.savefig(out / "scaling_all.png", dpi=int(cfg.get("evaluation", "plot_style", "dpi", default=150)))
         if cfg.get("evaluation", "exports", "figures", default=["png"]) and ("pdf" in cfg.get("evaluation", "exports", "figures", default=["png"])):
