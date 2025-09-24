@@ -39,16 +39,16 @@ methods:
     enabled: true
     leaf_size: 25
     split_rule: "center_radius"
-    construction: "disjoint"
+    construction: "disjoint_greedy"
     traversal:
       priority: "LB_best_first"
       non_redundant: true
-    strategy: "diversity"
+    strategy: "lower_bound"
 
 datasets:
   - name: "MUSHROOM"
     paths:
-      matrix_npy: "./matrices/mushroom_rules.npy"
+      mnr_rules: "./mined_rules/mushroom_mnr.csv"
 
 evaluation:
   metrics: ["A_at_time", "A_at_calls", "scaling_A_at_0p2_Tmax", "bound_tightness_hist"]

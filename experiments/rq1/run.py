@@ -9,6 +9,8 @@ from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import yaml
+import logging
+import copy
 
 from .eval import aggregate_runs, evaluate_dataset
 from .plots import CurveCI, plot_anytime_curves, plot_bound_tightness_kde, plot_scaling_bars
@@ -50,7 +52,13 @@ def run_dataset(
     c_fracs: List[float] = list(cfg.get("budgets", "calls_checkpoints", default=[0.05, 0.1, 0.2, 0.5, 1.0]))
     kd_strategy = str(cfg.get("methods", "dual_kdtree_bnb", "strategy", default="lower_bound"))
     bt_strategy = str(cfg.get("methods", "balltree_bnb", "strategy", default="lower_bound"))
-    bt_build_method = str(cfg.get("methods", "balltree_bnb", "construction", default="disjoint_greedy"))
+    bt_build_method_raw = str(cfg.get("methods", "balltree_bnb", "construction", default="disjoint_greedy"))
+    # Normalize builder names (accept synonyms)
+    _builder_alias = {
+        "disjoint": "disjoint_greedy",
+        "disjoint_greedy": "disjoint_greedy",
+    }
+    bt_build_method = _builder_alias.get(bt_build_method_raw, bt_build_method_raw)
     kd_cfg = cfg.get("methods", "dual_kdtree_bnb", default={}) or {}
     bt_cfg = cfg.get("methods", "balltree_bnb", default={}) or {}
     rnd_pair_mode = str(cfg.get("methods", "random_sampling", "pair_sampling", default="with_replacement"))
@@ -117,10 +125,12 @@ def run_dataset(
 
     all_outputs: Dict[str, Any] = {"groups": []}
 
+    logging.info(f"Begin dataset={dataset_name} | X.shape={X.shape} | centers={per_ds} | additivity={add_vals}")
     for add in add_vals:
         Xadd, add_label, n_sub, d_sub = apply_additivity(X, add, add_vals)
         group_dir = figs_dir / ("add_" + (str(add).replace(" ", "_") if add is not None else "base"))
         group_dir.mkdir(parents=True, exist_ok=True)
+        logging.info(f"  Additivity group: {add_label} -> X_add.shape={Xadd.shape}")
 
         # Sample centers once per dataset/add group
         centers = []
@@ -128,6 +138,7 @@ def run_dataset(
             u = rng.random(d_sub)
             s = u.sum()
             centers.append((u / s) if s > 0 else np.ones(d_sub) / float(d_sub))
+        logging.info(f"  Sampling centers: count={len(centers)}")
 
         runs_serialized: List[Dict[str, Any]] = []
         evals = []
@@ -155,6 +166,7 @@ def run_dataset(
                 )
                 runs_serialized.append({k: {"A_time": v.A_time.tolist(), "A_calls": v.A_calls.tolist(), "bound_gaps": v.bound_gaps.tolist()} for k, v in res.items()})
                 evals.append(res)
+        logging.info("  Aggregating runs and generating figures…")
 
         agg = aggregate_runs(
             evals,
@@ -269,11 +281,16 @@ def run_dataset(
         "upper": his.tolist(),
         "dir": str(figs_dir),
     }
+    logging.info(f"Done dataset={dataset_name}. Outputs in {figs_dir}")
     return all_outputs
 
 
 def main(config_path: str) -> None:  # pragma: no cover - convenience entry
     cfg = Rq1Config.load(config_path)
+    # Configure logging
+    log_level_str = str(cfg.get("global", "log_level", default="INFO")).upper()
+    level = getattr(logging, log_level_str, logging.INFO)
+    logging.basicConfig(level=level, format="[%(levelname)s] %(message)s")
     rng = np.random.default_rng(int(cfg.get("global", "rng_seed_base", default=1729)))
     out = Path(cfg.get("global", "output_dir", default="./results/rq1"))
     out.mkdir(parents=True, exist_ok=True)
@@ -284,13 +301,68 @@ def main(config_path: str) -> None:  # pragma: no cover - convenience entry
     global_scaling_his: List[List[float]] = []
     global_methods: List[str] | None = None
 
+    logging.info("Starting RQ1 experiment…")
+    # Helper: load dataset matrix X from configured paths (prefer mined_rules CSV)
+    def _load_points_for_dataset(name: str, ds_entry: Dict[str, Any]) -> np.ndarray:
+        paths = ds_entry.get("paths", {}) if isinstance(ds_entry, dict) else {}
+        cols = [
+            "supportY","supportZ","support","confidence","lift","cosine",
+            "phi","kruskal","yuleQ","added_value","certainty","revsupport",
+        ]
+
+        # 1) Try explicit mined_rules CSV path
+        mnr_path = paths.get("mnr_rules")
+        if mnr_path is None:
+            # 2) Derive default: mined_rules/<lower>_mnr.csv
+            derived = Path("mined_rules") / f"{name.lower()}_mnr.csv"
+            if derived.exists():
+                mnr_path = str(derived)
+        if mnr_path is not None and Path(mnr_path).exists():
+            logging.info(f"Loading mined rule features from {mnr_path} (dataset={name})…")
+            # Prefer pandas if available for speed
+            try:
+                import pandas as pd  # type: ignore
+                df = pd.read_csv(mnr_path, usecols=cols)
+                X = df.to_numpy(dtype=float, copy=False)
+                return np.ascontiguousarray(X, dtype=float)
+            except Exception:  # fallback to csv reader
+                import csv
+                with open(mnr_path, "r", encoding="utf-8") as f:
+                    reader = csv.reader(f)
+                    try:
+                        header = next(reader)
+                    except StopIteration:
+                        raise RuntimeError(f"Empty CSV: {mnr_path}")
+                    # Map column names to indices
+                    idx_map: Dict[str, int] = {h.strip(): i for i, h in enumerate(header)}
+                    use_idx = []
+                    for c in cols:
+                        if c not in idx_map:
+                            raise RuntimeError(f"Column '{c}' not found in {mnr_path}")
+                        use_idx.append(idx_map[c])
+                    rows: List[List[float]] = []
+                    for row in reader:
+                        try:
+                            rows.append([float(row[i]) for i in use_idx])
+                        except Exception:
+                            continue  # skip malformed rows
+                X = np.asarray(rows, dtype=float)
+                return np.ascontiguousarray(X, dtype=float)
+
+        # 3) Fallback to matrix_npy if provided
+        npy_path = paths.get("matrix_npy")
+        if npy_path is not None and Path(npy_path).exists():
+            logging.info(f"Loading matrix from {npy_path} (dataset={name})…")
+            return np.ascontiguousarray(np.load(npy_path), dtype=float)
+
+        # 4) Last resort: synthetic
+        logging.warning(f"Dataset {name}: no mined_rules CSV or matrix_npy found. Using synthetic data.")
+        rng_local = np.random.default_rng(int(cfg.get("global", "rng_seed_base", default=1729)))
+        return rng_local.normal(size=(256, 12))
+
     for ds in datasets:
         name = ds.get("name", "DATA")
-        npy_path = ds.get("paths", {}).get("matrix_npy")
-        if npy_path is None or not Path(npy_path).exists():
-            X = rng.normal(size=(256, 5))
-        else:
-            X = np.load(npy_path)
+        X = _load_points_for_dataset(name, ds)
         # Touch artifacts (optional)
         mnr_path = ds.get("paths", {}).get("mnr_rules")
         tx_path = ds.get("paths", {}).get("transactions_csv")
@@ -300,7 +372,18 @@ def main(config_path: str) -> None:  # pragma: no cover - convenience entry
         if tx_path and Path(tx_path).exists():
             meta["artifacts"]["transactions_csv"] = str(Path(tx_path).resolve())
 
-        res = run_dataset(cfg, dataset_name=name, X=X, out_dir=out, rng=rng)
+        # Apply per-dataset overrides if present
+        ds_cfg = copy.deepcopy(cfg.content)
+        if ds.get("centers_override") is not None:
+            ds_cfg.setdefault("centers", {})
+            ds_cfg["centers"]["per_dataset"] = ds["centers_override"]
+            logging.info(f"Dataset {name}: centers_override -> {ds.get('centers_override')}")
+        if ds.get("additivity_override") is not None:
+            ds_cfg.setdefault("additivity", {})
+            ds_cfg["additivity"]["values"] = ds["additivity_override"]
+            logging.info(f"Dataset {name}: additivity_override -> {ds.get('additivity_override')}")
+
+        res = run_dataset(Rq1Config(content=ds_cfg), dataset_name=name, X=X, out_dir=out, rng=rng)
         # Accumulate for global scaling
         sc = res.get("scaling", {})
         cats = sc.get("categories", []) or []
@@ -339,6 +422,7 @@ def main(config_path: str) -> None:  # pragma: no cover - convenience entry
                 for cat, row_v, row_l, row_h in zip(global_scaling_cats, vals, los, his):
                     for mname, v, l, h in zip(methods, row_v, row_l, row_h):
                         w.writerow([cat, mname, float(v), float(l), float(h)])
+    logging.info("RQ1 experiment completed.")
 
 
 if __name__ == "__main__":  # pragma: no cover
