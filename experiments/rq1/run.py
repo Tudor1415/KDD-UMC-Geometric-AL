@@ -15,9 +15,10 @@ import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import warnings
+import matplotlib.pyplot as plt
 
 from .eval import aggregate_runs, evaluate_dataset
-from .plots import CurveCI, plot_anytime_curves, plot_bound_tightness_kde, plot_scaling_bars
+from .plots import CurveCI, plot_anytime_curves, plot_bound_tightness_kde, plot_scaling_bars, plot_scaling_lines
 from gal.utils.helpers import augment_with_minimums
 from gal.trees import kd_tree as kd
 from gal import trees as bt
@@ -131,6 +132,7 @@ def run_dataset(
     export_csv = bool(cfg.get("evaluation", "exports", "csv", default=False))
     export_json = bool(cfg.get("evaluation", "exports", "json", default=True))
     export_figs = list(cfg.get("evaluation", "exports", "figures", default=["png"]))
+    scaling_xscale = str(cfg.get("evaluation", "plot_style", "scaling_xscale", default="log")).lower()
 
     # Centers per dataset
     per_ds = int(cfg.get("centers", "per_dataset", default=1))
@@ -184,6 +186,7 @@ def run_dataset(
     scaling_vals: List[List[float]] = []
     scaling_los: List[List[float]] = []
     scaling_his: List[List[float]] = []
+    scaling_x: List[float] = []
 
     all_outputs: Dict[str, Any] = {"groups": []}
 
@@ -339,11 +342,13 @@ def run_dataset(
             fig1.savefig(group_dir / "A_at_time.png", dpi=dpi)
         if "pdf" in export_figs:
             fig1.savefig(group_dir / "A_at_time.pdf", dpi=dpi)
+        plt.close(fig1)
         fig2 = plot_anytime_curves(curves_c, xlabel="Normalized Objective Calls (m/P_max)", ylabel="Anytime Performance (A@m)", title=f"A@calls on {dataset_name} ({add_label})", line_width=line_w, xscale=calls_xscale)
         if "png" in export_figs:
             fig2.savefig(group_dir / "A_at_calls.png", dpi=dpi)
         if "pdf" in export_figs:
             fig2.savefig(group_dir / "A_at_calls.pdf", dpi=dpi)
+        plt.close(fig2)
 
         # Bound tightness KDE
         gaps_kd = np.concatenate([np.array(r["kd"]["bound_gaps"]) for r in runs_serialized])
@@ -353,6 +358,7 @@ def run_dataset(
             fig3.savefig(group_dir / "bound_tightness.png", dpi=dpi)
         if "pdf" in export_figs:
             fig3.savefig(group_dir / "bound_tightness.pdf", dpi=dpi)
+        plt.close(fig3)
 
         # Scaling pick: A@t at 0.2 T_max
         def pick_at(fracs: List[float], med: np.ndarray, lo: np.ndarray, hi: np.ndarray, f: float = 0.2) -> tuple[float, float, float]:
@@ -367,6 +373,8 @@ def run_dataset(
         scaling_vals.append([kd_v, bt_v, rnd_v])
         scaling_los.append([kd_l, bt_l, rnd_l])
         scaling_his.append([kd_h, bt_h, rnd_h])
+        # Use dimension (after augmentation) on the x-axis
+        scaling_x.append(float(d_sub))
 
         # Optional CSV/JSON exports of curves per group
         if export_csv:
@@ -395,11 +403,13 @@ def run_dataset(
     vals = np.array(scaling_vals, dtype=float)
     los = np.array(scaling_los, dtype=float)
     his = np.array(scaling_his, dtype=float)
-    fig_scale = plot_scaling_bars(scaling_categories, methods, vals, los, his, title=f"Scaling on {dataset_name}")
+    x_arr = np.asarray(scaling_x, dtype=float)
+    fig_scale = plot_scaling_lines(x_arr, methods, vals, los, his, title=f"Scaling on {dataset_name}", xlabel="d (log)", xscale=scaling_xscale)
     if "png" in export_figs:
         fig_scale.savefig(figs_dir / "scaling.png", dpi=dpi)
     if "pdf" in export_figs:
         fig_scale.savefig(figs_dir / "scaling.pdf", dpi=dpi)
+    plt.close(fig_scale)
 
     # Optional CSV export of scaling panel
     if export_csv and scaling_categories:
@@ -417,6 +427,7 @@ def run_dataset(
         "values": vals.tolist(),
         "lower": los.tolist(),
         "upper": his.tolist(),
+        "x": x_arr.tolist(),
         "dir": str(figs_dir),
     }
     logging.info(f"Done dataset={dataset_name}. Outputs in {figs_dir}")
@@ -453,6 +464,7 @@ def main(config_path: str) -> None:  # pragma: no cover - convenience entry
     global_scaling_vals: List[List[float]] = []
     global_scaling_los: List[List[float]] = []
     global_scaling_his: List[List[float]] = []
+    global_scaling_x: List[float] = []
     global_methods: List[str] | None = None
 
     logging.info("Starting RQ1 experiment…")
@@ -554,37 +566,40 @@ def main(config_path: str) -> None:  # pragma: no cover - convenience entry
         values = sc.get("values", []) or []
         lowers = sc.get("lower", []) or []
         uppers = sc.get("upper", []) or []
+        xs = sc.get("x", []) or []
         if global_methods is None:
             global_methods = methods
-        for cat, row_v, row_l, row_h in zip(cats, values, lowers, uppers):
+        for cat, row_v, row_l, row_h, x in zip(cats, values, lowers, uppers, xs):
             global_scaling_cats.append(f"{name} — {cat}")
             global_scaling_vals.append([float(x) for x in row_v])
             global_scaling_los.append([float(x) for x in row_l])
             global_scaling_his.append([float(x) for x in row_h])
+            global_scaling_x.append(float(x))
         summary = {"meta": meta, "outputs": res}
         (out / f"{name}_summary.json").write_text(json.dumps(summary, indent=2))
 
     # Global scaling across datasets if available
     if global_scaling_cats:
-        from .plots import plot_scaling_bars
         methods = global_methods or ["kd-tree BnB", "ball-tree BnB", "Random Sampling"]
         vals = np.array(global_scaling_vals, dtype=float)
         los = np.array(global_scaling_los, dtype=float)
         his = np.array(global_scaling_his, dtype=float)
-        fig = plot_scaling_bars(global_scaling_cats, methods, vals, los, his, title="Scaling Across Datasets")
+        x_arr = np.asarray(global_scaling_x, dtype=float)
+        fig = plot_scaling_lines(x_arr, methods, vals, los, his, title="Scaling Across Datasets", xlabel="d (log)", xscale=str(cfg.get("evaluation", "plot_style", "scaling_xscale", default="log")).lower())
         if cfg.get("evaluation", "exports", "figures", default=["png"]) and ("png" in cfg.get("evaluation", "exports", "figures", default=["png"])):
             fig.savefig(out / "scaling_all.png", dpi=int(cfg.get("evaluation", "plot_style", "dpi", default=150)))
         if cfg.get("evaluation", "exports", "figures", default=["png"]) and ("pdf" in cfg.get("evaluation", "exports", "figures", default=["png"])):
             fig.savefig(out / "scaling_all.pdf", dpi=int(cfg.get("evaluation", "plot_style", "dpi", default=150)))
+        plt.close(fig)
         # Optional CSV
         if bool(cfg.get("evaluation", "exports", "csv", default=False)):
             import csv
             with (out / "scaling_all.csv").open("w", newline="", encoding="utf-8") as f:
                 w = csv.writer(f)
-                w.writerow(["category", "method", "value", "ci_low", "ci_high"])
-                for cat, row_v, row_l, row_h in zip(global_scaling_cats, vals, los, his):
+                w.writerow(["x", "category", "method", "value", "ci_low", "ci_high"])
+                for cat, row_v, row_l, row_h, x in zip(global_scaling_cats, vals, los, his, x_arr):
                     for mname, v, l, h in zip(methods, row_v, row_l, row_h):
-                        w.writerow([cat, mname, float(v), float(l), float(h)])
+                        w.writerow([float(x), cat, mname, float(v), float(l), float(h)])
     logging.info("RQ1 experiment completed.")
 
 

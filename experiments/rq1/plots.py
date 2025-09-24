@@ -96,8 +96,8 @@ def plot_scaling_bars(
     for m_idx, name in enumerate(methods):
         offsets = x - 0.4 + width / 2 + m_idx * width
         ax.bar(offsets, values[:, m_idx], width, label=name)
-        yerr_low = values[:, m_idx] - lower[:, m_idx]
-        yerr_high = upper[:, m_idx] - values[:, m_idx]
+        yerr_low = np.clip(values[:, m_idx] - lower[:, m_idx], 0.0, None)
+        yerr_high = np.clip(upper[:, m_idx] - values[:, m_idx], 0.0, None)
         ax.errorbar(offsets, values[:, m_idx], yerr=[yerr_low, yerr_high], fmt='none', ecolor='k', capsize=3)
     ax.set_xticks(x)
     ax.set_xticklabels(categories, rotation=15, ha='right')
@@ -109,6 +109,45 @@ def plot_scaling_bars(
     fig.tight_layout()
     return fig
 
+
+def plot_scaling_lines(
+    x: np.ndarray,
+    methods: List[str],
+    values: np.ndarray,  # shape [n_cat, n_methods]
+    lower: np.ndarray,   # shape [n_cat, n_methods]
+    upper: np.ndarray,   # shape [n_cat, n_methods]
+    *,
+    xlabel: str = "n (log scale)",
+    title: str | None = None,
+    xscale: str | None = "log",
+) -> plt.Figure:
+    """Line plot with shaded CI bands over a (possibly) logarithmic x-axis.
+
+    x: numeric array encoding problem size (e.g., n). Arrays are sorted by x.
+    """
+    _maybe_sns()
+    x = np.asarray(x, dtype=float)
+    order = np.argsort(x)
+    xs = x[order]
+    fig, ax = plt.subplots(figsize=(7, 4))
+    for m_idx, name in enumerate(methods):
+        y = values[:, m_idx][order]
+        lo = np.clip(lower[:, m_idx][order], 0.0, None)
+        hi = np.clip(upper[:, m_idx][order], 0.0, None)
+        ax.plot(xs, y, marker="o", label=name)
+        ax.fill_between(xs, lo, hi, alpha=0.2)
+    if xscale is not None and str(xscale).lower() in {"log", "symlog", "logit"}:
+        ax.set_xscale(str(xscale).lower())
+        # avoid zero lower bound
+        xmin = float(np.min(xs[xs > 0])) if np.any(xs > 0) else float(np.min(xs))
+        ax.set_xlim(left=xmin)
+    ax.set_xlabel(xlabel)
+    ax.set_ylim(0, 1.05)
+    if title:
+        ax.set_title(title)
+    ax.legend()
+    fig.tight_layout()
+    return fig
 
 def plot_bound_tightness_kde(all_gaps: Dict[str, np.ndarray], *, title: str | None = None, use_seaborn: bool = False) -> plt.Figure:
     sns = _maybe_sns() if use_seaborn else None
