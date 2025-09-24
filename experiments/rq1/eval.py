@@ -9,8 +9,8 @@ import numpy as np
 from gal.search import Search
 from gal.search.kd_bounds import KdTreeBounds
 from gal.search.strategies import get_strategy
-from gal.trees import axis_median
 from gal.trees import kd_tree as kd
+from gal import trees as bt
 
 
 def _bootstrap_ci(mats: np.ndarray, n_bootstrap: int, ci_level: float) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -54,19 +54,24 @@ def evaluate_dataset(
     *,
     kd_strategy_name: str,
     bt_strategy_name: str,
+    bt_build_method: str = "disjoint_greedy",
+    kd_config: Dict[str, Any] | None = None,
+    bt_config: Dict[str, Any] | None = None,
     time_fracs: List[float],
     call_fracs: List[float],
     timing_repeats: int,
     eps: float,
     rng: np.random.Generator,
+    center: np.ndarray | None = None,
+    random_pair_mode: str = "with_replacement",
 ) -> Dict[str, MethodResult]:
     n = X.shape[0]
     Pmax = n * (n - 1) // 2
     time_fracs = list(map(float, time_fracs))
     call_fracs = list(map(float, call_fracs))
 
-    kd_tree = kd.build_tree(X)
-    bt_tree = axis_median.build_tree(X)
+    kd_tree = kd.build_tree(X, None if kd_config is None else dict(kd_config))
+    bt_tree = bt.build_tree(X, None if bt_config is None else dict(bt_config), method=str(bt_build_method))
 
     kd_strategy = get_strategy(kd_strategy_name)
     bt_strategy = get_strategy(bt_strategy_name, queries=X)
@@ -74,7 +79,7 @@ def evaluate_dataset(
     bt_engine = Search(strategy=bt_strategy)
 
     # Sample a shared center
-    wc = _sample_center(X.shape[1], rng)
+    wc = _sample_center(X.shape[1], rng) if center is None else np.asarray(center, dtype=float)
     # Oracle d*: min of exact BnB using kd- and ball-tree
     kd_i, kd_j, kd_star = kd_engine.search_pair(kd_tree, X, wc, tau=float("inf"), ensure_optimal=True)
     bt_i, bt_j, bt_star = bt_engine.search_pair(bt_tree, X, wc, tau=float("inf"), ensure_optimal=True)
@@ -138,7 +143,16 @@ def evaluate_dataset(
     bt_A_t, bt_A_m = to_A(bt_stats["trace"])  # type: ignore
 
     # Random sampling baseline
-    def random_anytime(X: np.ndarray, wc: np.ndarray, time_grid: List[float], calls_grid: List[int], eps: float, rng: np.random.Generator) -> Tuple[np.ndarray, np.ndarray]:
+    def random_anytime(
+        X: np.ndarray,
+        wc: np.ndarray,
+        time_grid: List[float],
+        calls_grid: List[int],
+        eps: float,
+        rng: np.random.Generator,
+        *,
+        mode: str = "with_replacement",
+    ) -> Tuple[np.ndarray, np.ndarray]:
         import time as _t
         n = X.shape[0]
         best = float("inf")
@@ -147,13 +161,46 @@ def evaluate_dataset(
         ti = ci = 0
         t0 = _t.perf_counter()
         calls = 0
+        mode = str(mode).strip().lower()
+        if mode in {"w", "with", "with_replacement"}:
+            sampler = None  # on-the-fly indices
+        elif mode in {"wo", "without", "without_replacement"}:
+            # Use index mapping from [0, Pmax) -> (i,j) to avoid storing pairs
+            P = n * (n - 1) // 2
+            order = rng.permutation(P)
+            k_ptr = 0
+            def idx_to_pair(k: int) -> Tuple[int, int]:
+                # Map 0 <= k < nC2 to unique (i,j), 0 <= i < j < n
+                # Compute i such that T(i) <= k < T(i+1), where T(i)=i*(2n - i -1)/2
+                lo, hi = 0, n - 1
+                while lo < hi:
+                    mid = (lo + hi) // 2
+                    Tmid = mid * (2 * n - mid - 1) // 2
+                    if Tmid <= k:
+                        lo = mid + 1
+                    else:
+                        hi = mid
+                i = lo - 1
+                Ti = i * (2 * n - i - 1) // 2
+                j = i + 1 + (k - Ti)
+                return int(i), int(j)
+        else:
+            sampler = None
+
         while (ti < len(time_grid)) or (ci < len(calls_grid)):
-            i = int(rng.integers(0, n))
-            j = int(rng.integers(0, n))
-            if i == j:
-                continue
-            if j < i:
-                i, j = j, i
+            if mode in {"wo", "without", "without_replacement"}:
+                if k_ptr >= order.size:
+                    # Exhausted all pairs
+                    break
+                i, j = idx_to_pair(int(order[k_ptr]))
+                k_ptr += 1
+            else:
+                i = int(rng.integers(0, n))
+                j = int(rng.integers(0, n))
+                if i == j:
+                    continue
+                if j < i:
+                    i, j = j, i
             diff = X[i] - X[j]
             denom = float(np.linalg.norm(diff))
             val = 0.0 if denom <= eps else abs(float(np.dot(diff, wc))) / denom
@@ -177,7 +224,7 @@ def evaluate_dataset(
             ci += 1
         return A_t, A_m
 
-    rnd_A_t, rnd_A_m = random_anytime(X, wc, time_grid, calls_grid, eps, rng)
+    rnd_A_t, rnd_A_m = random_anytime(X, wc, time_grid, calls_grid, eps, rng, mode=random_pair_mode)
 
     return {
         "kd": MethodResult(A_time=kd_A_t, A_calls=kd_A_m, bound_gaps=np.array(kd_stats["trace"]["bound_gaps"], dtype=float)),  # type: ignore

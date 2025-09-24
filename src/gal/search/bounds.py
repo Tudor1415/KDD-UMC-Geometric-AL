@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Generic, Tuple, TypeVar
+from typing import Dict, Generic, Optional, Tuple, TypeVar
 
 import numpy as np
 
@@ -26,6 +26,8 @@ class BoundContext:
 
     wc: np.ndarray
     eps: float = 1e-12
+    # Optional per-query cache (e.g., projection-intervals per node and center)
+    proj_cache: Optional[Dict[int, Tuple[float, float]]] = None
 
 
 @dataclass(frozen=True)

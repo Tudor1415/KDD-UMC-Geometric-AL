@@ -184,7 +184,8 @@ class Search:
         heap: list[Tuple[Tuple[float, ...], float, float, Node, Node, int]] = []
         visited: set[Tuple[int, int]] = set()
         tie = count()
-        bound_context = BoundContext(wc=wc, eps=float(eps))
+        # Provide a per-search cache so bounders can reuse per-center computations
+        bound_context = BoundContext(wc=wc, eps=float(eps), proj_cache={})
         self.strategy.setup(root, data=data)
 
         # Tracing support (optional)

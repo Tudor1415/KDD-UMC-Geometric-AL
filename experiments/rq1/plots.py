@@ -5,11 +5,7 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 import matplotlib.pyplot as plt
-
-try:  # Optional seaborn
-    import seaborn as sns  # type: ignore
-except Exception:  # pragma: no cover
-    sns = None
+import warnings
 
 
 @dataclass
@@ -21,9 +17,19 @@ class CurveCI:
 
 
 def _maybe_sns():  # pragma: no cover - visual
-    if sns is not None:
+    """Lazily import seaborn with 3rd-party warnings silenced; return module or None."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        try:
+            import seaborn as sns  # type: ignore
+        except Exception:
+            return None
+    try:
         sns.set_context("talk")
         sns.set_style("whitegrid")
+    except Exception:
+        pass
+    return sns
 
 
 def plot_anytime_curves(
@@ -32,11 +38,17 @@ def plot_anytime_curves(
     xlabel: str,
     ylabel: str,
     title: str | None = None,
+    use_seaborn: bool = False,
+    line_width: float | None = None,
 ) -> plt.Figure:
-    _maybe_sns()
+    if use_seaborn:
+        _maybe_sns()
     fig, ax = plt.subplots(figsize=(7, 4))
     for label, c in curves.items():
-        ax.plot(c.x, c.median, label=label)
+        if line_width is None:
+            ax.plot(c.x, c.median, label=label)
+        else:
+            ax.plot(c.x, c.median, label=label, linewidth=float(line_width))
         ax.fill_between(c.x, c.low, c.high, alpha=0.2)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
@@ -58,8 +70,10 @@ def plot_scaling_bars(
     *,
     ylabel: str = "A@t at 0.2 T_max",
     title: str | None = None,
+    use_seaborn: bool = False,
 ) -> plt.Figure:
-    _maybe_sns()
+    if use_seaborn:
+        _maybe_sns()
     n_cat = len(categories)
     n_m = len(methods)
     x = np.arange(n_cat)
@@ -82,14 +96,20 @@ def plot_scaling_bars(
     return fig
 
 
-def plot_bound_tightness_kde(all_gaps: Dict[str, np.ndarray], *, title: str | None = None) -> plt.Figure:
-    _maybe_sns()
+def plot_bound_tightness_kde(all_gaps: Dict[str, np.ndarray], *, title: str | None = None, use_seaborn: bool = False) -> plt.Figure:
+    sns = _maybe_sns() if use_seaborn else None
     fig, ax = plt.subplots(figsize=(7, 4))
     eps = 1e-9
     for label, gaps in all_gaps.items():
-        x = np.log(np.maximum(gaps - np.min(gaps), 0.0) + eps + (np.min(gaps) if np.min(gaps) > 0 else 0))
+        # Spec: plot KDE of log(UB - LB + eps)
+        x = np.log(np.maximum(gaps, 0.0) + eps)
         if sns is not None:  # pragma: no cover - visual
-            sns.kdeplot(x=x, label=label, ax=ax)
+            try:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    sns.kdeplot(x=x, label=label, ax=ax)
+            except Exception:
+                ax.hist(x, bins=50, alpha=0.3, density=True, label=label)
         else:
             # Fallback: histogram approximation
             ax.hist(x, bins=50, alpha=0.3, density=True, label=label)
@@ -100,4 +120,3 @@ def plot_bound_tightness_kde(all_gaps: Dict[str, np.ndarray], *, title: str | No
     ax.legend()
     fig.tight_layout()
     return fig
-

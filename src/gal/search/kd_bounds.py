@@ -51,8 +51,24 @@ class KdTreeBounds(BoundsStrategy[KdNode]):
         eps = float(context.eps)
         c = context.wc
 
-        a_s_min, a_s_max = _proj_interval(a.bbox_min, a.bbox_max, c)
-        b_s_min, b_s_max = _proj_interval(b.bbox_min, b.bbox_max, c)
+        # Per-center projection-interval cache (I_s(N))
+        cache = context.proj_cache
+        if cache is None:
+            a_s_min, a_s_max = _proj_interval(a.bbox_min, a.bbox_max, c)
+            b_s_min, b_s_max = _proj_interval(b.bbox_min, b.bbox_max, c)
+        else:
+            aid = id(a)
+            bid = id(b)
+            if aid in cache:
+                a_s_min, a_s_max = cache[aid]
+            else:
+                a_s_min, a_s_max = _proj_interval(a.bbox_min, a.bbox_max, c)
+                cache[aid] = (a_s_min, a_s_max)
+            if bid in cache:
+                b_s_min, b_s_max = cache[bid]
+            else:
+                b_s_min, b_s_max = _proj_interval(b.bbox_min, b.bbox_max, c)
+                cache[bid] = (b_s_min, b_s_max)
         # Is(A) - Is(B)
         n_min = a_s_min - b_s_max
         n_max = a_s_max - b_s_min
@@ -79,4 +95,3 @@ class KdTreeBounds(BoundsStrategy[KdNode]):
 
 
 __all__ = ["KdTreeBounds"]
-

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import numpy as np
 import yaml
@@ -34,103 +34,228 @@ class Rq1Config:
         return cur
 
 
-def run_dataset(cfg: Rq1Config, *, dataset_name: str, X: np.ndarray, out_dir: Path, rng: np.random.Generator) -> Dict[str, Any]:
+def run_dataset(
+    cfg: Rq1Config,
+    *,
+    dataset_name: str,
+    X: np.ndarray,
+    out_dir: Path,
+    rng: np.random.Generator,
+) -> Dict[str, Any]:
     eps = float(cfg.get("global", "epsilon", default=1e-12))
     n_runs = int(cfg.get("global", "num_runs", default=5))
     timing_repeats = int(cfg.get("global", "timing_repeats", default=3))
     t_fracs: List[float] = list(cfg.get("budgets", "time_checkpoints", default=[0.05, 0.1, 0.2, 0.5, 1.0]))
     c_fracs: List[float] = list(cfg.get("budgets", "calls_checkpoints", default=[0.05, 0.1, 0.2, 0.5, 1.0]))
     kd_strategy = str(cfg.get("methods", "dual_kdtree_bnb", "strategy", default="lower_bound"))
-    bt_strategy = str(cfg.get("methods", "balltree_bnb", "strategy", default="diversity"))
+    bt_strategy = str(cfg.get("methods", "balltree_bnb", "strategy", default="lower_bound"))
+    bt_build_method = str(cfg.get("methods", "balltree_bnb", "construction", default="disjoint_greedy"))
+    kd_cfg = cfg.get("methods", "dual_kdtree_bnb", default={}) or {}
+    bt_cfg = cfg.get("methods", "balltree_bnb", default={}) or {}
+    rnd_pair_mode = str(cfg.get("methods", "random_sampling", "pair_sampling", default="with_replacement"))
 
-    runs: List[Dict[str, Any]] = []
-    evals = []
-    for _ in range(n_runs):
-        res = evaluate_dataset(
-            X,
-            kd_strategy_name=kd_strategy,
-            bt_strategy_name=bt_strategy,
-            time_fracs=t_fracs,
-            call_fracs=c_fracs,
-            timing_repeats=timing_repeats,
-            eps=eps,
-            rng=rng,
-        )
-        runs.append({k: {"A_time": v.A_time.tolist(), "A_calls": v.A_calls.tolist(), "bound_gaps": v.bound_gaps.tolist()} for k, v in res.items()})
-        evals.append(res)
+    # Plot/export style
+    dpi = int(cfg.get("evaluation", "plot_style", "dpi", default=150))
+    line_w = float(cfg.get("evaluation", "plot_style", "line_width", default=2.0))
+    export_csv = bool(cfg.get("evaluation", "exports", "csv", default=False))
+    export_json = bool(cfg.get("evaluation", "exports", "json", default=True))
+    export_figs = list(cfg.get("evaluation", "exports", "figures", default=["png"]))
 
-    agg = aggregate_runs(
-        evals,
-        n_bootstrap=int(cfg.get("global", "n_bootstrap", default=300)),
-        ci_level=float(cfg.get("global", "ci_level", default=0.95)),
-    )
+    # Centers per dataset
+    per_ds = int(cfg.get("centers", "per_dataset", default=1))
+    # Additivity values
+    add_vals = cfg.get("additivity", "values", default=[None])
+    if not isinstance(add_vals, list):
+        add_vals = [add_vals]
 
-    # Build curves for plotting
-    t = np.array(t_fracs, dtype=float)
-    c = np.array(c_fracs, dtype=float)
-    kd_t_m, kd_t_lo, kd_t_hi = agg["kd"]["A_time"]
-    kd_c_m, kd_c_lo, kd_c_hi = agg["kd"]["A_calls"]
-    bt_t_m, bt_t_lo, bt_t_hi = agg["bt"]["A_time"]
-    bt_c_m, bt_c_lo, bt_c_hi = agg["bt"]["A_calls"]
-    rnd_t_m, rnd_t_lo, rnd_t_hi = agg["rnd"]["A_time"]
-    rnd_c_m, rnd_c_lo, rnd_c_hi = agg["rnd"]["A_calls"]
-
-    curves_t = {
-        "kd-tree BnB": CurveCI(x=t, median=kd_t_m, low=kd_t_lo, high=kd_t_hi),
-        "ball-tree BnB": CurveCI(x=t, median=bt_t_m, low=bt_t_lo, high=bt_t_hi),
-        "Random Sampling": CurveCI(x=t, median=rnd_t_m, low=rnd_t_lo, high=rnd_t_hi),
-    }
-    curves_c = {
-        "kd-tree BnB": CurveCI(x=c, median=kd_c_m, low=kd_c_lo, high=kd_c_hi),
-        "ball-tree BnB": CurveCI(x=c, median=bt_c_m, low=bt_c_lo, high=bt_c_hi),
-        "Random Sampling": CurveCI(x=c, median=rnd_c_m, low=rnd_c_lo, high=rnd_c_hi),
-    }
+    def apply_additivity(Xin: np.ndarray, add: Any, all_vals: List[Any]) -> Tuple[np.ndarray, str, int, int]:
+        n0, d0 = Xin.shape
+        if isinstance(add, dict):
+            n = min(int(add.get("n", n0)), n0)
+            d = min(int(add.get("d", d0)), d0)
+            label = f"n={n}, d={d}"
+        elif add is None:
+            n, d = n0, d0
+            label = f"n={n}, d={d}"
+        else:
+            # Map scalar add to fraction of size
+            try:
+                vals_num = [float(v) for v in all_vals if v is not None]
+                vmax = max(vals_num) if vals_num else 1.0
+                frac = float(add) / float(vmax) if vmax > 0 else 1.0
+            except Exception:
+                frac = 1.0
+            n = max(2, min(n0, int(round(n0 * frac))))
+            d = max(1, min(d0, int(round(d0 * frac))))
+            label = f"add={add} (n={n}, d={d})"
+        Xsub = Xin[:n, :d]
+        return Xsub, label, n, d
 
     figs_dir = out_dir / dataset_name
     figs_dir.mkdir(parents=True, exist_ok=True)
 
-    fig1 = plot_anytime_curves(curves_t, xlabel="Normalized Wall-Clock Time (t/T_max)", ylabel="Anytime Performance (A@t)", title=f"A@time on {dataset_name}")
-    fig1.savefig(figs_dir / "A_at_time.png", dpi=150)
-    fig2 = plot_anytime_curves(curves_c, xlabel="Normalized Objective Calls (m/P_max)", ylabel="Anytime Performance (A@m)", title=f"A@calls on {dataset_name}")
-    fig2.savefig(figs_dir / "A_at_calls.png", dpi=150)
-
-    # Bound tightness KDE
-    gaps_kd = np.concatenate([np.array(r["kd"]["bound_gaps"]) for r in runs])
-    gaps_bt = np.concatenate([np.array(r["bt"]["bound_gaps"]) for r in runs])
-    fig3 = plot_bound_tightness_kde({"kd-tree Bounds": gaps_kd, "ball-tree Bounds": gaps_bt}, title=f"Bound Tightness on {dataset_name}")
-    fig3.savefig(figs_dir / "bound_tightness.png", dpi=150)
-
-    # Scaling bar (A@t at 0.2 T_max)
-    def pick_at(fracs: List[float], med: np.ndarray, lo: np.ndarray, hi: np.ndarray, f: float = 0.2) -> tuple[float, float, float]:
-        idx = int(np.argmin(np.abs(np.array(fracs) - f)))
-        return float(med[idx]), float(lo[idx]), float(hi[idx])
-
-    kd_v, kd_l, kd_h = pick_at(t_fracs, kd_t_m, kd_t_lo, kd_t_hi)
-    bt_v, bt_l, bt_h = pick_at(t_fracs, bt_t_m, bt_t_lo, bt_t_hi)
-    cats = [dataset_name]
-    rnd_v, rnd_l, rnd_h = pick_at(t_fracs, rnd_t_m, rnd_t_lo, rnd_t_hi)
+    # Accumulate scaling across additivities
+    scaling_categories: List[str] = []
     methods = ["kd-tree BnB", "ball-tree BnB", "Random Sampling"]
-    vals = np.array([[kd_v, bt_v, rnd_v]], dtype=float)
-    los = np.array([[kd_l, bt_l, rnd_l]], dtype=float)
-    his = np.array([[kd_h, bt_h, rnd_h]], dtype=float)
-    fig4 = plot_scaling_bars(cats, methods, vals, los, his, title="Scaling: A@t at 0.2 T_max")
-    fig4.savefig(figs_dir / "scaling.png", dpi=150)
+    scaling_vals: List[List[float]] = []
+    scaling_los: List[List[float]] = []
+    scaling_his: List[List[float]] = []
 
-    # Save raw JSON
-    (figs_dir / "runs.json").write_text(json.dumps(runs, indent=2))
+    all_outputs: Dict[str, Any] = {"groups": []}
 
-    return {
-        "curves": {
-            "time": {k: {"median": v.median.tolist(), "low": v.low.tolist(), "high": v.high.tolist()} for k, v in curves_t.items()},
-            "calls": {k: {"median": v.median.tolist(), "low": v.low.tolist(), "high": v.high.tolist()} for k, v in curves_c.items()},
-        },
-        "figures": {
-            "A_at_time": str(figs_dir / "A_at_time.png"),
-            "A_at_calls": str(figs_dir / "A_at_calls.png"),
-            "bound_tightness": str(figs_dir / "bound_tightness.png"),
-            "scaling": str(figs_dir / "scaling.png"),
-        },
+    for add in add_vals:
+        Xadd, add_label, n_sub, d_sub = apply_additivity(X, add, add_vals)
+        group_dir = figs_dir / ("add_" + (str(add).replace(" ", "_") if add is not None else "base"))
+        group_dir.mkdir(parents=True, exist_ok=True)
+
+        # Sample centers once per dataset/add group
+        centers = []
+        for _ in range(per_ds):
+            u = rng.random(d_sub)
+            s = u.sum()
+            centers.append((u / s) if s > 0 else np.ones(d_sub) / float(d_sub))
+
+        runs_serialized: List[Dict[str, Any]] = []
+        evals = []
+        # Repeat runs per center
+        for ci, cvec in enumerate(centers):
+            for run_i in range(n_runs):
+                # Use a deterministic RNG for random baseline fairness
+                rnd_seed = int(cfg.get("global", "rng_seed_base", default=1729))
+                rnd_seed = rnd_seed + 100_000 * ci + 1_000 * run_i
+                rng_rnd = np.random.default_rng(rnd_seed)
+                res = evaluate_dataset(
+                    Xadd,
+                    kd_strategy_name=kd_strategy,
+                    bt_strategy_name=bt_strategy,
+                    bt_build_method=bt_build_method,
+                    kd_config=kd_cfg,
+                    bt_config=bt_cfg,
+                    time_fracs=t_fracs,
+                    call_fracs=c_fracs,
+                    timing_repeats=timing_repeats,
+                    eps=eps,
+                    rng=rng_rnd,  # only used by baseline or sampling
+                    center=cvec,
+                    random_pair_mode=rnd_pair_mode,
+                )
+                runs_serialized.append({k: {"A_time": v.A_time.tolist(), "A_calls": v.A_calls.tolist(), "bound_gaps": v.bound_gaps.tolist()} for k, v in res.items()})
+                evals.append(res)
+
+        agg = aggregate_runs(
+            evals,
+            n_bootstrap=int(cfg.get("global", "n_bootstrap", default=300)),
+            ci_level=float(cfg.get("global", "ci_level", default=0.95)),
+        )
+
+        # Build curves for plotting
+        t = np.array(t_fracs, dtype=float)
+        c = np.array(c_fracs, dtype=float)
+        kd_t_m, kd_t_lo, kd_t_hi = agg["kd"]["A_time"]
+        kd_c_m, kd_c_lo, kd_c_hi = agg["kd"]["A_calls"]
+        bt_t_m, bt_t_lo, bt_t_hi = agg["bt"]["A_time"]
+        bt_c_m, bt_c_lo, bt_c_hi = agg["bt"]["A_calls"]
+        rnd_t_m, rnd_t_lo, rnd_t_hi = agg["rnd"]["A_time"]
+        rnd_c_m, rnd_c_lo, rnd_c_hi = agg["rnd"]["A_calls"]
+
+        curves_t = {
+            "kd-tree BnB": CurveCI(x=t, median=kd_t_m, low=kd_t_lo, high=kd_t_hi),
+            "ball-tree BnB": CurveCI(x=t, median=bt_t_m, low=bt_t_lo, high=bt_t_hi),
+            "Random Sampling": CurveCI(x=t, median=rnd_t_m, low=rnd_t_lo, high=rnd_t_hi),
+        }
+        curves_c = {
+            "kd-tree BnB": CurveCI(x=c, median=kd_c_m, low=kd_c_lo, high=kd_c_hi),
+            "ball-tree BnB": CurveCI(x=c, median=bt_c_m, low=bt_c_lo, high=bt_c_hi),
+            "Random Sampling": CurveCI(x=c, median=rnd_c_m, low=rnd_c_lo, high=rnd_c_hi),
+        }
+
+        # Figures per group
+        fig1 = plot_anytime_curves(curves_t, xlabel="Normalized Wall-Clock Time (t/T_max)", ylabel="Anytime Performance (A@t)", title=f"A@time on {dataset_name} ({add_label})", line_width=line_w)
+        if "png" in export_figs:
+            fig1.savefig(group_dir / "A_at_time.png", dpi=dpi)
+        if "pdf" in export_figs:
+            fig1.savefig(group_dir / "A_at_time.pdf", dpi=dpi)
+        fig2 = plot_anytime_curves(curves_c, xlabel="Normalized Objective Calls (m/P_max)", ylabel="Anytime Performance (A@m)", title=f"A@calls on {dataset_name} ({add_label})", line_width=line_w)
+        if "png" in export_figs:
+            fig2.savefig(group_dir / "A_at_calls.png", dpi=dpi)
+        if "pdf" in export_figs:
+            fig2.savefig(group_dir / "A_at_calls.pdf", dpi=dpi)
+
+        # Bound tightness KDE
+        gaps_kd = np.concatenate([np.array(r["kd"]["bound_gaps"]) for r in runs_serialized])
+        gaps_bt = np.concatenate([np.array(r["bt"]["bound_gaps"]) for r in runs_serialized])
+        fig3 = plot_bound_tightness_kde({"kd-tree Bounds": gaps_kd, "ball-tree Bounds": gaps_bt}, title=f"Bound Tightness on {dataset_name} ({add_label})")
+        if "png" in export_figs:
+            fig3.savefig(group_dir / "bound_tightness.png", dpi=dpi)
+        if "pdf" in export_figs:
+            fig3.savefig(group_dir / "bound_tightness.pdf", dpi=dpi)
+
+        # Scaling pick: A@t at 0.2 T_max
+        def pick_at(fracs: List[float], med: np.ndarray, lo: np.ndarray, hi: np.ndarray, f: float = 0.2) -> tuple[float, float, float]:
+            idx = int(np.argmin(np.abs(np.array(fracs) - f)))
+            return float(med[idx]), float(lo[idx]), float(hi[idx])
+
+        kd_v, kd_l, kd_h = pick_at(t_fracs, kd_t_m, kd_t_lo, kd_t_hi)
+        bt_v, bt_l, bt_h = pick_at(t_fracs, bt_t_m, bt_t_lo, bt_t_hi)
+        rnd_v, rnd_l, rnd_h = pick_at(t_fracs, rnd_t_m, rnd_t_lo, rnd_t_hi)
+
+        scaling_categories.append(f"{dataset_name} (n={n_sub}, d={d_sub})")
+        scaling_vals.append([kd_v, bt_v, rnd_v])
+        scaling_los.append([kd_l, bt_l, rnd_l])
+        scaling_his.append([kd_h, bt_h, rnd_h])
+
+        # Optional CSV/JSON exports of curves per group
+        if export_csv:
+            import csv
+            with (group_dir / "curves_time.csv").open("w", newline="", encoding="utf-8") as f:
+                w = csv.writer(f)
+                w.writerow(["method", "x", "median", "low", "high"])
+                for mname, ci in curves_t.items():
+                    for xi, med, lo, hi in zip(ci.x, ci.median, ci.low, ci.high):
+                        w.writerow([mname, float(xi), float(med), float(lo), float(hi)])
+            with (group_dir / "curves_calls.csv").open("w", newline="", encoding="utf-8") as f:
+                w = csv.writer(f)
+                w.writerow(["method", "x", "median", "low", "high"])
+                for mname, ci in curves_c.items():
+                    for xi, med, lo, hi in zip(ci.x, ci.median, ci.low, ci.high):
+                        w.writerow([mname, float(xi), float(med), float(lo), float(hi)])
+        if export_json:
+            (group_dir / "runs.json").write_text(json.dumps(runs_serialized, indent=2))
+
+        all_outputs["groups"].append({
+            "label": add_label,
+            "dir": str(group_dir),
+        })
+
+    # Global scaling plot over categories for this dataset
+    vals = np.array(scaling_vals, dtype=float)
+    los = np.array(scaling_los, dtype=float)
+    his = np.array(scaling_his, dtype=float)
+    fig_scale = plot_scaling_bars(scaling_categories, methods, vals, los, his, title=f"Scaling on {dataset_name}")
+    if "png" in export_figs:
+        fig_scale.savefig(figs_dir / "scaling.png", dpi=dpi)
+    if "pdf" in export_figs:
+        fig_scale.savefig(figs_dir / "scaling.pdf", dpi=dpi)
+
+    # Optional CSV export of scaling panel
+    if export_csv and scaling_categories:
+        import csv
+        with (figs_dir / "scaling.csv").open("w", newline="", encoding="utf-8") as f:
+            w = csv.writer(f)
+            w.writerow(["category", "method", "value", "ci_low", "ci_high"])
+            for cat, row_v, row_l, row_h in zip(scaling_categories, vals, los, his):
+                for mname, v, l, h in zip(methods, row_v, row_l, row_h):
+                    w.writerow([cat, mname, float(v), float(l), float(h)])
+
+    all_outputs["scaling"] = {
+        "categories": scaling_categories,
+        "methods": methods,
+        "values": vals.tolist(),
+        "lower": los.tolist(),
+        "upper": his.tolist(),
+        "dir": str(figs_dir),
     }
+    return all_outputs
 
 
 def main(config_path: str) -> None:  # pragma: no cover - convenience entry
@@ -139,6 +264,12 @@ def main(config_path: str) -> None:  # pragma: no cover - convenience entry
     out = Path(cfg.get("global", "output_dir", default="./results/rq1"))
     out.mkdir(parents=True, exist_ok=True)
     datasets = cfg.get("datasets", default=[{"name": "TOY", "paths": {"matrix_npy": None}}])
+    global_scaling_cats: List[str] = []
+    global_scaling_vals: List[List[float]] = []
+    global_scaling_los: List[List[float]] = []
+    global_scaling_his: List[List[float]] = []
+    global_methods: List[str] | None = None
+
     for ds in datasets:
         name = ds.get("name", "DATA")
         npy_path = ds.get("paths", {}).get("matrix_npy")
@@ -146,8 +277,54 @@ def main(config_path: str) -> None:  # pragma: no cover - convenience entry
             X = rng.normal(size=(256, 5))
         else:
             X = np.load(npy_path)
+        # Touch artifacts (optional)
+        mnr_path = ds.get("paths", {}).get("mnr_rules")
+        tx_path = ds.get("paths", {}).get("transactions_csv")
+        meta: Dict[str, Any] = {"dataset": name, "artifacts": {}}
+        if mnr_path and Path(mnr_path).exists():
+            meta["artifacts"]["mnr_rules"] = str(Path(mnr_path).resolve())
+        if tx_path and Path(tx_path).exists():
+            meta["artifacts"]["transactions_csv"] = str(Path(tx_path).resolve())
+
         res = run_dataset(cfg, dataset_name=name, X=X, out_dir=out, rng=rng)
-        (out / f"{name}_summary.json").write_text(json.dumps(res, indent=2))
+        # Accumulate for global scaling
+        sc = res.get("scaling", {})
+        cats = sc.get("categories", []) or []
+        methods = sc.get("methods") or ["kd-tree BnB", "ball-tree BnB", "Random Sampling"]
+        values = sc.get("values", []) or []
+        lowers = sc.get("lower", []) or []
+        uppers = sc.get("upper", []) or []
+        if global_methods is None:
+            global_methods = methods
+        for cat, row_v, row_l, row_h in zip(cats, values, lowers, uppers):
+            global_scaling_cats.append(f"{name} — {cat}")
+            global_scaling_vals.append([float(x) for x in row_v])
+            global_scaling_los.append([float(x) for x in row_l])
+            global_scaling_his.append([float(x) for x in row_h])
+        summary = {"meta": meta, "outputs": res}
+        (out / f"{name}_summary.json").write_text(json.dumps(summary, indent=2))
+
+    # Global scaling across datasets if available
+    if global_scaling_cats:
+        from .plots import plot_scaling_bars
+        methods = global_methods or ["kd-tree BnB", "ball-tree BnB", "Random Sampling"]
+        vals = np.array(global_scaling_vals, dtype=float)
+        los = np.array(global_scaling_los, dtype=float)
+        his = np.array(global_scaling_his, dtype=float)
+        fig = plot_scaling_bars(global_scaling_cats, methods, vals, los, his, title="Scaling Across Datasets")
+        if cfg.get("evaluation", "exports", "figures", default=["png"]) and ("png" in cfg.get("evaluation", "exports", "figures", default=["png"])):
+            fig.savefig(out / "scaling_all.png", dpi=int(cfg.get("evaluation", "plot_style", "dpi", default=150)))
+        if cfg.get("evaluation", "exports", "figures", default=["png"]) and ("pdf" in cfg.get("evaluation", "exports", "figures", default=["png"])):
+            fig.savefig(out / "scaling_all.pdf", dpi=int(cfg.get("evaluation", "plot_style", "dpi", default=150)))
+        # Optional CSV
+        if bool(cfg.get("evaluation", "exports", "csv", default=False)):
+            import csv
+            with (out / "scaling_all.csv").open("w", newline="", encoding="utf-8") as f:
+                w = csv.writer(f)
+                w.writerow(["category", "method", "value", "ci_low", "ci_high"])
+                for cat, row_v, row_l, row_h in zip(global_scaling_cats, vals, los, his):
+                    for mname, v, l, h in zip(methods, row_v, row_l, row_h):
+                        w.writerow([cat, mname, float(v), float(l), float(h)])
 
 
 if __name__ == "__main__":  # pragma: no cover
