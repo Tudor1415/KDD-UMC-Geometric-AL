@@ -64,14 +64,16 @@ def evaluate_dataset(
     rng: np.random.Generator,
     center: np.ndarray | None = None,
     random_pair_mode: str = "with_replacement",
+    kd_tree_obj: Any | None = None,
+    bt_tree_obj: Any | None = None,
 ) -> Dict[str, MethodResult]:
     n = X.shape[0]
     Pmax = n * (n - 1) // 2
     time_fracs = list(map(float, time_fracs))
     call_fracs = list(map(float, call_fracs))
 
-    kd_tree = kd.build_tree(X, None if kd_config is None else dict(kd_config))
-    bt_tree = bt.build_tree(X, None if bt_config is None else dict(bt_config), method=str(bt_build_method))
+    kd_tree = kd_tree_obj if kd_tree_obj is not None else kd.build_tree(X, None if kd_config is None else dict(kd_config))
+    bt_tree = bt_tree_obj if bt_tree_obj is not None else bt.build_tree(X, None if bt_config is None else dict(bt_config), method=str(bt_build_method))
 
     kd_strategy = get_strategy(kd_strategy_name)
     bt_strategy = get_strategy(bt_strategy_name, queries=X)
