@@ -5,6 +5,7 @@ from __future__ import annotations
 import heapq
 from dataclasses import dataclass
 import math
+import time
 from itertools import count
 from typing import Dict, Iterable, Optional, Sequence, Tuple
 
@@ -137,6 +138,9 @@ class Search:
         dominance_prune: bool = True,
         eps: float = 1e-12,
         ensure_optimal: bool = True,
+        time_checkpoints: Optional[Sequence[float]] = None,
+        calls_checkpoints: Optional[Sequence[int]] = None,
+        collect_bound_gaps: bool = False,
     ) -> Tuple[Optional[int], Optional[int], float] | Tuple[Optional[int], Optional[int], float, Dict[str, object]]:
         data = np.ascontiguousarray(X, dtype=np.float64)
         wc = np.asarray(wc, dtype=np.float64)
@@ -183,6 +187,34 @@ class Search:
         bound_context = BoundContext(wc=wc, eps=float(eps))
         self.strategy.setup(root, data=data)
 
+        # Tracing support (optional)
+        t0 = time.perf_counter()
+        time_grid = None if time_checkpoints is None else list(time_checkpoints)
+        calls_grid = None if calls_checkpoints is None else list(calls_checkpoints)
+        time_idx = 0
+        calls_idx = 0
+        time_best: list[float] = []
+        calls_best: list[float] = []
+        bound_gaps: list[float] = []
+
+        def record_time_if_needed() -> None:
+            nonlocal time_idx
+            if time_grid is None:
+                return
+            now = time.perf_counter() - t0
+            while time_idx < len(time_grid) and now >= float(time_grid[time_idx]):
+                time_best.append(float(best_distance))
+                time_idx += 1
+
+        def record_calls_if_needed() -> None:
+            nonlocal calls_idx
+            if calls_grid is None:
+                return
+            cur = int(stats["objective_evals"]) if "objective_evals" in stats else 0
+            while calls_idx < len(calls_grid) and cur >= int(calls_grid[calls_idx]):
+                calls_best.append(float(best_distance))
+                calls_idx += 1
+
         def enqueue(a: Node, b: Node) -> None:
             nonlocal best_distance
             if id(a) > id(b):
@@ -208,6 +240,7 @@ class Search:
 
             score = self._normalize_score(self.strategy.priority(a, b, bounds, pair_mass))
             heapq.heappush(heap, (score, bounds.lower, bounds.upper, a, b, next(tie)))
+            record_time_if_needed()
 
         # Even if the root has fewer than two children, we can still evaluate
         # within-leaf pairs and/or fall back to exhaustive evaluation.
@@ -219,6 +252,9 @@ class Search:
         # If tau is infinite, explore all queued pairs; otherwise stop early when possible.
         while heap and (math.isinf(tau) or best_distance > tau + eps):
             _, lb, ub, a, b, _ = heapq.heappop(heap)
+            if collect_bound_gaps:
+                gap = float(max(0.0, ub - lb))
+                bound_gaps.append(gap)
             if lb >= min(best_distance, tau):
                 continue
 
@@ -234,6 +270,8 @@ class Search:
                     best_pair = pair
                     best_distance = dist
                     stats["best_origin"] = "leaf"
+                record_calls_if_needed()
+                record_time_if_needed()
                 continue
 
             if not a_leaf and (b_leaf or a.radius >= b.radius):
@@ -242,6 +280,7 @@ class Search:
             else:
                 for child in b.children:
                     enqueue(a, child)
+            record_time_if_needed()
 
         # Evaluate pairs within the same leaf across the whole tree.
         stack = [root]
@@ -275,10 +314,31 @@ class Search:
                         best_distance = dist
                         stats["best_origin"] = "exhaustive"
 
+        # Finalize traces
+        if time_grid is not None:
+            while time_idx < len(time_grid):
+                time_best.append(float(best_distance))
+                time_idx += 1
+        if calls_grid is not None:
+            while calls_idx < len(calls_grid):
+                calls_best.append(float(best_distance))
+                calls_idx += 1
+
         stats["best_pair"] = best_pair
         stats["best_distance"] = None if best_pair is None else best_distance
         stats["pruned_point_pairs"] = int(stats["pruned_lb_point_pairs"]) + int(stats["pruned_dom_point_pairs"])
         stats["unexplored_point_pairs"] = stats["total_point_pairs"] - stats["pruned_point_pairs"] - stats["explored_point_pairs"]
+        if time_grid is not None or calls_grid is not None or collect_bound_gaps:
+            trace: Dict[str, object] = {}
+            if time_grid is not None:
+                trace["time_grid"] = list(map(float, time_grid))
+                trace["time_best"] = list(map(float, time_best))
+            if calls_grid is not None:
+                trace["calls_grid"] = list(map(int, calls_grid))
+                trace["calls_best"] = list(map(float, calls_best))
+            if collect_bound_gaps:
+                trace["bound_gaps"] = list(map(float, bound_gaps))
+            stats["trace"] = trace
 
         if best_pair is None:
             result = (None, None, float("inf"))
@@ -299,6 +359,9 @@ def search_pair(
     ensure_optimal: bool = True,
     bounder: BoundsStrategy[Node] | None = None,
     strategy: VisitStrategy[Node] | None = None,
+    time_checkpoints: Optional[Sequence[float]] = None,
+    calls_checkpoints: Optional[Sequence[int]] = None,
+    collect_bound_gaps: bool = False,
 ) -> Tuple[Optional[int], Optional[int], float] | Tuple[Optional[int], Optional[int], float, Dict[str, object]]:
     """Convenience wrapper using the :class:`Search` engine."""
 
@@ -311,4 +374,8 @@ def search_pair(
         return_stats=return_stats,
         dominance_prune=dominance_prune,
         eps=eps,
+        ensure_optimal=ensure_optimal,
+        time_checkpoints=time_checkpoints,
+        calls_checkpoints=calls_checkpoints,
+        collect_bound_gaps=collect_bound_gaps,
     )
