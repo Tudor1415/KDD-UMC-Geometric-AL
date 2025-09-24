@@ -9,7 +9,7 @@ from typing import Dict, Iterable, Optional, Sequence, Tuple
 
 import numpy as np
 
-from ..trees.common import BallTree, Node
+from ..trees.common import GeometricTree, Node
 from .bounds import BallTreeBounds, BoundContext, BoundsStrategy
 from .strategies import DiversityVisitStrategy, VisitStrategy
 
@@ -23,7 +23,7 @@ class SearchContext:
 
 
 class Search:
-    """Dual-tree branch-and-bound search operating on :class:`BallTree` nodes."""
+    """Dual-tree branch-and-bound search operating on :class:`GeometricTree` nodes."""
 
     def __init__(
         self,
@@ -127,7 +127,7 @@ class Search:
 
     def search_pair(
         self,
-        tree: BallTree | Node,
+        tree: GeometricTree | Node,
         X: np.ndarray,
         wc: np.ndarray,
         *,
@@ -146,7 +146,7 @@ class Search:
         if wc.size != data.shape[1]:
             raise ValueError("wc must have length equal to X.shape[1]")
 
-        root = tree.root if isinstance(tree, BallTree) else tree
+        root = tree.root if isinstance(tree, GeometricTree) else tree
         context = SearchContext(data=data, wc=wc, tau=float(tau), eps=float(eps))
 
         leaf_indices = self._gather_leaf_indices(root)
@@ -284,7 +284,7 @@ class Search:
 
 
 def search_pair(
-    tree: BallTree | Node,
+    tree: GeometricTree | Node,
     X: np.ndarray,
     wc: np.ndarray,
     *,
@@ -308,3 +308,4 @@ def search_pair(
         dominance_prune=dominance_prune,
         eps=eps,
     )
+

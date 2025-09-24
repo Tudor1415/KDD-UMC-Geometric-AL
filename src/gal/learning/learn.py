@@ -8,7 +8,7 @@ of an unknown direction **q⋆**.  At each round we:
      e.g. `poly_centers.chebyshev_center`, `analytical_center`, …
 2.   **Uncertainty sampling** – over all data points stored in a Ball‑Tree we
      find a pair `(a, b)` whose difference vector is *most ambiguous* wrt `c`
-     using the best‑first search from *simple_balltree.py* (minimises
+     using the best‑first search from *simple_GeometricTree.py* (minimises
      `|⟨a − b, c⟩| / ‖a − b‖`).
 3.   **Oracle query** – ask the user‑supplied `oracle(a, b)` for the sign
      `y ∈ {−1,+1}` of the true, hidden direction: `y = sign(⟨a − b, q⋆⟩)`.
@@ -26,7 +26,7 @@ from typing import Callable, Tuple, Optional
 
 import numpy as np
 from gal.utils.helpers import augment_with_minimums, k_additive_constraints
-from gal.trees import BallTree, build_ball_tree
+from gal.trees import GeometricTree, build_ball_tree
 from gal.search import search_pair
 
 try:
@@ -73,7 +73,7 @@ def project_constraint(h):
 
 
 def learn(
-    tree: BallTree,
+    tree: GeometricTree,
     data: Array,
     A0: Array,
     b0: Array,
@@ -88,7 +88,7 @@ def learn(
 
     Parameters
     ----------
-    root        : Ball‑Tree root (see *simple_balltree.py*).
+    root        : Ball‑Tree root (see *simple_GeometricTree.py*).
     A0, b0      : Initial linear constraints so that feasible set is
                   `{q | A q ≤ b}`.  Shapes `(m0, d)` and `(m0,)`.
     center_fn   : Callable that, given `(A, b)`, returns a feasible center
@@ -211,3 +211,4 @@ if __name__ == "__main__":
         report_hook=reporter,
         viz_2D=True,
     )
+

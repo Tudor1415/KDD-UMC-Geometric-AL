@@ -7,14 +7,14 @@ from typing import Dict, List
 
 import numpy as np
 
-from .common import BallTree, Node
+from .common import GeometricTree, Node
 from utils.geometry import enclose_many_balls
 from utils.meb import meb
 
 EPSILON = 1e-12
 
 
-def build_tree(X: np.ndarray, config: Dict | None = None) -> BallTree:
+def build_tree(X: np.ndarray, config: Dict | None = None) -> GeometricTree:
     data = np.ascontiguousarray(X, dtype=np.float64)
     if data.ndim != 2:
         raise ValueError("X must be a 2D array")
@@ -213,7 +213,7 @@ def build_tree(X: np.ndarray, config: Dict | None = None) -> BallTree:
         return refine(core, rng)
 
     root = build_middle(indices_all, rng_master)
-    return BallTree(
+    return GeometricTree(
         root=root,
         n_samples=n_samples,
         n_features=n_features,

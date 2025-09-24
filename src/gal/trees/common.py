@@ -1,4 +1,4 @@
-"""Shared data structures for ball-tree builders."""
+"""Shared data structures for geometric tree builders."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import numpy as np
 
 
 class Node:
-    """Generic n-ary ball-tree node."""
+    """Generic n-ary geometric-tree node."""
 
     __slots__ = ("center", "radius", "children", "indices", "is_leaf")
 
@@ -29,7 +29,7 @@ class Node:
 
 
 @dataclass(slots=True)
-class BallTree:
+class GeometricTree:
     root: Node
     n_samples: int
     n_features: int

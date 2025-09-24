@@ -1,4 +1,4 @@
-﻿Getting started
+Getting started
 ===============
 
 This section walks you through installing the Geometry-Aware Learning package,
@@ -98,7 +98,7 @@ iterations.
    print("Final centre", center)
 
 The search routine powering ``learn`` now lives in ``gal.search``; see
-:doc:`api/search` for details on swapping bounds or visiting objectives.
+:doc:`api/search` for details on swapping bounds or visit strategies.
 
 Next steps
 ----------

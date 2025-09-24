@@ -12,7 +12,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from gal.trees import axis_median, two_pivot, pca_ballstar, bottom_up, middle_out, disjoint_greedy
-from gal.trees.common import BallTree
+from gal.trees.common import GeometricTree
 
 BUILDERS = [
     ("axis_median", axis_median.build_tree),
@@ -41,7 +41,7 @@ def iter_nodes(node):
 @pytest.mark.parametrize("name,builder", BUILDERS)
 def test_leaves_respect_leaf_size(name, builder, sample_data):
     tree = builder(sample_data)
-    assert isinstance(tree, BallTree)
+    assert isinstance(tree, GeometricTree)
     leaves = 0
     for node in iter_nodes(tree.root):
         if node.is_leaf:
@@ -90,3 +90,4 @@ def test_pca_balance_prefers_smaller_sum_of_radii():
     sum_median = sum(child.radius for child in tree_median.root.children)
     sum_opt = sum(child.radius for child in tree_opt.root.children)
     assert sum_opt < sum_median - 1e-6
+

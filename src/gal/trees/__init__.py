@@ -7,9 +7,9 @@ from typing import Callable, Dict
 import numpy as np
 
 from . import axis_median, bottom_up, disjoint_greedy, middle_out, pca_ballstar, two_pivot
-from .common import BallTree, Node
+from .common import GeometricTree, Node
 
-BuilderFn = Callable[[np.ndarray, dict | None], BallTree]
+BuilderFn = Callable[[np.ndarray, dict | None], GeometricTree]
 
 AVAILABLE_BUILDERS: Dict[str, BuilderFn] = {
     "axis_median": axis_median.build_tree,
@@ -38,7 +38,7 @@ def build_tree(
     config: dict | None = None,
     *,
     method: str = "axis_median",
-) -> BallTree:
+) -> GeometricTree:
     builder = get_builder(method)
     cfg = None if config is None else dict(config)
     return builder(X, cfg)
@@ -51,7 +51,7 @@ def build_ball_tree(
     P: int | None = None,
     radius_divisor: float | None = None,
     config: dict | None = None,
-) -> BallTree:
+) -> GeometricTree:
     cfg = {} if config is None else dict(config)
     if k is not None and "max_children" not in cfg:
         cfg["max_children"] = int(k)
@@ -66,7 +66,7 @@ def build_ball_tree(
 __all__ = [
     "AVAILABLE_BUILDERS",
     "AVAILABLE_METHODS",
-    "BallTree",
+    "GeometricTree",
     "BuilderFn",
     "Node",
     "axis_median",
@@ -78,3 +78,4 @@ __all__ = [
     "pca_ballstar",
     "two_pivot",
 ]
+

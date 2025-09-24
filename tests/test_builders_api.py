@@ -13,7 +13,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from gal.trees import axis_median, two_pivot, pca_ballstar, bottom_up, middle_out, disjoint_greedy
-from gal.trees.common import BallTree, Node
+from gal.trees.common import GeometricTree, Node
 
 API_CASES = [
     ("axis_median", axis_median.build_tree, None),
@@ -45,7 +45,7 @@ def test_builder_api(builder_name, builder, override, sample_data):
     cfg_arg = None if override is None else override
     tree = builder(sample_data, cfg_arg)
 
-    assert isinstance(tree, BallTree)
+    assert isinstance(tree, GeometricTree)
     assert tree.root is not None and isinstance(tree.root, Node)
     assert tree.n_samples == sample_data.shape[0]
     assert tree.n_features == sample_data.shape[1]
@@ -53,3 +53,4 @@ def test_builder_api(builder_name, builder, override, sample_data):
     assert tree.leaf_size == expected_leaf
     assert tree.method == builder_name
     assert tree.config["meb"] == config.get("meb", defaults.get("meb"))
+

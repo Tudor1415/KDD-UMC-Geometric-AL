@@ -7,13 +7,13 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-from .common import BallTree, Node
+from .common import GeometricTree, Node
 from utils.geometry import enclose_many_balls
 from utils.meb import meb
 from utils.partitions import axis_median_split
 
 
-def build_tree(X: np.ndarray, config: Dict | None = None) -> BallTree:
+def build_tree(X: np.ndarray, config: Dict | None = None) -> GeometricTree:
     data = np.ascontiguousarray(X, dtype=np.float64)
     if data.ndim != 2:
         raise ValueError("X must be a 2D array")
@@ -80,7 +80,7 @@ def build_tree(X: np.ndarray, config: Dict | None = None) -> BallTree:
     if not active:
         center = np.zeros(n_features, dtype=np.float64)
         root = Node(center=center, radius=0.0, indices=np.array([], dtype=np.int64), is_leaf=True)
-        return BallTree(root, n_samples, n_features, leaf_size_attr, "bottom_up", cfg)
+        return GeometricTree(root, n_samples, n_features, leaf_size_attr, "bottom_up", cfg)
 
     while len(active) > 1:
         best_pair: Optional[Tuple[Node, Node]] = None
@@ -128,7 +128,7 @@ def build_tree(X: np.ndarray, config: Dict | None = None) -> BallTree:
         active.append(parent)
 
     root = active[0]
-    return BallTree(
+    return GeometricTree(
         root=root,
         n_samples=n_samples,
         n_features=n_features,

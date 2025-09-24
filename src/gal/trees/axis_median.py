@@ -7,13 +7,13 @@ from typing import Dict, List
 
 import numpy as np
 
-from .common import BallTree, Node
+from .common import GeometricTree, Node
 from utils.meb import meb
 from utils.geometry import enclose_many_balls
 from utils.partitions import axis_median_split
 
 
-def build_tree(X: np.ndarray, config: Dict | None = None) -> BallTree:
+def build_tree(X: np.ndarray, config: Dict | None = None) -> GeometricTree:
     data = np.ascontiguousarray(X, dtype=np.float64)
     if data.ndim != 2:
         raise ValueError("X must be a 2D array")
@@ -66,7 +66,7 @@ def build_tree(X: np.ndarray, config: Dict | None = None) -> BallTree:
         return Node(center=center, radius=radius, children=children, indices=None, is_leaf=False)
 
     root = build(indices_all)
-    return BallTree(
+    return GeometricTree(
         root=root,
         n_samples=n_samples,
         n_features=n_features,
@@ -74,3 +74,4 @@ def build_tree(X: np.ndarray, config: Dict | None = None) -> BallTree:
         method="axis_median",
         config=cfg,
     )
+
