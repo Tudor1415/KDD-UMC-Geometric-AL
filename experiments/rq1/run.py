@@ -14,6 +14,7 @@ import copy
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import math
 import warnings
 import matplotlib.pyplot as plt
 
@@ -65,6 +66,15 @@ def _eval_center_runs(task: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[
 
     out_runs: List[Dict[str, Any]] = []
     out_evals: List[Dict[str, Any]] = []
+    # Per-run cap on bound gap values to ship back to the parent process
+    gap_cap_per_run = int(task.get("gap_cap_per_run", 0) or 0)
+
+    def _sample_array(arr: _np.ndarray, cap: int) -> _np.ndarray:
+        arr = _np.asarray(arr, dtype=float).ravel()
+        if cap <= 0 or arr.size <= cap:
+            return arr
+        idx = _np.random.default_rng(int(seed_base)).choice(arr.size, size=cap, replace=False)
+        return arr[idx]
     for run_i in range(n_runs):
         rng_rnd = _np.random.default_rng(seed_base + 1_000 * run_i)
         res = _eval(
@@ -86,8 +96,25 @@ def _eval_center_runs(task: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[
             trace_tau=trace_tau,
             trace_certify=trace_certify,
         )
-        out_runs.append({k: {"A_time": v.A_time.tolist(), "A_calls": v.A_calls.tolist(), "bound_gaps": v.bound_gaps.tolist(), "heap_calls": v.heap_calls.tolist()} for k, v in res.items()})
-        out_evals.append({k: {"A_time": v.A_time, "A_calls": v.A_calls, "bound_gaps": v.bound_gaps} for k, v in res.items()})
+        # Downsample bound gaps before sending results across process boundaries to
+        # avoid heavy pickling and long waits after worker completion.
+        res_serialized: Dict[str, Dict[str, Any]] = {}
+        res_evals: Dict[str, Dict[str, Any]] = {}
+        for k, v in res.items():
+            if k in ("kd", "bt"):
+                gaps_sampled = _sample_array(v.bound_gaps, gap_cap_per_run)
+            else:
+                gaps_sampled = _np.asarray([], dtype=float)
+            res_serialized[k] = {
+                "A_time": v.A_time.tolist(),
+                "A_calls": v.A_calls.tolist(),
+                "bound_gaps": gaps_sampled.tolist(),
+                "heap_calls": v.heap_calls.tolist(),
+            }
+            # Only send what's needed for aggregation (A_time, A_calls, heap_calls)
+            res_evals[k] = {"A_time": v.A_time, "A_calls": v.A_calls, "heap_calls": v.heap_calls}
+        out_runs.append(res_serialized)
+        out_evals.append(res_evals)
     return out_runs, out_evals
 
 
@@ -276,6 +303,9 @@ def run_dataset(
         # Repeat runs per center (optionally parallel over centers)
         parallel_centers = bool(cfg.get("global", "parallel_centers", default=True))
         max_workers = int(cfg.get("global", "center_workers", default=os.cpu_count() or 1))
+        # Bound-gap sampling budget: spread max_samples roughly evenly across all (center, run)
+        max_gap_samples_total = int(cfg.get("evaluation", "bound_tightness", "max_samples", default=100000))
+        per_run_gap_cap = int(math.ceil(max_gap_samples_total / max(1, per_ds * n_runs)))
         if parallel_centers and len(centers) > 1:
             n_workers = min(max_workers, len(centers))
             logging.info(f"  Launching {n_workers} worker(s) over {len(centers)} center(s)…")
@@ -317,6 +347,7 @@ def run_dataset(
                     bt_tree_obj=None,
                     trace_tau=tau_conf,
                     trace_certify=trace_certify,
+                    gap_cap_per_run=per_run_gap_cap,
                 ))
             with ProcessPoolExecutor(max_workers=n_workers) as ex:
                 starts: Dict[int, float] = {}
@@ -369,7 +400,26 @@ def run_dataset(
                         trace_tau=tau_conf,
                         trace_certify=trace_certify,
                     )
-                    runs_serialized.append({k: {"A_time": v.A_time.tolist(), "A_calls": v.A_calls.tolist(), "bound_gaps": v.bound_gaps.tolist(), "heap_calls": v.heap_calls.tolist()} for k, v in res.items()})
+                    # Apply the same per-run bound-gap cap for consistency with parallel path
+                    def _sample_local(arr: np.ndarray, cap: int) -> np.ndarray:
+                        arr = np.asarray(arr, dtype=float).ravel()
+                        if cap <= 0 or arr.size <= cap:
+                            return arr
+                        idx = rng.integers(0, arr.size, size=cap, endpoint=False)
+                        return arr[idx]
+                    sampled_serialized: Dict[str, Dict[str, Any]] = {}
+                    for k, v in res.items():
+                        if k in ("kd", "bt"):
+                            gaps = _sample_local(v.bound_gaps, per_run_gap_cap)
+                        else:
+                            gaps = np.asarray([], dtype=float)
+                        sampled_serialized[k] = {
+                            "A_time": v.A_time.tolist(),
+                            "A_calls": v.A_calls.tolist(),
+                            "bound_gaps": gaps.tolist(),
+                            "heap_calls": v.heap_calls.tolist(),
+                        }
+                    runs_serialized.append(sampled_serialized)
                     evals.append(res)
         logging.info("  Aggregating runs and generating figures…")
         t_agg0 = time.perf_counter()
