@@ -28,6 +28,5 @@ def test_evaluate_and_aggregate_smoke():
     )
     assert set(res.keys()) == {"kd", "bt", "rnd"}
     runs = [res, res]
-    agg = aggregate_runs(runs, n_bootstrap=10, ci_level=0.9)
+    agg = aggregate_runs(runs, ci_level=0.9)
     assert "kd" in agg and "A_time" in agg["kd"]
-

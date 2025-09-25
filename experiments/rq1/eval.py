@@ -8,10 +8,6 @@ import logging
 import time as _t
 
 import numpy as np
-try:  # optional parallel bootstrap
-    from joblib import Parallel, delayed  # type: ignore
-except Exception:  # pragma: no cover
-    Parallel = None  # type: ignore
 
 from gal.search import Search
 from gal.search.kd_bounds import KdTreeBounds
@@ -20,14 +16,8 @@ from gal.trees import kd_tree as kd
 from gal import trees as bt
 
 
-def _bootstrap_ci(mats: np.ndarray, n_bootstrap: int, ci_level: float) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Median + empirical CI across the first axis of mats.
-
-    Note: This implementation does NOT resample (no bootstrap). It computes
-    the median and two-sided confidence bands directly from the empirical
-    distribution across runs. The n_bootstrap parameter is accepted for
-    backward compatibility but ignored.
-    """
+def _empirical_ci(mats: np.ndarray, ci_level: float) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Median + empirical CI across the first axis of mats (no resampling)."""
     # mats shape: [n_runs, n_points]
     n_runs, n_pts = mats.shape
     if n_runs == 0:
@@ -383,23 +373,43 @@ def evaluate_dataset(
 def aggregate_runs(
     run_results: List[Dict[str, MethodResult]],
     *,
-    n_bootstrap: int,
     ci_level: float,
 ) -> Dict[str, Dict[str, Tuple[np.ndarray, np.ndarray, np.ndarray]]]:
     # Stack per-method A@t and A@m
     methods = run_results[0].keys()
+    n_runs = len(run_results)
+    method_list = list(methods)
+    try:
+        logging.info(f"[aggregate] runs={n_runs}, methods={', '.join(method_list)}")
+    except Exception:
+        pass
     out: Dict[str, Dict[str, Tuple[np.ndarray, np.ndarray, np.ndarray]]] = {}
+    total_values = 0
     for m in methods:
         A_t = np.stack([r[m].A_time for r in run_results], axis=0)
         A_m = np.stack([r[m].A_calls for r in run_results], axis=0)
         out[m] = {
-            "A_time": _bootstrap_ci(A_t, n_bootstrap, ci_level),
-            "A_calls": _bootstrap_ci(A_m, n_bootstrap, ci_level),
+            "A_time": _empirical_ci(A_t, ci_level),
+            "A_calls": _empirical_ci(A_m, ci_level),
         }
+        total_values += int(A_t.size) + int(A_m.size)
+        try:
+            logging.info(f"[aggregate] {m}: A_time_shape={A_t.shape}, A_calls_shape={A_m.shape}")
+        except Exception:
+            pass
         # Optional heap calls curve (only meaningful for BnB methods)
         try:
             H_m = np.stack([r[m].heap_calls for r in run_results], axis=0)
-            out[m]["heap_calls"] = _bootstrap_ci(H_m, n_bootstrap, ci_level)
+            out[m]["heap_calls"] = _empirical_ci(H_m, ci_level)
+            total_values += int(H_m.size)
+            try:
+                logging.info(f"[aggregate] {m}: heap_calls_shape={H_m.shape}")
+            except Exception:
+                pass
         except Exception:
             pass
+    try:
+        logging.info(f"[aggregate] total_values_processed={total_values}")
+    except Exception:
+        pass
     return out

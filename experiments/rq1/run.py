@@ -148,11 +148,6 @@ def run_dataset(
     export_figs = list(cfg.get("evaluation", "exports", "figures", default=["png"]))
     # Hard-code scaling x-axis to linear (no config option)
     scaling_xscale = "linear"
-    # Optional fast mode trades fidelity for speed
-    fast_mode = bool(cfg.get("global", "fast_mode", default=False))
-    if fast_mode:
-        logging.info("  Fast mode enabled: reducing bootstrap resamples and KDE sample cap; lowering figure DPI.")
-        dpi = min(dpi, 100)
 
     # Threshold mode support (optional)
     tau_conf = cfg.get("global", "tau", default=None)
@@ -379,13 +374,9 @@ def run_dataset(
         logging.info("  Aggregating runs and generating figures…")
         t_agg0 = time.perf_counter()
 
-        # Aggregate with optional bootstrap (reduced when fast_mode)
-        nb = int(cfg.get("global", "n_bootstrap", default=300))
-        if fast_mode:
-            nb = min(nb, 50)
+        # Aggregate using empirical CIs across runs (no resampling)
         agg = aggregate_runs(
             evals,
-            n_bootstrap=nb,
             ci_level=float(cfg.get("global", "ci_level", default=0.95)),
         )
         logging.info(f"    Aggregation completed in {time.perf_counter()-t_agg0:.2f}s")
@@ -455,8 +446,6 @@ def run_dataset(
             return arr[idx]
 
         max_gap_samples = int(cfg.get("evaluation", "bound_tightness", "max_samples", default=100000))
-        if fast_mode:
-            max_gap_samples = min(max_gap_samples, 20000)
         kd_all = np.concatenate([np.asarray(r["kd"]["bound_gaps"], dtype=float) for r in runs_serialized]) if runs_serialized else np.zeros(0)
         bt_all = np.concatenate([np.asarray(r["bt"]["bound_gaps"], dtype=float) for r in runs_serialized]) if runs_serialized else np.zeros(0)
         gaps_kd = _sample_array(kd_all, max_gap_samples)
