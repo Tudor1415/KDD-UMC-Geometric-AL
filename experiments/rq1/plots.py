@@ -153,23 +153,33 @@ def plot_bound_tightness_kde(all_gaps: Dict[str, np.ndarray], *, title: str | No
     sns = _maybe_sns() if use_seaborn else None
     fig, ax = plt.subplots(figsize=(7, 4))
     eps = 1e-9
+    plotted = False
     for label, gaps in all_gaps.items():
         # Spec: plot KDE of log(UB - LB + eps)
-        x = np.log(np.maximum(gaps, 0.0) + eps)
+        x = np.log(np.maximum(np.asarray(gaps, dtype=float), 0.0) + eps)
+        # Drop non-finite/empty inputs to avoid density normalization warnings
+        x = x[np.isfinite(x)]
+        if x.size == 0:
+            continue
         if sns is not None:  # pragma: no cover - visual
             try:
                 with warnings.catch_warnings():
                     warnings.simplefilter("ignore")
                     sns.kdeplot(x=x, label=label, ax=ax)
+                plotted = True
+                continue
             except Exception:
-                ax.hist(x, bins=50, alpha=0.3, density=True, label=label)
-        else:
-            # Fallback: histogram approximation
-            ax.hist(x, bins=50, alpha=0.3, density=True, label=label)
+                pass
+        # Fallback: histogram approximation
+        ax.hist(x, bins=50, alpha=0.3, density=True, label=label)
+        plotted = True
     ax.set_xlabel("Bound Gap: log(UB - LB + ε)")
     ax.set_ylabel("Density")
     if title:
         ax.set_title(title)
-    ax.legend()
+    if plotted:
+        ax.legend()
+    else:
+        ax.text(0.5, 0.5, "No bound gaps to plot", ha="center", va="center", transform=ax.transAxes)
     fig.tight_layout()
     return fig

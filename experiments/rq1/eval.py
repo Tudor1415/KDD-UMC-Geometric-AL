@@ -3,8 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
+import warnings
+import logging
+import time as _t
 
 import numpy as np
+try:  # optional parallel bootstrap
+    from joblib import Parallel, delayed  # type: ignore
+except Exception:  # pragma: no cover
+    Parallel = None  # type: ignore
 
 from gal.search import Search
 from gal.search.kd_bounds import KdTreeBounds
@@ -14,6 +21,11 @@ from gal import trees as bt
 
 
 def _bootstrap_ci(mats: np.ndarray, n_bootstrap: int, ci_level: float) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Median + bootstrap CI across the first axis of mats.
+
+    Uses joblib for parallel bootstrap when available; otherwise falls back to serial.
+    Deterministic given the fixed RNG seed below.
+    """
     # mats shape: [n_runs, n_points]
     rng = np.random.default_rng(12345)
     n_runs, n_pts = mats.shape
@@ -21,12 +33,25 @@ def _bootstrap_ci(mats: np.ndarray, n_bootstrap: int, ci_level: float) -> Tuple[
         zeros = np.zeros(n_pts)
         return zeros, zeros, zeros
     meds = np.median(mats, axis=0)
-    if n_runs == 1:
+    if n_runs == 1 or n_bootstrap <= 1:
         return meds, meds, meds
-    boot = np.empty((n_bootstrap, n_pts), dtype=float)
-    for b in range(n_bootstrap):
-        idx = rng.integers(0, n_runs, size=n_runs)
-        boot[b] = np.median(mats[idx], axis=0)
+
+    def _one_boot(seed: int) -> np.ndarray:
+        r = np.random.default_rng(int(seed))
+        idx = r.integers(0, n_runs, size=n_runs)
+        return np.median(mats[idx], axis=0)
+
+    seeds = rng.integers(0, 2**32 - 1, size=n_bootstrap, dtype=np.uint64)
+    if Parallel is not None:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            boot_list = Parallel(n_jobs=-1)(delayed(_one_boot)(int(s)) for s in seeds)
+        boot = np.vstack(boot_list)
+    else:
+        boot = np.empty((n_bootstrap, n_pts), dtype=float)
+        for b, s in enumerate(seeds):
+            boot[b] = _one_boot(int(s))
+
     alpha = (1.0 - ci_level) / 2.0
     lo = np.quantile(boot, alpha, axis=0)
     hi = np.quantile(boot, 1.0 - alpha, axis=0)
@@ -66,6 +91,8 @@ def evaluate_dataset(
     random_pair_mode: str = "with_replacement",
     kd_tree_obj: Any | None = None,
     bt_tree_obj: Any | None = None,
+    trace_tau: float,
+    trace_certify: bool,
 ) -> Dict[str, MethodResult]:
     n = X.shape[0]
     Pmax = n * (n - 1) // 2
@@ -82,62 +109,96 @@ def evaluate_dataset(
 
     # Sample a shared center
     wc = _sample_center(X.shape[1], rng) if center is None else np.asarray(center, dtype=float)
-    # Oracle d*: min of exact BnB using kd- and ball-tree
-    kd_i, kd_j, kd_star = kd_engine.search_pair(kd_tree, X, wc, tau=float("inf"))
-    bt_i, bt_j, bt_star = bt_engine.search_pair(bt_tree, X, wc, tau=float("inf"))
-    d_star = min(kd_star, bt_star)
-
-    # Time normalization: run both methods to completion multiple times
-    def time_to_completion(engine: Search, tree) -> float:
-        import time as _t
+    # Time normalization: run both methods until threshold
+    def time_to_completion(engine: Search, tree, label: str) -> float:
         best = float("inf")
         elapsed = 0.0
         for _ in range(timing_repeats):
             t0 = _t.perf_counter()
-            i, j, d = engine.search_pair(tree, X, wc, tau=float("inf"))
+            i, j, d, stats = engine.search_pair(
+                tree,
+                X,
+                wc,
+                tau=float(trace_tau),
+                ensure_optimal=False,
+                return_stats=True,
+                collect_bound_gaps=False,
+            )
             elapsed = max(elapsed, _t.perf_counter() - t0)
             best = min(best, d)
+        lbp = int(stats.get("pruned_lb_point_pairs", 0)) if isinstance(stats, dict) else 0
+        dmp = int(stats.get("pruned_dom_point_pairs", 0)) if isinstance(stats, dict) else 0
+        prn = int(stats.get("pruned_point_pairs", 0)) if isinstance(stats, dict) else lbp + dmp
+        expl = int(stats.get("explored_point_pairs", 0)) if isinstance(stats, dict) else 0
+        tot = int(stats.get("total_point_pairs", 0)) if isinstance(stats, dict) else 0
+        logging.info(
+            f"    [time-norm:{label}] reached tau={trace_tau:.3g} in {elapsed:.4f}s (best={best:.3g}, pruned_lb={lbp}, pruned_dom={dmp}, pruned_total={prn}, explored={expl}, total={tot})"
+        )
         return elapsed
 
-    T_kd = time_to_completion(kd_engine, kd_tree)
-    T_bt = time_to_completion(bt_engine, bt_tree)
+    T_kd = time_to_completion(kd_engine, kd_tree, "kd")
+    T_bt = time_to_completion(bt_engine, bt_tree, "ball")
     T_max = max(T_kd, T_bt)
 
     time_grid = [f * T_max for f in time_fracs]
     calls_grid = [int(round(f * Pmax)) for f in call_fracs]
 
     # Run anytime with tracing enabled
+    tau_tr = float(trace_tau)
+    t0_kd = _t.perf_counter()
     _, _, kd_best, kd_stats = kd_engine.search_pair(
         kd_tree,
         X,
         wc,
-        tau=float("inf"),
+        tau=tau_tr,
         return_stats=True,
         dominance_prune=True,
         eps=eps,
+        ensure_optimal=trace_certify,
         time_checkpoints=time_grid,
         calls_checkpoints=calls_grid,
         collect_bound_gaps=True,
     )
+    dt_kd = _t.perf_counter() - t0_kd
+    kd_lbp = int(kd_stats.get("pruned_lb_point_pairs", 0))
+    kd_dmp = int(kd_stats.get("pruned_dom_point_pairs", 0))
+    kd_prn = int(kd_stats.get("pruned_point_pairs", kd_lbp + kd_dmp))
+    kd_expl = int(kd_stats.get("explored_point_pairs", 0))
+    kd_tot = int(kd_stats.get("total_point_pairs", 0))
+    logging.info(
+        f"    [trace:kd] dur={dt_kd:.4f}s, evals={int(kd_stats.get('objective_evals', 0))}, best={kd_best:.3g}, pruned_lb={kd_lbp}, pruned_dom={kd_dmp}, pruned_total={kd_prn}, explored={kd_expl}, total={kd_tot}"
+    )
+
+    t0_bt = _t.perf_counter()
     _, _, bt_best, bt_stats = bt_engine.search_pair(
         bt_tree,
         X,
         wc,
-        tau=float("inf"),
+        tau=tau_tr,
         return_stats=True,
         dominance_prune=True,
         eps=eps,
+        ensure_optimal=trace_certify,
         time_checkpoints=time_grid,
         calls_checkpoints=calls_grid,
         collect_bound_gaps=True,
+    )
+    dt_bt = _t.perf_counter() - t0_bt
+    bt_lbp = int(bt_stats.get("pruned_lb_point_pairs", 0))
+    bt_dmp = int(bt_stats.get("pruned_dom_point_pairs", 0))
+    bt_prn = int(bt_stats.get("pruned_point_pairs", bt_lbp + bt_dmp))
+    bt_expl = int(bt_stats.get("explored_point_pairs", 0))
+    bt_tot = int(bt_stats.get("total_point_pairs", 0))
+    logging.info(
+        f"    [trace:ball] dur={dt_bt:.4f}s, evals={int(bt_stats.get('objective_evals', 0))}, best={bt_best:.3g}, pruned_lb={bt_lbp}, pruned_dom={bt_dmp}, pruned_total={bt_prn}, explored={bt_expl}, total={bt_tot}"
     )
 
     def to_A(trace: Dict[str, Any]) -> Tuple[np.ndarray, np.ndarray]:
         tb = np.array(trace["time_best"], dtype=float)
         cb = np.array(trace["calls_best"], dtype=float)
-        # Use eps in numerator and denominator to avoid 0/0 when d* = 0 and best = 0
-        A_t = np.minimum(1.0, (d_star + eps) / (tb + eps))
-        A_m = np.minimum(1.0, (d_star + eps) / (cb + eps))
+        # Threshold-based normalization: A=1 when best <= tau
+        A_t = np.minimum(1.0, (tau_tr + eps) / (tb + eps))
+        A_m = np.minimum(1.0, (tau_tr + eps) / (cb + eps))
         return A_t, A_m
 
     kd_A_t, kd_A_m = to_A(kd_stats["trace"])  # type: ignore
@@ -209,19 +270,19 @@ def evaluate_dataset(
             calls += 1
             now = _t.perf_counter() - t0
             while ti < len(time_grid) and now >= float(time_grid[ti]):
-                A_t[ti] = min(1.0, d_star / max(best, np.finfo(float).tiny))
+                A_t[ti] = min(1.0, (tau_tr + eps) / (best + eps))
                 ti += 1
             while ci < len(calls_grid) and calls >= int(calls_grid[ci]):
-                A_m[ci] = min(1.0, d_star / max(best, np.finfo(float).tiny))
+                A_m[ci] = min(1.0, (tau_tr + eps) / (best + eps))
                 ci += 1
             if calls >= (n * (n - 1) // 2) and ti >= len(time_grid):
                 break
         # Pad remaining
         while ti < len(time_grid):
-            A_t[ti] = min(1.0, d_star / max(best, np.finfo(float).tiny))
+            A_t[ti] = min(1.0, (tau_tr + eps) / (best + eps))
             ti += 1
         while ci < len(calls_grid):
-            A_m[ci] = min(1.0, d_star / max(best, np.finfo(float).tiny))
+            A_m[ci] = min(1.0, (tau_tr + eps) / (best + eps))
             ci += 1
         return A_t, A_m
 

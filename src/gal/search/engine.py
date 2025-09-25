@@ -137,6 +137,7 @@ class Search:
         return_stats: bool = False,
         dominance_prune: bool = True,
         eps: float = 1e-12,
+        ensure_optimal: bool = True,
         time_checkpoints: Optional[Sequence[float]] = None,
         calls_checkpoints: Optional[Sequence[int]] = None,
         collect_bound_gaps: bool = False,
@@ -282,37 +283,51 @@ class Search:
                     enqueue(a, child)
             record_time_if_needed()
 
-        # Evaluate pairs within the same leaf across the whole tree.
-        stack = [root]
-        while stack:
-            node = stack.pop()
-            if self._node_is_leaf(node):
-                pair, dist, evals = self._exact_leaf_self(node, context)
-                stats["objective_evals"] = int(stats["objective_evals"]) + evals
-                stats["explored_point_pairs"] = int(stats["explored_point_pairs"]) + evals
-                if pair is not None and dist < min(best_distance, tau):
-                    best_pair = pair
-                    best_distance = dist
-                    stats["best_origin"] = "leaf"
-            else:
-                # Continue traversing to reach all leaves
-                stack.extend(node.children)
-        # Always run exhaustive verification to ensure the optimal solution.
-        data_points = context.data
-        unique_indices = leaf_indices
-        for idx_a in range(len(unique_indices) - 1):
-            ia = int(unique_indices[idx_a])
-            pa = data_points[ia]
-            for idx_b in range(idx_a + 1, len(unique_indices)):
-                ib = int(unique_indices[idx_b])
-                pb = data_points[ib]
-                dist = self._objective_value(pa, pb, wc, eps)
-                stats["objective_evals"] = int(stats["objective_evals"]) + 1
-                stats["explored_point_pairs"] = int(stats["explored_point_pairs"]) + 1
-                if dist < min(best_distance, tau):
-                    best_pair = (ia, ib)
-                    best_distance = dist
-                    stats["best_origin"] = "exhaustive"
+        # Evaluate pairs within the same leaf across the whole tree only as a last recourse.
+        # Policy (applies to all modes):
+        # - Run the sweep only if no pair was found during BnB (best_pair is None).
+        # - Otherwise, skip sweeping to avoid upfront within-leaf costs.
+        # Only sweep when BnB found nothing and there is nothing left to explore.
+        # This prevents invoking sweeps when an early exit occurred due to bounds.
+        if best_pair is None and not heap:
+            stack = [root]
+            # Early-stop if running under a finite tau: stop once satisfied
+            stop_after_found = (not math.isinf(tau))
+            done = False
+            while stack and not done:
+                node = stack.pop()
+                if self._node_is_leaf(node):
+                    pair, dist, evals = self._exact_leaf_self(node, context)
+                    stats["objective_evals"] = int(stats["objective_evals"]) + evals
+                    stats["explored_point_pairs"] = int(stats["explored_point_pairs"]) + evals
+                    if pair is not None and dist < min(best_distance, tau):
+                        best_pair = pair
+                        best_distance = dist
+                        stats["best_origin"] = "leaf"
+                        # Under a finite tau, stop once satisfied
+                        if stop_after_found and best_distance <= tau + eps:
+                            done = True
+                            break
+                else:
+                    # Continue traversing to reach all leaves
+                    stack.extend(node.children)
+        # Optionally run exhaustive verification to ensure the optimal solution.
+        if ensure_optimal:
+            data_points = context.data
+            unique_indices = leaf_indices
+            for idx_a in range(len(unique_indices) - 1):
+                ia = int(unique_indices[idx_a])
+                pa = data_points[ia]
+                for idx_b in range(idx_a + 1, len(unique_indices)):
+                    ib = int(unique_indices[idx_b])
+                    pb = data_points[ib]
+                    dist = self._objective_value(pa, pb, wc, eps)
+                    stats["objective_evals"] = int(stats["objective_evals"]) + 1
+                    stats["explored_point_pairs"] = int(stats["explored_point_pairs"]) + 1
+                    if dist < min(best_distance, tau):
+                        best_pair = (ia, ib)
+                        best_distance = dist
+                        stats["best_origin"] = "exhaustive"
 
         # Finalize traces
         if time_grid is not None:
@@ -356,6 +371,7 @@ def search_pair(
     return_stats: bool = False,
     dominance_prune: bool = True,
     eps: float = 1e-12,
+    ensure_optimal: bool = True,
     bounder: BoundsStrategy[Node] | None = None,
     strategy: VisitStrategy[Node] | None = None,
     time_checkpoints: Optional[Sequence[float]] = None,
@@ -373,6 +389,7 @@ def search_pair(
         return_stats=return_stats,
         dominance_prune=dominance_prune,
         eps=eps,
+        ensure_optimal=ensure_optimal,
         time_checkpoints=time_checkpoints,
         calls_checkpoints=calls_checkpoints,
         collect_bound_gaps=collect_bound_gaps,

@@ -51,6 +51,8 @@ def _eval_center_runs(task: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[
     rnd_mode = task["rnd_mode"]
     kd_tree_obj = task.get("kd_tree_obj")
     bt_tree_obj = task.get("bt_tree_obj")
+    trace_tau = float(task["trace_tau"]) if "trace_tau" in task else None
+    trace_certify = bool(task.get("trace_certify", False))
 
     out_runs: List[Dict[str, Any]] = []
     out_evals: List[Dict[str, Any]] = []
@@ -72,6 +74,8 @@ def _eval_center_runs(task: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[
             random_pair_mode=rnd_mode,
             kd_tree_obj=kd_tree_obj,
             bt_tree_obj=bt_tree_obj,
+            trace_tau=trace_tau,
+            trace_certify=trace_certify,
         )
         out_runs.append({k: {"A_time": v.A_time.tolist(), "A_calls": v.A_calls.tolist(), "bound_gaps": v.bound_gaps.tolist()} for k, v in res.items()})
         out_evals.append({k: {"A_time": v.A_time, "A_calls": v.A_calls, "bound_gaps": v.bound_gaps} for k, v in res.items()})
@@ -135,6 +139,19 @@ def run_dataset(
     export_figs = list(cfg.get("evaluation", "exports", "figures", default=["png"]))
     # Hard-code scaling x-axis to linear (no config option)
     scaling_xscale = "linear"
+
+    # Threshold mode support (optional)
+    tau_conf = cfg.get("global", "tau", default=None)
+    if tau_conf is None:
+        raise ValueError("Missing required config: global.tau. Set a finite threshold (e.g., 1e-10).")
+    try:
+        tau_conf = float(tau_conf)
+    except Exception as exc:
+        raise ValueError(f"Invalid global.tau value: {tau_conf}") from exc
+    if not np.isfinite(tau_conf):
+        raise ValueError("global.tau must be finite; do not use infinity.")
+    # Do not certify optimality in traces when a finite tau is provided
+    trace_certify = False
 
     # Centers per dataset
     per_ds = int(cfg.get("centers", "per_dataset", default=1))
@@ -274,6 +291,8 @@ def run_dataset(
                     rnd_mode=rnd_pair_mode,
                     kd_tree_obj=kd_tree_obj,
                     bt_tree_obj=bt_tree_obj,
+                    trace_tau=tau_conf,
+                    trace_certify=trace_certify,
                 ))
             with ProcessPoolExecutor(max_workers=n_workers) as ex:
                 futs = [ex.submit(_eval_center_runs, t) for t in tasks]
@@ -306,6 +325,8 @@ def run_dataset(
                         random_pair_mode=rnd_pair_mode,
                         kd_tree_obj=kd_tree_obj,
                         bt_tree_obj=bt_tree_obj,
+                        trace_tau=tau_conf,
+                        trace_certify=trace_certify,
                     )
                     runs_serialized.append({k: {"A_time": v.A_time.tolist(), "A_calls": v.A_calls.tolist(), "bound_gaps": v.bound_gaps.tolist()} for k, v in res.items()})
                     evals.append(res)
@@ -352,9 +373,19 @@ def run_dataset(
             fig2.savefig(group_dir / "A_at_calls.pdf", dpi=dpi)
         plt.close(fig2)
 
-        # Bound tightness KDE
-        gaps_kd = np.concatenate([np.array(r["kd"]["bound_gaps"]) for r in runs_serialized])
-        gaps_bt = np.concatenate([np.array(r["bt"]["bound_gaps"]) for r in runs_serialized])
+        # Bound tightness KDE (sample to limit size)
+        def _sample_array(arr: np.ndarray, max_samples: int) -> np.ndarray:
+            arr = np.asarray(arr, dtype=float).ravel()
+            if arr.size <= max_samples:
+                return arr
+            idx = rng.choice(arr.size, size=max_samples, replace=False)
+            return arr[idx]
+
+        max_gap_samples = int(cfg.get("evaluation", "bound_tightness", "max_samples", default=100000))
+        kd_all = np.concatenate([np.asarray(r["kd"]["bound_gaps"], dtype=float) for r in runs_serialized]) if runs_serialized else np.zeros(0)
+        bt_all = np.concatenate([np.asarray(r["bt"]["bound_gaps"], dtype=float) for r in runs_serialized]) if runs_serialized else np.zeros(0)
+        gaps_kd = _sample_array(kd_all, max_gap_samples)
+        gaps_bt = _sample_array(bt_all, max_gap_samples)
         fig3 = plot_bound_tightness_kde({"kd-tree Bounds": gaps_kd, "ball-tree Bounds": gaps_bt}, title=f"Bound Tightness on {dataset_name} ({add_label})")
         if "png" in export_figs:
             fig3.savefig(group_dir / "bound_tightness.png", dpi=dpi)
@@ -393,7 +424,23 @@ def run_dataset(
                 for mname, ci in curves_c.items():
                     for xi, med, lo, hi in zip(ci.x, ci.median, ci.low, ci.high):
                         w.writerow([mname, float(xi), float(med), float(lo), float(hi)])
-        if export_json:
+        # Save raw traces: prefer compact NPZ if configured
+        export_npz = bool(cfg.get("evaluation", "exports", "npz", default=False))
+        if export_npz:
+            # Pack curves and sampled gaps for compact storage
+            try:
+                np.savez_compressed(
+                    group_dir / "runs.npz",
+                    kd_A_time=np.stack([np.asarray(run["kd"]["A_time"], dtype=float) for run in runs_serialized], axis=0) if runs_serialized else np.zeros((0, len(t_fracs))),
+                    kd_A_calls=np.stack([np.asarray(run["kd"]["A_calls"], dtype=float) for run in runs_serialized], axis=0) if runs_serialized else np.zeros((0, len(c_fracs))),
+                    bt_A_time=np.stack([np.asarray(run["bt"]["A_time"], dtype=float) for run in runs_serialized], axis=0) if runs_serialized else np.zeros((0, len(t_fracs))),
+                    bt_A_calls=np.stack([np.asarray(run["bt"]["A_calls"], dtype=float) for run in runs_serialized], axis=0) if runs_serialized else np.zeros((0, len(c_fracs))),
+                    kd_gaps=gaps_kd,
+                    bt_gaps=gaps_bt,
+                )
+            except Exception as _e:
+                logging.warning(f"Failed to save NPZ traces in {group_dir}: {_e}")
+        elif export_json:
             (group_dir / "runs.json").write_text(json.dumps(runs_serialized, indent=2))
 
         all_outputs["groups"].append({
