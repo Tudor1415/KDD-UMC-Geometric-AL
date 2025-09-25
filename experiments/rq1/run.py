@@ -35,7 +35,11 @@ def _eval_center_runs(task: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[
     import numpy as _np
     from .eval import evaluate_dataset as _eval
 
-    X = task["X"]
+    # Load data array: prefer memory-mapped path to avoid large pickles
+    if "X_path" in task and task["X_path"] is not None:
+        X = _np.load(task["X_path"], mmap_mode="r")
+    else:
+        X = task["X"]
     center = task["center"]
     n_runs = int(task["n_runs"])  # repeats per center
     kd_strategy = task["kd_strategy"]
@@ -49,8 +53,13 @@ def _eval_center_runs(task: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[
     eps = float(task["eps"])
     seed_base = int(task["seed_base"])
     rnd_mode = task["rnd_mode"]
+    # Build trees once per worker to avoid serializing heavy objects across processes
     kd_tree_obj = task.get("kd_tree_obj")
     bt_tree_obj = task.get("bt_tree_obj")
+    if kd_tree_obj is None:
+        kd_tree_obj = kd.build_tree(X, None if kd_cfg is None else dict(kd_cfg))
+    if bt_tree_obj is None:
+        bt_tree_obj = bt.build_tree(X, None if bt_cfg is None else dict(bt_cfg), method=str(bt_build_method))
     trace_tau = float(task["trace_tau"]) if "trace_tau" in task else None
     trace_certify = bool(task.get("trace_certify", False))
 
@@ -139,6 +148,11 @@ def run_dataset(
     export_figs = list(cfg.get("evaluation", "exports", "figures", default=["png"]))
     # Hard-code scaling x-axis to linear (no config option)
     scaling_xscale = "linear"
+    # Optional fast mode trades fidelity for speed
+    fast_mode = bool(cfg.get("global", "fast_mode", default=False))
+    if fast_mode:
+        logging.info("  Fast mode enabled: reducing bootstrap resamples and KDE sample cap; lowering figure DPI.")
+        dpi = min(dpi, 100)
 
     # Threshold mode support (optional)
     tau_conf = cfg.get("global", "tau", default=None)
@@ -271,13 +285,25 @@ def run_dataset(
             n_workers = min(max_workers, len(centers))
             logging.info(f"  Launching {n_workers} worker(s) over {len(centers)} center(s)…")
             # Print header once before any worker logs, include tau from config
-            logging.info(_time_norm_header(float(tau_conf)))
+            _hdr = _time_norm_header(float(tau_conf))
+            try:
+                _h1, _h2 = _hdr.splitlines()
+                logging.info(_h1)
+                logging.info(_h2)
+            except Exception:
+                logging.info(_hdr)
             from concurrent.futures import ProcessPoolExecutor, as_completed as _as_completed
             tasks = []
+            # Persist data once to disk for memory-mapped loading by workers
+            mm_path = group_dir / "X_group.npy"
+            if not mm_path.exists():
+                np.save(mm_path, Xadd)
+            logging.info(f"  Materialized group data to {mm_path} for worker memmap loading.")
             for ci, cvec in enumerate(centers):
                 seed_base = int(cfg.get("global", "rng_seed_base", default=1729)) + 100_000 * ci
                 tasks.append(dict(
-                    X=Xadd,
+                    X_path=str(mm_path),
+                    center_idx=ci,
                     center=cvec,
                     n_runs=n_runs,
                     kd_strategy=kd_strategy,
@@ -291,22 +317,38 @@ def run_dataset(
                     eps=eps,
                     seed_base=seed_base,
                     rnd_mode=rnd_pair_mode,
-                    kd_tree_obj=kd_tree_obj,
-                    bt_tree_obj=bt_tree_obj,
+                    # Trees are built in each worker to avoid heavy pickling
+                    kd_tree_obj=None,
+                    bt_tree_obj=None,
                     trace_tau=tau_conf,
                     trace_certify=trace_certify,
                 ))
             with ProcessPoolExecutor(max_workers=n_workers) as ex:
-                futs = [ex.submit(_eval_center_runs, t) for t in tasks]
-                for fut in _as_completed(futs):
+                starts: Dict[int, float] = {}
+                fut_map = {}
+                for t in tasks:
+                    ci = int(t.get("center_idx", -1))
+                    starts[ci] = time.perf_counter()
+                    f = ex.submit(_eval_center_runs, t)
+                    fut_map[f] = ci
+                for fut in _as_completed(list(fut_map.keys())):
+                    ci = fut_map[fut]
                     part_runs, part_evals = fut.result()
+                    dt = time.perf_counter() - starts.get(ci, time.perf_counter())
+                    logging.info(f"  Center {ci+1}/{len(centers)} finished in {dt:.2f}s; merging results…")
                     runs_serialized.extend(part_runs)
                     # Convert simple dict evals back to MethodResult-like objects for aggregation
                     for e in part_evals:
                         evals.append({k: SimpleNamespace(**v) for k, v in e.items()})
         else:
             # Serial path: print header once before first run
-            logging.info(_time_norm_header(float(tau_conf)))
+            _hdr = _time_norm_header(float(tau_conf))
+            try:
+                _h1, _h2 = _hdr.splitlines()
+                logging.info(_h1)
+                logging.info(_h2)
+            except Exception:
+                logging.info(_hdr)
             for ci, cvec in enumerate(centers):
                 for run_i in range(n_runs):
                     # Use a deterministic RNG for random baseline fairness
@@ -335,12 +377,18 @@ def run_dataset(
                     runs_serialized.append({k: {"A_time": v.A_time.tolist(), "A_calls": v.A_calls.tolist(), "bound_gaps": v.bound_gaps.tolist(), "heap_calls": v.heap_calls.tolist()} for k, v in res.items()})
                     evals.append(res)
         logging.info("  Aggregating runs and generating figures…")
+        t_agg0 = time.perf_counter()
 
+        # Aggregate with optional bootstrap (reduced when fast_mode)
+        nb = int(cfg.get("global", "n_bootstrap", default=300))
+        if fast_mode:
+            nb = min(nb, 50)
         agg = aggregate_runs(
             evals,
-            n_bootstrap=int(cfg.get("global", "n_bootstrap", default=300)),
+            n_bootstrap=nb,
             ci_level=float(cfg.get("global", "ci_level", default=0.95)),
         )
+        logging.info(f"    Aggregation completed in {time.perf_counter()-t_agg0:.2f}s")
 
         # Build curves for plotting
         t = np.array(t_fracs, dtype=float)
@@ -371,6 +419,7 @@ def run_dataset(
         }
 
         # Figures per group
+        t_fig0 = time.perf_counter()
         fig1 = plot_anytime_curves(curves_t, xlabel="Normalized Wall-Clock Time (t/T_max)", ylabel="Anytime Performance (A@t)", title=f"A@time on {dataset_name} ({add_label})", line_width=line_w, xscale=time_xscale)
         if "png" in export_figs:
             fig1.savefig(group_dir / "A_at_time.png", dpi=dpi)
@@ -406,10 +455,13 @@ def run_dataset(
             return arr[idx]
 
         max_gap_samples = int(cfg.get("evaluation", "bound_tightness", "max_samples", default=100000))
+        if fast_mode:
+            max_gap_samples = min(max_gap_samples, 20000)
         kd_all = np.concatenate([np.asarray(r["kd"]["bound_gaps"], dtype=float) for r in runs_serialized]) if runs_serialized else np.zeros(0)
         bt_all = np.concatenate([np.asarray(r["bt"]["bound_gaps"], dtype=float) for r in runs_serialized]) if runs_serialized else np.zeros(0)
         gaps_kd = _sample_array(kd_all, max_gap_samples)
         gaps_bt = _sample_array(bt_all, max_gap_samples)
+        logging.info(f"    Bound gap samples: kd={gaps_kd.size}, bt={gaps_bt.size} (cap={max_gap_samples})")
         fig3 = plot_bound_tightness_kde({"kd-tree Bounds": gaps_kd, "ball-tree Bounds": gaps_bt}, title=f"Bound Tightness on {dataset_name} ({add_label})")
         if "png" in export_figs:
             fig3.savefig(group_dir / "bound_tightness.png", dpi=dpi)
@@ -433,6 +485,7 @@ def run_dataset(
         # Use dimension (after augmentation) on the x-axis
         scaling_x.append(float(d_sub))
 
+        logging.info(f"    Figure generation took {time.perf_counter()-t_fig0:.2f}s")
         # Optional CSV/JSON exports of curves per group
         if export_csv:
             import csv

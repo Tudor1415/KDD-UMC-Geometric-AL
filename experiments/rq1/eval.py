@@ -21,40 +21,26 @@ from gal import trees as bt
 
 
 def _bootstrap_ci(mats: np.ndarray, n_bootstrap: int, ci_level: float) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Median + bootstrap CI across the first axis of mats.
+    """Median + empirical CI across the first axis of mats.
 
-    Uses joblib for parallel bootstrap when available; otherwise falls back to serial.
-    Deterministic given the fixed RNG seed below.
+    Note: This implementation does NOT resample (no bootstrap). It computes
+    the median and two-sided confidence bands directly from the empirical
+    distribution across runs. The n_bootstrap parameter is accepted for
+    backward compatibility but ignored.
     """
     # mats shape: [n_runs, n_points]
-    rng = np.random.default_rng(12345)
     n_runs, n_pts = mats.shape
     if n_runs == 0:
         zeros = np.zeros(n_pts)
         return zeros, zeros, zeros
     meds = np.median(mats, axis=0)
-    if n_runs == 1 or n_bootstrap <= 1:
+    if n_runs == 1:
         return meds, meds, meds
 
-    def _one_boot(seed: int) -> np.ndarray:
-        r = np.random.default_rng(int(seed))
-        idx = r.integers(0, n_runs, size=n_runs)
-        return np.median(mats[idx], axis=0)
-
-    seeds = rng.integers(0, 2**32 - 1, size=n_bootstrap, dtype=np.uint64)
-    if Parallel is not None:
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            boot_list = Parallel(n_jobs=-1)(delayed(_one_boot)(int(s)) for s in seeds)
-        boot = np.vstack(boot_list)
-    else:
-        boot = np.empty((n_bootstrap, n_pts), dtype=float)
-        for b, s in enumerate(seeds):
-            boot[b] = _one_boot(int(s))
-
     alpha = (1.0 - ci_level) / 2.0
-    lo = np.quantile(boot, alpha, axis=0)
-    hi = np.quantile(boot, 1.0 - alpha, axis=0)
+    # Empirical quantiles across runs without resampling
+    lo = np.quantile(mats, alpha, axis=0)
+    hi = np.quantile(mats, 1.0 - alpha, axis=0)
     return meds, lo, hi
 
 
@@ -79,7 +65,7 @@ class MethodResult:
 _COLW_PHASE = 10
 _COLW_METH = 6
 _COLW_NUM = 12
-_COLW_PCT = 10
+_COLW_PCT = 12
 
 
 def _sci(x: float) -> str:
@@ -115,7 +101,7 @@ def _fmt_trace_row(method: str, dur_s: float, evals: int, best: float,
                    pr_lb: int, pr_dom: int, pr_tot: int, explored: int, total: int) -> str:
     return (
         f"{_row_prefix('trace', method)} "
-        f"{_sci(dur_s)} {_pct_str(evals, total)} {_sci(best)} {_pct_str(pr_lb, total)} {_pct_str(pr_dom, total)} "
+        f"{_sci(dur_s)} {_sci(best)} {_pct_str(evals, total)} {_pct_str(pr_lb, total)} {_pct_str(pr_dom, total)} "
         f"{_pct_str(pr_tot, total)} {_pct_str(explored, total)} {_sci(total)}"
     )
 
@@ -133,7 +119,7 @@ def _time_norm_header(tau: float) -> str:
 def _trace_header() -> str:
     return (
         f"{'PHASE':<{_COLW_PHASE}} {'METH':<{_COLW_METH}} "
-        f"{'DUR_S':>{_COLW_NUM}} {'EVALS%':>{_COLW_PCT}} {'BEST':>{_COLW_NUM}} "
+        f"{'DUR_S':>{_COLW_NUM}} {'BEST':>{_COLW_NUM}} {'EVALS%':>{_COLW_PCT}} "
         f"{'PR_LB%':>{_COLW_PCT}} {'PR_DOM%':>{_COLW_PCT}} {'PR_TOT%':>{_COLW_PCT}} "
         f"{'EXPLORED%':>{_COLW_PCT}} {'TOTAL':>{_COLW_NUM}}"
     )
@@ -167,6 +153,9 @@ def evaluate_dataset(
     time_fracs = list(map(float, time_fracs))
     call_fracs = list(map(float, call_fracs))
 
+    kd_leaf = None if kd_config is None else kd_config.get("leaf_size")
+    bt_leaf = None if bt_config is None else bt_config.get("leaf_size")
+    # Suppress verbose setup logging; keep function quiet by default
     kd_tree = kd_tree_obj if kd_tree_obj is not None else kd.build_tree(X, None if kd_config is None else dict(kd_config))
     bt_tree = bt_tree_obj if bt_tree_obj is not None else bt.build_tree(X, None if bt_config is None else dict(bt_config), method=str(bt_build_method))
 
