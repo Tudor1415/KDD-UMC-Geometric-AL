@@ -183,3 +183,45 @@ def plot_bound_tightness_kde(all_gaps: Dict[str, np.ndarray], *, title: str | No
         ax.text(0.5, 0.5, "No bound gaps to plot", ha="center", va="center", transform=ax.transAxes)
     fig.tight_layout()
     return fig
+
+
+def plot_heap_curves(
+    curves: Dict[str, CurveCI],
+    *,
+    xlabel: str,
+    ylabel: str = "Max Heap Size",
+    title: str | None = None,
+    use_seaborn: bool = False,
+    line_width: float | None = None,
+    xscale: str | None = None,
+) -> plt.Figure:
+    if use_seaborn:
+        _maybe_sns()
+    fig, ax = plt.subplots(figsize=(10, 6))
+    for label, c in curves.items():
+        if line_width is None:
+            ax.plot(c.x, c.median, label=label)
+        else:
+            ax.plot(c.x, c.median, label=label, linewidth=float(line_width))
+        ax.fill_between(c.x, c.low, c.high, alpha=0.2)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    if title:
+        ax.set_title(title)
+    # Axis scaling for x
+    if xscale is not None and str(xscale).lower() in {"log", "symlog", "logit"}:
+        try:
+            min_pos = min(float(np.min(c.x[c.x > 0])) for c in curves.values())
+            if np.isfinite(min_pos) and min_pos > 0:
+                ax.set_xscale(str(xscale).lower())
+                ax.set_xlim(left=min_pos)
+            else:
+                ax.set_xscale(str(xscale).lower())
+        except Exception:
+            ax.set_xscale(str(xscale).lower())
+    else:
+        ax.set_xlim(0, 1)
+    # Let y autoscale to the heap sizes
+    ax.legend()
+    fig.tight_layout()
+    return fig

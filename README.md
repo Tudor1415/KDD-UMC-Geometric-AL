@@ -14,7 +14,16 @@ Download the data from [this Google Drive](https://drive.google.com/drive/folder
 KDD-UMC-Geometric-AL is a project focused on geometric active learning approaches for knowledge discovery in data. It implements novel geometry-based query sampling methods for the active learning of linear separators.
 
 ## Installation
-Set up a Python environment and install the required dependencies.
+Create a virtual environment and install the package in editable mode (recommended for development):
+
+```bash
+python -m venv .venv
+source .venv/bin/activate   # On Windows: .venv\\Scripts\\activate
+pip install -U pip
+pip install -e .[docs]
+```
+
+The optional `docs` extra installs Sphinx so you can build the docs (see below).
 
 ## Usage
 ### Data Preprocessing
@@ -34,11 +43,33 @@ For more details on preprocessing options, run:
 python -m scripts.preprocess --help
 ```
 
-### Running Experiments
-To run the experiments from the paper:
+### Quickstart: Experiment RQ1 (Anytime BnB)
+This experiment compares kd-tree and ball-tree branch-and-bound against a random sampling baseline, and produces A@time/A@calls figures.
+
+1) Copy the sample config and edit dataset paths:
+
+```bash
+cp experiments/rq1/config.sample.yaml my_rq1.yaml
+```
+
+2) Run the experiment as a module:
+
+```bash
+python -m experiments.rq1.run my_rq1.yaml
+```
+
+Outputs are written under the `global.output_dir` specified in the YAML (e.g., `results/rq1`). See docs page “Experiment RQ1: Anytime BnB” for configuration details.
+
+### Other Utilities
+- End-to-end driver (legacy benchmark setup):
 
 ```bash
 python -m scripts.main
+```
+
+- External baseline:
+
+```bash
 python -m sota.learning_to_rank.choquet_rank
 ```
 

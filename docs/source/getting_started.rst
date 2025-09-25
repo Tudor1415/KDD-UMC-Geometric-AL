@@ -58,6 +58,23 @@ so you can analyse them incrementally.
        --fractions 0.3 0.5 \
        --iterations 20
 
+Experiment RQ1 (Anytime BnB)
+----------------------------
+
+To reproduce the RQ1 anytime curves comparing kd-tree vs ball-tree BnB and a
+random sampling baseline, use the dedicated runner under ``experiments/rq1``.
+
+1) Copy and edit the sample config to point to your artefacts::
+
+     cp experiments/rq1/config.sample.yaml my_rq1.yaml
+
+2) Run the experiment as a module::
+
+     python -m experiments.rq1.run my_rq1.yaml
+
+Figures are written under ``global.output_dir`` specified in the YAML. See
+:doc:`experiments/rq1` for a full configuration reference and output details.
+
 Python API example
 ------------------
 
@@ -107,7 +124,6 @@ Next steps
 * Review :doc:`project_layout` for a high-level map of the repository.
 * Check the ``benchmark_outputs/`` directory after running experiments to
   inspect generated CSV files and plots.
-
 
 
 

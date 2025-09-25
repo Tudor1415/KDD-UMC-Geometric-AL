@@ -1,34 +1,34 @@
 <!doctype html>
-<html class="no-js" lang="en" data-content_root="../../../">
+<html class="no-js" lang="en" data-content_root="">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../genindex.html" /><link rel="search" title="Search" href="../../../search.html" />
 
-    <!-- Generated with Sphinx 8.2.3 and Furo 2025.07.19 -->
+    <!-- Generated with Sphinx 7.1.2 and Furo 2024.08.06 -->
         <title>gal.search.strategies - Geometry-Aware Learning 0.1.0 documentation</title>
-      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d111a655" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=25af2a20" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo-extensions.css?v=8dab3a3b" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=354aac6f" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo-extensions.css?v=302659d7" />
     
     
 
 
 <style>
   body {
-    --color-code-background: #f2f2f2;
-  --color-code-foreground: #1e1e1e;
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
   
   }
   @media not print {
     body[data-theme="dark"] {
-      --color-code-background: #2b2b2b;
-  --color-code-foreground: #f8f8f2;
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
   
     }
     @media (prefers-color-scheme: dark) {
       body:not([data-theme="light"]) {
-        --color-code-background: #2b2b2b;
-  --color-code-foreground: #f8f8f2;
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
   
       }
     }
@@ -192,6 +192,7 @@
       
       <div class="sidebar-sticky"><a class="sidebar-brand" href="../../../index.html">
   
+  
   <span class="sidebar-brand-text">Geometry-Aware Learning 0.1.0 documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="../../../search.html" role="search">
@@ -204,6 +205,7 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../../getting_started.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../ball_tree_builders.html">Ball-tree builders</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../experiments/rq1.html">Experiment RQ1: Anytime BnB</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
 <ul>
@@ -271,92 +273,83 @@
 <span class="n">TNode</span> <span class="o">=</span> <span class="n">TypeVar</span><span class="p">(</span><span class="s1">&#39;TNode&#39;</span><span class="p">)</span>
 
 
-<span class="k">def</span><span class="w"> </span><span class="nf">_collect_nodes</span><span class="p">(</span><span class="n">root</span><span class="p">:</span> <span class="n">Node</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">List</span><span class="p">[</span><span class="n">Node</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return a flat list of all nodes in the subtree rooted at `root`.&quot;&quot;&quot;</span>
-    <span class="n">stack</span> <span class="o">=</span> <span class="p">[</span><span class="n">root</span><span class="p">]</span>
-    <span class="n">nodes</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Node</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
-    <span class="k">while</span> <span class="n">stack</span><span class="p">:</span>
-        <span class="n">nd</span> <span class="o">=</span> <span class="n">stack</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
-        <span class="n">nodes</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nd</span><span class="p">)</span>
-        <span class="n">stack</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">nd</span><span class="o">.</span><span class="n">children</span><span class="p">)</span>
-    <span class="k">return</span> <span class="n">nodes</span>
-
-
-<span class="k">def</span><span class="w"> </span><span class="nf">_precompute_diversity</span><span class="p">(</span><span class="n">root</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">Q</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Novelty score per node: min distance to any reference query point.&quot;&quot;&quot;</span>
-    <span class="n">nodes</span> <span class="o">=</span> <span class="n">_collect_nodes</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
-    <span class="n">diversity</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
-    <span class="k">if</span> <span class="n">Q</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="n">Q</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-        <span class="k">for</span> <span class="n">nd</span> <span class="ow">in</span> <span class="n">nodes</span><span class="p">:</span>
-            <span class="n">diversity</span><span class="p">[</span><span class="nb">id</span><span class="p">(</span><span class="n">nd</span><span class="p">)]</span> <span class="o">=</span> <span class="mf">0.0</span>
-        <span class="k">return</span> <span class="n">diversity</span>
-
-    <span class="n">Q</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">Q</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
-    <span class="k">for</span> <span class="n">nd</span> <span class="ow">in</span> <span class="n">nodes</span><span class="p">:</span>
-        <span class="n">diversity</span><span class="p">[</span><span class="nb">id</span><span class="p">(</span><span class="n">nd</span><span class="p">)]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">Q</span> <span class="o">-</span> <span class="n">nd</span><span class="o">.</span><span class="n">center</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)))</span>
-    <span class="k">return</span> <span class="n">diversity</span>
-
-
-<div class="viewcode-block" id="VisitStrategy">
-<a class="viewcode-back" href="../../../api/search.html#gal.search.VisitStrategy">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">VisitStrategy</span><span class="p">(</span><span class="n">Generic</span><span class="p">[</span><span class="n">TNode</span><span class="p">]):</span>
+<div class="viewcode-block" id="VisitStrategy"><a class="viewcode-back" href="../../../api/search.html#gal.search.VisitStrategy">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">VisitStrategy</span><span class="p">(</span><span class="n">Generic</span><span class="p">[</span><span class="n">TNode</span><span class="p">]):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Base class for visit-ordering strategies.&quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="VisitStrategy.setup">
-<a class="viewcode-back" href="../../../api/search.html#gal.search.VisitStrategy.setup">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">setup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">:</span> <span class="n">TNode</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<div class="viewcode-block" id="VisitStrategy.setup"><a class="viewcode-back" href="../../../api/search.html#gal.search.VisitStrategy.setup">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">setup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">:</span> <span class="n">TNode</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Prepare the strategy for a new search tree.&quot;&quot;&quot;</span></div>
 
-
-<div class="viewcode-block" id="VisitStrategy.priority">
-<a class="viewcode-back" href="../../../api/search.html#gal.search.VisitStrategy.priority">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">priority</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="n">TNode</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">TNode</span><span class="p">,</span> <span class="n">bounds</span><span class="p">:</span> <span class="n">BoundsResult</span><span class="p">,</span> <span class="n">mass</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<div class="viewcode-block" id="VisitStrategy.priority"><a class="viewcode-back" href="../../../api/search.html#gal.search.VisitStrategy.priority">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">priority</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="n">TNode</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">TNode</span><span class="p">,</span> <span class="n">bounds</span><span class="p">:</span> <span class="n">BoundsResult</span><span class="p">,</span> <span class="n">mass</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a tuple used to order candidate node pairs.&quot;&quot;&quot;</span>
-        <span class="k">raise</span> <span class="ne">NotImplementedError</span></div>
-</div>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span></div></div>
 
 
-
-<div class="viewcode-block" id="LowerBoundVisitStrategy">
-<a class="viewcode-back" href="../../../api/search.html#gal.search.LowerBoundVisitStrategy">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">LowerBoundVisitStrategy</span><span class="p">(</span><span class="n">VisitStrategy</span><span class="p">[</span><span class="n">Node</span><span class="p">]):</span>
+<div class="viewcode-block" id="LowerBoundVisitStrategy"><a class="viewcode-back" href="../../../api/search.html#gal.search.LowerBoundVisitStrategy">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">LowerBoundVisitStrategy</span><span class="p">(</span><span class="n">VisitStrategy</span><span class="p">[</span><span class="n">Node</span><span class="p">]):</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Order candidate pairs by their bound tightness.&quot;&quot;&quot;</span>
 
-<div class="viewcode-block" id="LowerBoundVisitStrategy.priority">
-<a class="viewcode-back" href="../../../api/search.html#gal.search.LowerBoundVisitStrategy.priority">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">priority</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">bounds</span><span class="p">:</span> <span class="n">BoundsResult</span><span class="p">,</span> <span class="n">mass</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
-        <span class="k">return</span> <span class="p">(</span><span class="n">bounds</span><span class="o">.</span><span class="n">lower</span><span class="p">,</span> <span class="n">bounds</span><span class="o">.</span><span class="n">upper</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="n">mass</span><span class="p">))</span></div>
-</div>
+<div class="viewcode-block" id="LowerBoundVisitStrategy.priority"><a class="viewcode-back" href="../../../api/search.html#gal.search.LowerBoundVisitStrategy.priority">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">priority</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">bounds</span><span class="p">:</span> <span class="n">BoundsResult</span><span class="p">,</span> <span class="n">mass</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">bounds</span><span class="o">.</span><span class="n">lower</span><span class="p">,</span> <span class="n">bounds</span><span class="o">.</span><span class="n">upper</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="n">mass</span><span class="p">))</span></div></div>
 
 
-
-<div class="viewcode-block" id="DiversityVisitStrategy">
-<a class="viewcode-back" href="../../../api/search.html#gal.search.DiversityVisitStrategy">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">DiversityVisitStrategy</span><span class="p">(</span><span class="n">VisitStrategy</span><span class="p">[</span><span class="n">Node</span><span class="p">]):</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Order candidate pairs by decreasing diversity, then by bound tightness.&quot;&quot;&quot;</span>
+<div class="viewcode-block" id="DiversityVisitStrategy"><a class="viewcode-back" href="../../../api/search.html#gal.search.DiversityVisitStrategy">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">DiversityVisitStrategy</span><span class="p">(</span><span class="n">VisitStrategy</span><span class="p">[</span><span class="n">Node</span><span class="p">]):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Order candidate pairs by decreasing diversity, then by bound tightness.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">queries</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">queries</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">queries</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">queries</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_diversity</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_diversity_cache</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
 
-<div class="viewcode-block" id="DiversityVisitStrategy.setup">
-<a class="viewcode-back" href="../../../api/search.html#gal.search.DiversityVisitStrategy.setup">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">setup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-        <span class="n">queries</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">queries</span>
-        <span class="k">if</span> <span class="n">queries</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">queries</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_diversity</span> <span class="o">=</span> <span class="n">_precompute_diversity</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">queries</span><span class="p">)</span></div>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_get_diversity_score</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">node</span><span class="p">:</span> <span class="n">Node</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Retrieves the diversity score for a node, computing it if not cached.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">node_id</span> <span class="o">=</span> <span class="nb">id</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">node_id</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_diversity_cache</span><span class="p">:</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">queries</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">queries</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_diversity_cache</span><span class="p">[</span><span class="n">node_id</span><span class="p">]</span> <span class="o">=</span> <span class="mf">0.0</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_diversity_cache</span><span class="p">[</span><span class="n">node_id</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span>
+                    <span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">queries</span> <span class="o">-</span> <span class="n">node</span><span class="o">.</span><span class="n">center</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span>
+                <span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_diversity_cache</span><span class="p">[</span><span class="n">node_id</span><span class="p">]</span>
 
+<div class="viewcode-block" id="DiversityVisitStrategy.setup"><a class="viewcode-back" href="../../../api/search.html#gal.search.DiversityVisitStrategy.setup">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">setup</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">root</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">data</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Pre-computes diversity scores for all nodes in the tree.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">queries</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">data</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">queries</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">data</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span>
 
-<div class="viewcode-block" id="DiversityVisitStrategy.priority">
-<a class="viewcode-back" href="../../../api/search.html#gal.search.DiversityVisitStrategy.priority">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">priority</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">bounds</span><span class="p">:</span> <span class="n">BoundsResult</span><span class="p">,</span> <span class="n">mass</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
-        <span class="n">div_a</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_diversity</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">id</span><span class="p">(</span><span class="n">a</span><span class="p">),</span> <span class="mf">0.0</span><span class="p">)</span>
-        <span class="n">div_b</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_diversity</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">id</span><span class="p">(</span><span class="n">b</span><span class="p">),</span> <span class="mf">0.0</span><span class="p">)</span>
+        <span class="n">stack</span> <span class="o">=</span> <span class="p">[</span><span class="n">root</span><span class="p">]</span>
+        <span class="k">while</span> <span class="n">stack</span><span class="p">:</span>
+            <span class="n">node</span> <span class="o">=</span> <span class="n">stack</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_get_diversity_score</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>  <span class="c1"># This will compute and cache the score</span>
+            <span class="n">stack</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">children</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="DiversityVisitStrategy.priority"><a class="viewcode-back" href="../../../api/search.html#gal.search.DiversityVisitStrategy.priority">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">priority</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">bounds</span><span class="p">:</span> <span class="n">BoundsResult</span><span class="p">,</span> <span class="n">mass</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+        <span class="n">div_a</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_diversity_score</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
+        <span class="n">div_b</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_get_diversity_score</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
         <span class="n">diversity_score</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">div_a</span><span class="p">,</span> <span class="n">div_b</span><span class="p">)</span>
-        <span class="k">return</span> <span class="p">(</span><span class="o">-</span><span class="n">diversity_score</span><span class="p">,</span> <span class="n">bounds</span><span class="o">.</span><span class="n">lower</span><span class="p">,</span> <span class="n">bounds</span><span class="o">.</span><span class="n">upper</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="n">mass</span><span class="p">))</span></div>
-</div>
+        <span class="k">return</span> <span class="p">(</span><span class="o">-</span><span class="n">diversity_score</span><span class="p">,</span> <span class="n">bounds</span><span class="o">.</span><span class="n">lower</span><span class="p">,</span> <span class="n">bounds</span><span class="o">.</span><span class="n">upper</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="n">mass</span><span class="p">))</span></div></div>
 
+
+<div class="viewcode-block" id="get_strategy"><a class="viewcode-back" href="../../../api/search.html#gal.search.get_strategy">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">get_strategy</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">VisitStrategy</span><span class="p">[</span><span class="n">Node</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Factory for visit-ordering strategies.</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    name:</span>
+<span class="sd">        Strategy name. Supported: &quot;lower_bound&quot;, &quot;diversity&quot;.</span>
+<span class="sd">    kwargs:</span>
+<span class="sd">        Additional keyword arguments forwarded to the strategy constructor.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">key</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">name</span><span class="p">)</span><span class="o">.</span><span class="n">strip</span><span class="p">()</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">&quot;lb&quot;</span><span class="p">,</span> <span class="s2">&quot;lower&quot;</span><span class="p">,</span> <span class="s2">&quot;lower_bound&quot;</span><span class="p">}:</span>
+        <span class="k">return</span> <span class="n">LowerBoundVisitStrategy</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">&quot;diversity&quot;</span><span class="p">,</span> <span class="s2">&quot;div&quot;</span><span class="p">}:</span>
+        <span class="k">return</span> <span class="n">DiversityVisitStrategy</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unknown search strategy: </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
 </pre></div>
         </article>
       </div>
@@ -389,9 +382,9 @@
       
     </aside>
   </div>
-</div><script src="../../../_static/documentation_options.js?v=01f34227"></script>
-    <script src="../../../_static/doctools.js?v=9bcbadda"></script>
-    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
-    <script src="../../../_static/scripts/furo.js?v=46bd48cc"></script>
+</div><script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js?v=2389946f"></script>
+    <script src="../../../_static/doctools.js?v=888ff710"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=4825356b"></script>
+    <script src="../../../_static/scripts/furo.js?v=5fa4622c"></script>
     </body>
 </html>

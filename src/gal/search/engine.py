@@ -197,6 +197,9 @@ class Search:
         time_best: list[float] = []
         calls_best: list[float] = []
         bound_gaps: list[float] = []
+        # Track heap size statistics (max size up to each calls checkpoint)
+        heap_size_max = 0
+        calls_heap_max: list[int] = []
 
         def record_time_if_needed() -> None:
             nonlocal time_idx
@@ -214,10 +217,11 @@ class Search:
             cur = int(stats["objective_evals"]) if "objective_evals" in stats else 0
             while calls_idx < len(calls_grid) and cur >= int(calls_grid[calls_idx]):
                 calls_best.append(float(best_distance))
+                calls_heap_max.append(int(heap_size_max))
                 calls_idx += 1
 
         def enqueue(a: Node, b: Node) -> None:
-            nonlocal best_distance
+            nonlocal best_distance, heap_size_max
             if id(a) > id(b):
                 a, b = b, a
             key = (id(a), id(b))
@@ -236,11 +240,15 @@ class Search:
                 stats["pruned_lb_point_pairs"] = int(stats["pruned_lb_point_pairs"]) + pair_mass
                 return
 
-            if bounds.upper < best_distance:
-                best_distance = min(bounds.upper, tau)
+            # Do not update the incumbent best distance with an upper bound.
+            # Only exact evaluations are allowed to improve best_distance to avoid
+            # prematurely terminating under a finite tau without a feasible pair.
 
             score = self._normalize_score(self.strategy.priority(a, b, bounds, pair_mass))
             heapq.heappush(heap, (score, bounds.lower, bounds.upper, a, b, next(tie)))
+            # Update heap size maximum after every push
+            if len(heap) > heap_size_max:
+                heap_size_max = len(heap)
             record_time_if_needed()
 
         # Even if the root has fewer than two children, we can still evaluate
@@ -337,6 +345,7 @@ class Search:
         if calls_grid is not None:
             while calls_idx < len(calls_grid):
                 calls_best.append(float(best_distance))
+                calls_heap_max.append(int(heap_size_max))
                 calls_idx += 1
 
         stats["best_pair"] = best_pair
@@ -351,6 +360,7 @@ class Search:
             if calls_grid is not None:
                 trace["calls_grid"] = list(map(int, calls_grid))
                 trace["calls_best"] = list(map(float, calls_best))
+                trace["calls_heap_max"] = list(map(int, calls_heap_max))
             if collect_bound_gaps:
                 trace["bound_gaps"] = list(map(float, bound_gaps))
             stats["trace"] = trace

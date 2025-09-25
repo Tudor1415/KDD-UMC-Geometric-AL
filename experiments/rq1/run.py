@@ -17,8 +17,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import warnings
 import matplotlib.pyplot as plt
 
-from .eval import aggregate_runs, evaluate_dataset
-from .plots import CurveCI, plot_anytime_curves, plot_bound_tightness_kde, plot_scaling_bars, plot_scaling_lines
+from .eval import aggregate_runs, evaluate_dataset, _time_norm_header
+from .plots import CurveCI, plot_anytime_curves, plot_bound_tightness_kde, plot_scaling_bars, plot_scaling_lines, plot_heap_curves
 from gal.utils.helpers import augment_with_minimums
 from gal.trees import kd_tree as kd
 from gal import trees as bt
@@ -77,7 +77,7 @@ def _eval_center_runs(task: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[
             trace_tau=trace_tau,
             trace_certify=trace_certify,
         )
-        out_runs.append({k: {"A_time": v.A_time.tolist(), "A_calls": v.A_calls.tolist(), "bound_gaps": v.bound_gaps.tolist()} for k, v in res.items()})
+        out_runs.append({k: {"A_time": v.A_time.tolist(), "A_calls": v.A_calls.tolist(), "bound_gaps": v.bound_gaps.tolist(), "heap_calls": v.heap_calls.tolist()} for k, v in res.items()})
         out_evals.append({k: {"A_time": v.A_time, "A_calls": v.A_calls, "bound_gaps": v.bound_gaps} for k, v in res.items()})
     return out_runs, out_evals
 
@@ -270,6 +270,8 @@ def run_dataset(
         if parallel_centers and len(centers) > 1:
             n_workers = min(max_workers, len(centers))
             logging.info(f"  Launching {n_workers} worker(s) over {len(centers)} center(s)…")
+            # Print header once before any worker logs, include tau from config
+            logging.info(_time_norm_header(float(tau_conf)))
             from concurrent.futures import ProcessPoolExecutor, as_completed as _as_completed
             tasks = []
             for ci, cvec in enumerate(centers):
@@ -303,6 +305,8 @@ def run_dataset(
                     for e in part_evals:
                         evals.append({k: SimpleNamespace(**v) for k, v in e.items()})
         else:
+            # Serial path: print header once before first run
+            logging.info(_time_norm_header(float(tau_conf)))
             for ci, cvec in enumerate(centers):
                 for run_i in range(n_runs):
                     # Use a deterministic RNG for random baseline fairness
@@ -328,7 +332,7 @@ def run_dataset(
                         trace_tau=tau_conf,
                         trace_certify=trace_certify,
                     )
-                    runs_serialized.append({k: {"A_time": v.A_time.tolist(), "A_calls": v.A_calls.tolist(), "bound_gaps": v.bound_gaps.tolist()} for k, v in res.items()})
+                    runs_serialized.append({k: {"A_time": v.A_time.tolist(), "A_calls": v.A_calls.tolist(), "bound_gaps": v.bound_gaps.tolist(), "heap_calls": v.heap_calls.tolist()} for k, v in res.items()})
                     evals.append(res)
         logging.info("  Aggregating runs and generating figures…")
 
@@ -345,6 +349,13 @@ def run_dataset(
         kd_c_m, kd_c_lo, kd_c_hi = agg["kd"]["A_calls"]
         bt_t_m, bt_t_lo, bt_t_hi = agg["bt"]["A_time"]
         bt_c_m, bt_c_lo, bt_c_hi = agg["bt"]["A_calls"]
+        # Heap size vs calls (BnB methods only)
+        kd_h_m = kd_h_lo = kd_h_hi = None
+        bt_h_m = bt_h_lo = bt_h_hi = None
+        if "heap_calls" in agg["kd"]:
+            kd_h_m, kd_h_lo, kd_h_hi = agg["kd"]["heap_calls"]
+        if "heap_calls" in agg["bt"]:
+            bt_h_m, bt_h_lo, bt_h_hi = agg["bt"]["heap_calls"]
         rnd_t_m, rnd_t_lo, rnd_t_hi = agg["rnd"]["A_time"]
         rnd_c_m, rnd_c_lo, rnd_c_hi = agg["rnd"]["A_calls"]
 
@@ -372,6 +383,19 @@ def run_dataset(
         if "pdf" in export_figs:
             fig2.savefig(group_dir / "A_at_calls.pdf", dpi=dpi)
         plt.close(fig2)
+
+        # Heap size @ calls (if available)
+        if kd_h_m is not None and bt_h_m is not None:
+            heap_curves = {
+                "kd-tree BnB": CurveCI(x=c, median=kd_h_m, low=kd_h_lo, high=kd_h_hi),  # type: ignore
+                "ball-tree BnB": CurveCI(x=c, median=bt_h_m, low=bt_h_lo, high=bt_h_hi),  # type: ignore
+            }
+            fig_h = plot_heap_curves(heap_curves, xlabel="Normalized Objective Calls (m/P_max)", ylabel="Max Heap Size", title=f"Max Heap Size @ Calls on {dataset_name} ({add_label})", line_width=line_w, xscale=calls_xscale)
+            if "png" in export_figs:
+                fig_h.savefig(group_dir / "heap_at_calls.png", dpi=dpi)
+            if "pdf" in export_figs:
+                fig_h.savefig(group_dir / "heap_at_calls.pdf", dpi=dpi)
+            plt.close(fig_h)
 
         # Bound tightness KDE (sample to limit size)
         def _sample_array(arr: np.ndarray, max_samples: int) -> np.ndarray:
@@ -435,6 +459,8 @@ def run_dataset(
                     kd_A_calls=np.stack([np.asarray(run["kd"]["A_calls"], dtype=float) for run in runs_serialized], axis=0) if runs_serialized else np.zeros((0, len(c_fracs))),
                     bt_A_time=np.stack([np.asarray(run["bt"]["A_time"], dtype=float) for run in runs_serialized], axis=0) if runs_serialized else np.zeros((0, len(t_fracs))),
                     bt_A_calls=np.stack([np.asarray(run["bt"]["A_calls"], dtype=float) for run in runs_serialized], axis=0) if runs_serialized else np.zeros((0, len(c_fracs))),
+                    kd_heap_calls=np.stack([np.asarray(run["kd"].get("heap_calls", np.zeros(len(c_fracs))), dtype=float) for run in runs_serialized], axis=0) if runs_serialized else np.zeros((0, len(c_fracs))),
+                    bt_heap_calls=np.stack([np.asarray(run["bt"].get("heap_calls", np.zeros(len(c_fracs))), dtype=float) for run in runs_serialized], axis=0) if runs_serialized else np.zeros((0, len(c_fracs))),
                     kd_gaps=gaps_kd,
                     bt_gaps=gaps_bt,
                 )

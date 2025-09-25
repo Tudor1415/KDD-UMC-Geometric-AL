@@ -22,6 +22,7 @@ Contents
 
    getting_started
    ball_tree_builders
+   experiments/rq1
 
 .. toctree::
    :maxdepth: 2
@@ -34,4 +35,3 @@ Contents
    :caption: Additional Resources
 
    project_layout
-

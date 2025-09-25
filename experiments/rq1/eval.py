@@ -72,6 +72,74 @@ class MethodResult:
     A_time: np.ndarray
     A_calls: np.ndarray
     bound_gaps: np.ndarray
+    heap_calls: np.ndarray
+
+
+# --- Fixed-width scientific-notation logging helpers ---
+_COLW_PHASE = 10
+_COLW_METH = 6
+_COLW_NUM = 12
+_COLW_PCT = 10
+
+
+def _sci(x: float) -> str:
+    try:
+        return f"{float(x):>{_COLW_NUM}.4e}"
+    except Exception:
+        return f"{x!s:>{_COLW_NUM}}"
+
+
+def _row_prefix(phase: str, method: str) -> str:
+    return f"{phase:<{_COLW_PHASE}} {method:<{_COLW_METH}}"
+
+
+def _pct_str(x: int | float, total: int | float) -> str:
+    try:
+        t = float(total) if float(total) > 0 else 1.0
+        p = 100.0 * float(x) / t
+        return f"{p:>{_COLW_PCT}.2f}%"
+    except Exception:
+        return f"{x!s:>{_COLW_PCT}}"
+
+
+def _fmt_time_norm_row(method: str, time_s: float, evals: int, best: float,
+                       pr_lb: int, pr_dom: int, pr_tot: int, explored: int, total: int) -> str:
+    return (
+        f"{_row_prefix('time-norm', method)} "
+        f"{_sci(time_s)} {_sci(best)} {_pct_str(evals, total)} {_pct_str(pr_lb, total)} {_pct_str(pr_dom, total)} "
+        f"{_pct_str(pr_tot, total)} {_pct_str(explored, total)} {_sci(total)}"
+    )
+
+
+def _fmt_trace_row(method: str, dur_s: float, evals: int, best: float,
+                   pr_lb: int, pr_dom: int, pr_tot: int, explored: int, total: int) -> str:
+    return (
+        f"{_row_prefix('trace', method)} "
+        f"{_sci(dur_s)} {_pct_str(evals, total)} {_sci(best)} {_pct_str(pr_lb, total)} {_pct_str(pr_dom, total)} "
+        f"{_pct_str(pr_tot, total)} {_pct_str(explored, total)} {_sci(total)}"
+    )
+
+
+def _time_norm_header(tau: float) -> str:
+    return (
+        f"Threshold TAU = {_sci(tau).strip()}\n"
+        f"{'PHASE':<{_COLW_PHASE}} {'METH':<{_COLW_METH}} "
+        f"{'TIME_S':>{_COLW_NUM}} {'BEST':>{_COLW_NUM}} {'EVALS%':>{_COLW_PCT}} "
+        f"{'PR_LB%':>{_COLW_PCT}} {'PR_DOM%':>{_COLW_PCT}} {'PR_TOT%':>{_COLW_PCT}} "
+        f"{'EXPLORED%':>{_COLW_PCT}} {'TOTAL':>{_COLW_NUM}}"
+    )
+
+
+def _trace_header() -> str:
+    return (
+        f"{'PHASE':<{_COLW_PHASE}} {'METH':<{_COLW_METH}} "
+        f"{'DUR_S':>{_COLW_NUM}} {'EVALS%':>{_COLW_PCT}} {'BEST':>{_COLW_NUM}} "
+        f"{'PR_LB%':>{_COLW_PCT}} {'PR_DOM%':>{_COLW_PCT}} {'PR_TOT%':>{_COLW_PCT}} "
+        f"{'EXPLORED%':>{_COLW_PCT}} {'TOTAL':>{_COLW_NUM}}"
+    )
+
+
+"""Header printing is controlled by the caller to avoid duplication."""
 
 
 def evaluate_dataset(
@@ -91,8 +159,8 @@ def evaluate_dataset(
     random_pair_mode: str = "with_replacement",
     kd_tree_obj: Any | None = None,
     bt_tree_obj: Any | None = None,
-    trace_tau: float,
-    trace_certify: bool,
+    trace_tau: float | None = None,
+    trace_certify: bool = False,
 ) -> Dict[str, MethodResult]:
     n = X.shape[0]
     Pmax = n * (n - 1) // 2
@@ -109,7 +177,10 @@ def evaluate_dataset(
 
     # Sample a shared center
     wc = _sample_center(X.shape[1], rng) if center is None else np.asarray(center, dtype=float)
+    # Backward-compatible default: if no threshold provided, use 1.0
+    tau_tr = 1.0 if (trace_tau is None) else float(trace_tau)
     # Time normalization: run both methods until threshold
+
     def time_to_completion(engine: Search, tree, label: str) -> float:
         best = float("inf")
         elapsed = 0.0
@@ -119,7 +190,7 @@ def evaluate_dataset(
                 tree,
                 X,
                 wc,
-                tau=float(trace_tau),
+                tau=float(tau_tr),
                 ensure_optimal=False,
                 return_stats=True,
                 collect_bound_gaps=False,
@@ -131,9 +202,8 @@ def evaluate_dataset(
         prn = int(stats.get("pruned_point_pairs", 0)) if isinstance(stats, dict) else lbp + dmp
         expl = int(stats.get("explored_point_pairs", 0)) if isinstance(stats, dict) else 0
         tot = int(stats.get("total_point_pairs", 0)) if isinstance(stats, dict) else 0
-        logging.info(
-            f"    [time-norm:{label}] reached tau={trace_tau:.3g} in {elapsed:.4f}s (best={best:.3g}, pruned_lb={lbp}, pruned_dom={dmp}, pruned_total={prn}, explored={expl}, total={tot})"
-        )
+        evl = int(stats.get("objective_evals", 0)) if isinstance(stats, dict) else 0
+        logging.info(_fmt_time_norm_row(label, elapsed, evl, best, lbp, dmp, prn, expl, tot))
         return elapsed
 
     T_kd = time_to_completion(kd_engine, kd_tree, "kd")
@@ -144,7 +214,6 @@ def evaluate_dataset(
     calls_grid = [int(round(f * Pmax)) for f in call_fracs]
 
     # Run anytime with tracing enabled
-    tau_tr = float(trace_tau)
     t0_kd = _t.perf_counter()
     _, _, kd_best, kd_stats = kd_engine.search_pair(
         kd_tree,
@@ -166,7 +235,17 @@ def evaluate_dataset(
     kd_expl = int(kd_stats.get("explored_point_pairs", 0))
     kd_tot = int(kd_stats.get("total_point_pairs", 0))
     logging.info(
-        f"    [trace:kd] dur={dt_kd:.4f}s, evals={int(kd_stats.get('objective_evals', 0))}, best={kd_best:.3g}, pruned_lb={kd_lbp}, pruned_dom={kd_dmp}, pruned_total={kd_prn}, explored={kd_expl}, total={kd_tot}"
+        _fmt_trace_row(
+            "kd",
+            dur_s=dt_kd,
+            evals=int(kd_stats.get("objective_evals", 0)),
+            best=kd_best,
+            pr_lb=kd_lbp,
+            pr_dom=kd_dmp,
+            pr_tot=kd_prn,
+            explored=kd_expl,
+            total=kd_tot,
+        )
     )
 
     t0_bt = _t.perf_counter()
@@ -190,7 +269,17 @@ def evaluate_dataset(
     bt_expl = int(bt_stats.get("explored_point_pairs", 0))
     bt_tot = int(bt_stats.get("total_point_pairs", 0))
     logging.info(
-        f"    [trace:ball] dur={dt_bt:.4f}s, evals={int(bt_stats.get('objective_evals', 0))}, best={bt_best:.3g}, pruned_lb={bt_lbp}, pruned_dom={bt_dmp}, pruned_total={bt_prn}, explored={bt_expl}, total={bt_tot}"
+        _fmt_trace_row(
+            "ball",
+            dur_s=dt_bt,
+            evals=int(bt_stats.get("objective_evals", 0)),
+            best=bt_best,
+            pr_lb=bt_lbp,
+            pr_dom=bt_dmp,
+            pr_tot=bt_prn,
+            explored=bt_expl,
+            total=bt_tot,
+        )
     )
 
     def to_A(trace: Dict[str, Any]) -> Tuple[np.ndarray, np.ndarray]:
@@ -203,6 +292,13 @@ def evaluate_dataset(
 
     kd_A_t, kd_A_m = to_A(kd_stats["trace"])  # type: ignore
     bt_A_t, bt_A_m = to_A(bt_stats["trace"])  # type: ignore
+
+    # Heap size traces at calls checkpoints (max heap size up to each m/Pmax)
+    def to_H(trace: Dict[str, Any]) -> np.ndarray:
+        return np.array(trace.get("calls_heap_max", []), dtype=float)
+
+    kd_H_m = to_H(kd_stats["trace"])  # type: ignore
+    bt_H_m = to_H(bt_stats["trace"])  # type: ignore
 
     # Random sampling baseline
     def random_anytime(
@@ -289,9 +385,9 @@ def evaluate_dataset(
     rnd_A_t, rnd_A_m = random_anytime(X, wc, time_grid, calls_grid, eps, rng, mode=random_pair_mode)
 
     return {
-        "kd": MethodResult(A_time=kd_A_t, A_calls=kd_A_m, bound_gaps=np.array(kd_stats["trace"]["bound_gaps"], dtype=float)),  # type: ignore
-        "bt": MethodResult(A_time=bt_A_t, A_calls=bt_A_m, bound_gaps=np.array(bt_stats["trace"]["bound_gaps"], dtype=float)),  # type: ignore
-        "rnd": MethodResult(A_time=rnd_A_t, A_calls=rnd_A_m, bound_gaps=np.zeros(0)),
+        "kd": MethodResult(A_time=kd_A_t, A_calls=kd_A_m, bound_gaps=np.array(kd_stats["trace"]["bound_gaps"], dtype=float), heap_calls=kd_H_m),  # type: ignore
+        "bt": MethodResult(A_time=bt_A_t, A_calls=bt_A_m, bound_gaps=np.array(bt_stats["trace"]["bound_gaps"], dtype=float), heap_calls=bt_H_m),  # type: ignore
+        "rnd": MethodResult(A_time=rnd_A_t, A_calls=rnd_A_m, bound_gaps=np.zeros(0), heap_calls=np.zeros_like(bt_H_m)),
     }
 
 
@@ -311,4 +407,10 @@ def aggregate_runs(
             "A_time": _bootstrap_ci(A_t, n_bootstrap, ci_level),
             "A_calls": _bootstrap_ci(A_m, n_bootstrap, ci_level),
         }
+        # Optional heap calls curve (only meaningful for BnB methods)
+        try:
+            H_m = np.stack([r[m].heap_calls for r in run_results], axis=0)
+            out[m]["heap_calls"] = _bootstrap_ci(H_m, n_bootstrap, ci_level)
+        except Exception:
+            pass
     return out

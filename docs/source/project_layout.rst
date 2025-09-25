@@ -22,6 +22,7 @@ matter for the new ball-tree and search implementations.
    |-- configs/               # Default configs (Python dict modules)
    |-- tests/                 # Pytest suites for builders, search, and helpers
    |-- docs/                  # Sphinx documentation project
+   |-- experiments/           # Experiment drivers (e.g., rq1)
    |-- scripts/               # Command-line entry points & benchmarking tools
    |-- datasets/              # Raw transactional datasets
    |-- mined_rules/           # Pre-mined rule CSVs

@@ -251,7 +251,7 @@ to be read alongside the builders:
   every node radius covers all of its descendant points within a :math:`10^{-9}`
   tolerance.
 * ``tests/test_builders_api.py`` checks the user-facing API: each builder must
-  return a populated :class:`~gal.trees.common.BallTree`, propagate default or
+  return a populated :class:`~gal.trees.common.GeometricTree`, propagate default or
   overridden leaf sizes, and record the selected MEB backend.
 * ``tests/test_builders_correctness.py`` verifies structural invariants and
   the PCA balance heuristic.  It ensures that leaves respect ``leaf_size``,
@@ -271,3 +271,4 @@ References
    spaces. arXiv:1511.00628, 2015.
 .. [Welzl1991] Welzl, E. *Smallest Enclosing Disks (Balls and Ellipsoids)* in
    H. Maurer (ed.), *New Results and New Trends in Computer Science*, 1991.
+

@@ -46,7 +46,7 @@ additivity:
 methods:
   random_sampling:
     enabled: true
-    pair_sampling: "uniform_without_replacement"
+    pair_sampling: "without_replacement"
 
   dual_kdtree_bnb:
     enabled: true
