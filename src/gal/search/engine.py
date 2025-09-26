@@ -181,7 +181,11 @@ class Search:
 
         best_pair: Tuple[int, int] | None = None
         best_distance = float("inf")
-        heap: list[Tuple[Tuple[float, ...], float, float, Node, Node, int]] = []
+        # Heap items are tuples ordered for heapq comparisons.
+        # IMPORTANT: ensure no Node objects appear before a numeric tiebreaker,
+        # otherwise Python may attempt to compare Node instances when earlier
+        # fields tie, causing TypeError. Use (score, tie, lb, ub, a, b).
+        heap: list[Tuple[Tuple[float, ...], int, float, float, Node, Node]] = []
         visited: set[Tuple[int, int]] = set()
         tie = count()
         # Provide a per-search cache so bounders can reuse per-center computations
@@ -245,7 +249,9 @@ class Search:
             # prematurely terminating under a finite tau without a feasible pair.
 
             score = self._normalize_score(self.strategy.priority(a, b, bounds, pair_mass))
-            heapq.heappush(heap, (score, bounds.lower, bounds.upper, a, b, next(tie)))
+            # Push with a numeric tie-breaker before Node objects to avoid
+            # comparisons between Node instances when tuple prefixes tie.
+            heapq.heappush(heap, (score, next(tie), bounds.lower, bounds.upper, a, b))
             # Update heap size maximum after every push
             if len(heap) > heap_size_max:
                 heap_size_max = len(heap)
@@ -265,7 +271,7 @@ class Search:
 
         # If tau is infinite, explore all queued pairs; otherwise stop early when possible.
         while heap and (math.isinf(tau) or best_distance > tau + eps):
-            _, lb, ub, a, b, _ = heapq.heappop(heap)
+            _, _, lb, ub, a, b = heapq.heappop(heap)
             if collect_bound_gaps:
                 gap = float(max(0.0, ub - lb))
                 bound_gaps.append(gap)

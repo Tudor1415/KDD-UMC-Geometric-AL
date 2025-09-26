@@ -14,6 +14,9 @@ if str(ROOT) not in sys.path:
 
 from gal.trees import axis_median
 from gal.search import search_pair
+from gal.search.bounds import BoundsStrategy, BoundsResult
+from gal.search.strategies import VisitStrategy
+from gal.trees.common import Node
 
 
 def brute_force_metric(X: np.ndarray, wc: np.ndarray):
@@ -118,3 +121,46 @@ def test_search_with_zero_query_vector():
     i, j, dist = search_pair(tree, X, wc, tau=float("inf"))
     assert i is not None and j is not None
     assert dist == 0.0
+
+
+def test_heap_tie_breaker_no_node_comparison():
+    """
+    Regression test for a heapq TypeError where Node objects were compared
+    when multiple heap entries had identical (score, lb, ub).
+    We force identical priorities and bounds across enqueued pairs to
+    validate that a numeric tie-breaker prevents Node comparisons.
+    """
+
+    class ConstantBounder(BoundsStrategy[Node]):
+        def __call__(self, a: Node, b: Node, context) -> BoundsResult:  # type: ignore[override]
+            # Return identical bounds for any pair
+            return BoundsResult(lower=0.5, upper=0.5)
+
+    class ConstantStrategy(VisitStrategy[Node]):
+        def setup(self, root: Node, *, data=None) -> None:  # type: ignore[override]
+            return None
+
+        def priority(self, a: Node, b: Node, bounds, mass):  # type: ignore[override]
+            # Return a constant priority tuple for all pairs
+            return (0.0, 0.0, 0.0)
+
+    rng = np.random.default_rng(7)
+    # Use more than default leaf_size (=32) to ensure multiple enqueues
+    X = rng.normal(size=(65, 3))
+    wc = rng.normal(size=3)
+    tree = axis_median.build_tree(X)
+
+    # Should not raise; should return a valid pair matching brute force
+    i, j, dist = search_pair(
+        tree,
+        X,
+        wc,
+        tau=float("inf"),
+        bounder=ConstantBounder(),
+        strategy=ConstantStrategy(),
+    )
+
+    # Validate against brute force to ensure correctness remains intact
+    (bi, bj), bf_dist = brute_force_metric(X, wc)
+    assert {i, j} == {bi, bj}
+    assert pytest.approx(dist, rel=1e-9, abs=1e-12) == bf_dist

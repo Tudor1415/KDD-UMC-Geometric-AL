@@ -10,7 +10,7 @@ global:
   parallel_tree_build: true
   parallel_centers: true
   center_workers: 64
-  tau: 1e-7
+  tau: 1e-8
 
 budgets:
   time_checkpoints : [
@@ -40,7 +40,7 @@ centers:
   sampler: "positive_l1_normalized"
 
 additivity:
-  values: [1,2]
+  values: [1,2,3,4,5]
 
 methods:
   random_sampling:
