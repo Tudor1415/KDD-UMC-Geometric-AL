@@ -149,7 +149,17 @@ def plot_scaling_lines(
     fig.tight_layout()
     return fig
 
-def plot_bound_tightness_kde(all_gaps: Dict[str, np.ndarray], *, title: str | None = None, use_seaborn: bool = False) -> plt.Figure:
+def plot_bound_tightness_kde(
+    all_gaps: Dict[str, np.ndarray],
+    *,
+    title: str | None = None,
+    use_seaborn: bool = False,
+    remove_outliers: bool = False,
+    outlier_method: str | None = "iqr",  # one of {"iqr", "quantile"}
+    iqr_k: float = 1.5,
+    q_low: float = 0.01,
+    q_high: float = 0.99,
+) -> plt.Figure:
     sns = _maybe_sns() if use_seaborn else None
     fig, ax = plt.subplots(figsize=(7, 4))
     eps = 1e-9
@@ -159,6 +169,23 @@ def plot_bound_tightness_kde(all_gaps: Dict[str, np.ndarray], *, title: str | No
         x = np.log(np.maximum(np.asarray(gaps, dtype=float), 0.0) + eps)
         # Drop non-finite/empty inputs to avoid density normalization warnings
         x = x[np.isfinite(x)]
+        # Optional outlier removal on the log-transformed values
+        if remove_outliers and x.size > 0:
+            m = str(outlier_method or "").strip().lower()
+            try:
+                if m in {"iqr", "box", "boxplot"}:
+                    q1, q3 = np.quantile(x, [0.25, 0.75])
+                    iqr = float(q3 - q1)
+                    lo = q1 - float(iqr_k) * iqr
+                    hi = q3 + float(iqr_k) * iqr
+                else:
+                    # default to quantile trimming
+                    lo, hi = np.quantile(x, [float(q_low), float(q_high)])
+                mask = (x >= lo) & (x <= hi)
+                x = x[mask]
+            except Exception:
+                # Be permissive: if anything fails, keep the original x
+                pass
         if x.size == 0:
             continue
         if sns is not None:  # pragma: no cover - visual

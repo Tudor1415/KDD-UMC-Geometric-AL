@@ -73,6 +73,11 @@ evaluation:
     calls_xscale: "log"
   bound_tightness:
     max_samples: 100000
+    remove_outliers: true         # Drop extreme tails when plotting KDE
+    outlier_method: "iqr"         # one of: "iqr", "quantile"
+    iqr_k: 1.5                    # Tukey fence multiplier (if method=iqr)
+    q_low: 0.01                   # lower quantile (if method=quantile)
+    q_high: 0.99                  # upper quantile (if method=quantile)
   exports:
     csv: false
     npz: true   

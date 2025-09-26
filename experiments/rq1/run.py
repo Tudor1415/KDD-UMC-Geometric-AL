@@ -526,6 +526,12 @@ def run_dataset(
             return arr[idx]
 
         max_gap_samples = int(cfg.get("evaluation", "bound_tightness", "max_samples", default=100000))
+        # Outlier handling for bound tightness plots
+        bt_rm_outliers = bool(cfg.get("evaluation", "bound_tightness", "remove_outliers", default=True))
+        bt_outlier_method = str(cfg.get("evaluation", "bound_tightness", "outlier_method", default="iqr"))
+        bt_iqr_k = float(cfg.get("evaluation", "bound_tightness", "iqr_k", default=1.5))
+        bt_q_low = float(cfg.get("evaluation", "bound_tightness", "q_low", default=0.01))
+        bt_q_high = float(cfg.get("evaluation", "bound_tightness", "q_high", default=0.99))
         kd_all = np.concatenate([np.asarray(r["kd"]["bound_gaps"], dtype=float) for r in runs_serialized if "kd" in r]) if runs_serialized and has_kd else np.zeros(0)
         bt_all = np.concatenate([np.asarray(r["bt"]["bound_gaps"], dtype=float) for r in runs_serialized if "bt" in r]) if runs_serialized and has_bt else np.zeros(0)
         gaps: Dict[str, np.ndarray] = {}
@@ -537,7 +543,15 @@ def run_dataset(
             gaps["ball-tree Bounds"] = gaps_bt
         if gaps:
             logging.info("    Bound gap samples: " + ", ".join([f"{k.split()[0].lower()}={v.size}" for k, v in gaps.items()]) + f" (cap={max_gap_samples})")
-            fig3 = plot_bound_tightness_kde(gaps, title=f"Bound Tightness on {dataset_name} ({add_label})")
+            fig3 = plot_bound_tightness_kde(
+                gaps,
+                title=f"Bound Tightness on {dataset_name} ({add_label})",
+                remove_outliers=bt_rm_outliers,
+                outlier_method=bt_outlier_method,
+                iqr_k=bt_iqr_k,
+                q_low=bt_q_low,
+                q_high=bt_q_high,
+            )
             if "png" in export_figs:
                 fig3.savefig(group_dir / "bound_tightness.png", dpi=dpi)
             if "pdf" in export_figs:
