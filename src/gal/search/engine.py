@@ -257,6 +257,11 @@ class Search:
         for i in range(len(root.children)):
             for j in range(i + 1, len(root.children)):
                 enqueue(root.children[i], root.children[j])
+        # Also explore within-subtree pairs by enqueuing (child, child)
+        # so that pairs across different leaves under the same branch are considered.
+        for ch in root.children:
+            if not self._node_is_leaf(ch):
+                enqueue(ch, ch)
 
         # If tau is infinite, explore all queued pairs; otherwise stop early when possible.
         while heap and (math.isinf(tau) or best_distance > tau + eps):
@@ -273,7 +278,12 @@ class Search:
             if a_leaf and b_leaf:
                 pair_mass = mass(a, b)
                 stats["explored_point_pairs"] = int(stats["explored_point_pairs"]) + pair_mass
-                pair, dist, evals = self._exact_leaf_eval(a, b, context)
+                # When both nodes are the same leaf, evaluate within-leaf pairs only once
+                # to avoid counting i==j pairs.
+                if a is b:
+                    pair, dist, evals = self._exact_leaf_self(a, context)
+                else:
+                    pair, dist, evals = self._exact_leaf_eval(a, b, context)
                 stats["objective_evals"] = int(stats["objective_evals"]) + evals
                 if pair is not None and dist < min(best_distance, tau):
                     best_pair = pair
@@ -283,7 +293,17 @@ class Search:
                 record_time_if_needed()
                 continue
 
-            if not a_leaf and (b_leaf or a.radius >= b.radius):
+            # Special handling when exploring within the same subtree (a is b):
+            # generate child-pair combinations to cover cross-leaf candidates under this branch.
+            if a is b and not a_leaf:
+                for i in range(len(a.children)):
+                    for j in range(i + 1, len(a.children)):
+                        enqueue(a.children[i], a.children[j])
+                # Continue descending within each child as needed
+                for child in a.children:
+                    if not self._node_is_leaf(child):
+                        enqueue(child, child)
+            elif not a_leaf and (b_leaf or a.radius >= b.radius):
                 for child in a.children:
                     enqueue(child, b)
             else:

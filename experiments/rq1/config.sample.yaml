@@ -10,7 +10,7 @@ global:
   parallel_tree_build: true
   parallel_centers: true
   center_workers: 64
-  tau: 1e-5
+  tau: 1e-7
 
 budgets:
   time_checkpoints : [
@@ -40,7 +40,7 @@ centers:
   sampler: "positive_l1_normalized"
 
 additivity:
-  values: [1,2,3,4,5]
+  values: [1,2]
 
 methods:
   random_sampling:
@@ -51,13 +51,13 @@ methods:
     enabled: true
     leaf_size: 25
     split_rule: "widest_axis_median"
-    strategy: "diversity"
+    strategy: "lower_bound"
 
   balltree_bnb:
     enabled: true
     leaf_size: 25
     construction: "two_pivot"
-    strategy: "diversity"
+    strategy: "lower_bound"
 
 datasets:
   - name: "MUSHROOM"
@@ -72,7 +72,7 @@ evaluation:
     time_xscale: "log"   
     calls_xscale: "log"
   bound_tightness:
-    max_samples: 1000
+    max_samples: 100000
   exports:
     csv: false
     npz: true   
