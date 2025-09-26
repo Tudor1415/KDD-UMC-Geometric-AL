@@ -33,12 +33,14 @@ def _eval_center_runs(task: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[
     to one run. The evals are kept as simple dicts mirroring arrays to avoid
     cross-process class pickling surprises.
     """
-    import numpy as _np
-    from .eval import evaluate_dataset as _eval
+    # Local imports here were originally used to avoid cross-process pickling
+    # surprises. Since this module already imports numpy as np and
+    # evaluate_dataset at the top level, we reuse those to avoid redundant
+    # imports inside each worker call.
 
     # Load data array: prefer memory-mapped path to avoid large pickles
     if "X_path" in task and task["X_path"] is not None:
-        X = _np.load(task["X_path"], mmap_mode="r")
+        X = np.load(task["X_path"], mmap_mode="r")
     else:
         X = task["X"]
     center = task["center"]
@@ -54,6 +56,9 @@ def _eval_center_runs(task: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[
     eps = float(task["eps"])
     seed_base = int(task["seed_base"])
     rnd_mode = task["rnd_mode"]
+    rnd_enabled = bool(task.get("rnd_enabled", True))
+    kd_enabled = bool(task.get("kd_enabled", True))
+    bt_enabled = bool(task.get("bt_enabled", True))
     # Build trees once per worker to avoid serializing heavy objects across processes
     kd_tree_obj = task.get("kd_tree_obj")
     bt_tree_obj = task.get("bt_tree_obj")
@@ -69,15 +74,15 @@ def _eval_center_runs(task: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[
     # Per-run cap on bound gap values to ship back to the parent process
     gap_cap_per_run = int(task.get("gap_cap_per_run", 0) or 0)
 
-    def _sample_array(arr: _np.ndarray, cap: int) -> _np.ndarray:
-        arr = _np.asarray(arr, dtype=float).ravel()
+    def _sample_array(arr: np.ndarray, cap: int) -> np.ndarray:
+        arr = np.asarray(arr, dtype=float).ravel()
         if cap <= 0 or arr.size <= cap:
             return arr
-        idx = _np.random.default_rng(int(seed_base)).choice(arr.size, size=cap, replace=False)
+        idx = np.random.default_rng(int(seed_base)).choice(arr.size, size=cap, replace=False)
         return arr[idx]
     for run_i in range(n_runs):
-        rng_rnd = _np.random.default_rng(seed_base + 1_000 * run_i)
-        res = _eval(
+        rng_rnd = np.random.default_rng(seed_base + 1_000 * run_i)
+        res = evaluate_dataset(
             X,
             kd_strategy_name=kd_strategy,
             bt_strategy_name=bt_strategy,
@@ -91,6 +96,9 @@ def _eval_center_runs(task: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[
             rng=rng_rnd,
             center=center,
             random_pair_mode=rnd_mode,
+            random_enabled=rnd_enabled,
+            kd_enabled=kd_enabled,
+            bt_enabled=bt_enabled,
             kd_tree_obj=kd_tree_obj,
             bt_tree_obj=bt_tree_obj,
             trace_tau=trace_tau,
@@ -104,7 +112,7 @@ def _eval_center_runs(task: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], List[
             if k in ("kd", "bt"):
                 gaps_sampled = _sample_array(v.bound_gaps, gap_cap_per_run)
             else:
-                gaps_sampled = _np.asarray([], dtype=float)
+                gaps_sampled = np.asarray([], dtype=float)
             res_serialized[k] = {
                 "A_time": v.A_time.tolist(),
                 "A_calls": v.A_calls.tolist(),
@@ -154,6 +162,8 @@ def run_dataset(
     c_fracs: List[float] = list(cfg.get("budgets", "calls_checkpoints", default=[0.05, 0.1, 0.2, 0.5, 1.0]))
     kd_strategy = str(cfg.get("methods", "dual_kdtree_bnb", "strategy", default="lower_bound"))
     bt_strategy = str(cfg.get("methods", "balltree_bnb", "strategy", default="lower_bound"))
+    kd_enabled = bool(cfg.get("methods", "dual_kdtree_bnb", "enabled", default=True))
+    bt_enabled = bool(cfg.get("methods", "balltree_bnb", "enabled", default=True))
     bt_build_method_raw = str(cfg.get("methods", "balltree_bnb", "construction", default="disjoint_greedy"))
     # Normalize builder names (accept synonyms)
     _builder_alias = {
@@ -164,6 +174,7 @@ def run_dataset(
     kd_cfg = cfg.get("methods", "dual_kdtree_bnb", default={}) or {}
     bt_cfg = cfg.get("methods", "balltree_bnb", default={}) or {}
     rnd_pair_mode = str(cfg.get("methods", "random_sampling", "pair_sampling", default="with_replacement"))
+    rnd_enabled = bool(cfg.get("methods", "random_sampling", "enabled", default=True))
 
     # Plot/export style
     dpi = int(cfg.get("evaluation", "plot_style", "dpi", default=150))
@@ -237,7 +248,13 @@ def run_dataset(
 
     # Accumulate scaling across additivities
     scaling_categories: List[str] = []
-    methods = ["kd-tree BnB", "ball-tree BnB", "Random Sampling"]
+    methods: List[str] = []
+    if kd_enabled:
+        methods.append("kd-tree BnB")
+    if bt_enabled:
+        methods.append("ball-tree BnB")
+    if rnd_enabled:
+        methods.append("Random Sampling")
     scaling_vals: List[List[float]] = []
     scaling_los: List[List[float]] = []
     scaling_his: List[List[float]] = []
@@ -336,12 +353,15 @@ def run_dataset(
                     bt_build_method=bt_build_method,
                     kd_cfg=kd_cfg,
                     bt_cfg=bt_cfg,
+                    kd_enabled=kd_enabled,
+                    bt_enabled=bt_enabled,
                     t_fracs=t_fracs,
                     c_fracs=c_fracs,
                     timing_repeats=timing_repeats,
                     eps=eps,
                     seed_base=seed_base,
                     rnd_mode=rnd_pair_mode,
+                    rnd_enabled=rnd_enabled,
                     # Trees are built in each worker to avoid heavy pickling
                     kd_tree_obj=None,
                     bt_tree_obj=None,
@@ -395,6 +415,9 @@ def run_dataset(
                         rng=rng_rnd,  # only used by baseline or sampling
                         center=cvec,
                         random_pair_mode=rnd_pair_mode,
+                        random_enabled=rnd_enabled,
+                        kd_enabled=kd_enabled,
+                        bt_enabled=bt_enabled,
                         kd_tree_obj=kd_tree_obj,
                         bt_tree_obj=bt_tree_obj,
                         trace_tau=tau_conf,
@@ -434,30 +457,37 @@ def run_dataset(
         # Build curves for plotting
         t = np.array(t_fracs, dtype=float)
         c = np.array(c_fracs, dtype=float)
-        kd_t_m, kd_t_lo, kd_t_hi = agg["kd"]["A_time"]
-        kd_c_m, kd_c_lo, kd_c_hi = agg["kd"]["A_calls"]
-        bt_t_m, bt_t_lo, bt_t_hi = agg["bt"]["A_time"]
-        bt_c_m, bt_c_lo, bt_c_hi = agg["bt"]["A_calls"]
+        has_kd = "kd" in agg
+        has_bt = "bt" in agg
+        if has_kd:
+            kd_t_m, kd_t_lo, kd_t_hi = agg["kd"]["A_time"]
+            kd_c_m, kd_c_lo, kd_c_hi = agg["kd"]["A_calls"]
+        if has_bt:
+            bt_t_m, bt_t_lo, bt_t_hi = agg["bt"]["A_time"]
+            bt_c_m, bt_c_lo, bt_c_hi = agg["bt"]["A_calls"]
         # Heap size vs calls (BnB methods only)
         kd_h_m = kd_h_lo = kd_h_hi = None
         bt_h_m = bt_h_lo = bt_h_hi = None
-        if "heap_calls" in agg["kd"]:
+        if has_kd and ("heap_calls" in agg["kd"]):
             kd_h_m, kd_h_lo, kd_h_hi = agg["kd"]["heap_calls"]
-        if "heap_calls" in agg["bt"]:
+        if has_bt and ("heap_calls" in agg["bt"]):
             bt_h_m, bt_h_lo, bt_h_hi = agg["bt"]["heap_calls"]
-        rnd_t_m, rnd_t_lo, rnd_t_hi = agg["rnd"]["A_time"]
-        rnd_c_m, rnd_c_lo, rnd_c_hi = agg["rnd"]["A_calls"]
+        has_rnd = "rnd" in agg
+        if has_rnd:
+            rnd_t_m, rnd_t_lo, rnd_t_hi = agg["rnd"]["A_time"]
+            rnd_c_m, rnd_c_lo, rnd_c_hi = agg["rnd"]["A_calls"]
 
-        curves_t = {
-            "kd-tree BnB": CurveCI(x=t, median=kd_t_m, low=kd_t_lo, high=kd_t_hi),
-            "ball-tree BnB": CurveCI(x=t, median=bt_t_m, low=bt_t_lo, high=bt_t_hi),
-            "Random Sampling": CurveCI(x=t, median=rnd_t_m, low=rnd_t_lo, high=rnd_t_hi),
-        }
-        curves_c = {
-            "kd-tree BnB": CurveCI(x=c, median=kd_c_m, low=kd_c_lo, high=kd_c_hi),
-            "ball-tree BnB": CurveCI(x=c, median=bt_c_m, low=bt_c_lo, high=bt_c_hi),
-            "Random Sampling": CurveCI(x=c, median=rnd_c_m, low=rnd_c_lo, high=rnd_c_hi),
-        }
+        curves_t: Dict[str, CurveCI] = {}
+        curves_c: Dict[str, CurveCI] = {}
+        if has_kd:
+            curves_t["kd-tree BnB"] = CurveCI(x=t, median=kd_t_m, low=kd_t_lo, high=kd_t_hi)  # type: ignore
+            curves_c["kd-tree BnB"] = CurveCI(x=c, median=kd_c_m, low=kd_c_lo, high=kd_c_hi)  # type: ignore
+        if has_bt:
+            curves_t["ball-tree BnB"] = CurveCI(x=t, median=bt_t_m, low=bt_t_lo, high=bt_t_hi)  # type: ignore
+            curves_c["ball-tree BnB"] = CurveCI(x=c, median=bt_c_m, low=bt_c_lo, high=bt_c_hi)  # type: ignore
+        if has_rnd:
+            curves_t["Random Sampling"] = CurveCI(x=t, median=rnd_t_m, low=rnd_t_lo, high=rnd_t_hi)
+            curves_c["Random Sampling"] = CurveCI(x=c, median=rnd_c_m, low=rnd_c_lo, high=rnd_c_hi)
 
         # Figures per group
         t_fig0 = time.perf_counter()
@@ -496,31 +526,47 @@ def run_dataset(
             return arr[idx]
 
         max_gap_samples = int(cfg.get("evaluation", "bound_tightness", "max_samples", default=100000))
-        kd_all = np.concatenate([np.asarray(r["kd"]["bound_gaps"], dtype=float) for r in runs_serialized]) if runs_serialized else np.zeros(0)
-        bt_all = np.concatenate([np.asarray(r["bt"]["bound_gaps"], dtype=float) for r in runs_serialized]) if runs_serialized else np.zeros(0)
-        gaps_kd = _sample_array(kd_all, max_gap_samples)
-        gaps_bt = _sample_array(bt_all, max_gap_samples)
-        logging.info(f"    Bound gap samples: kd={gaps_kd.size}, bt={gaps_bt.size} (cap={max_gap_samples})")
-        fig3 = plot_bound_tightness_kde({"kd-tree Bounds": gaps_kd, "ball-tree Bounds": gaps_bt}, title=f"Bound Tightness on {dataset_name} ({add_label})")
-        if "png" in export_figs:
-            fig3.savefig(group_dir / "bound_tightness.png", dpi=dpi)
-        if "pdf" in export_figs:
-            fig3.savefig(group_dir / "bound_tightness.pdf", dpi=dpi)
-        plt.close(fig3)
+        kd_all = np.concatenate([np.asarray(r["kd"]["bound_gaps"], dtype=float) for r in runs_serialized if "kd" in r]) if runs_serialized and has_kd else np.zeros(0)
+        bt_all = np.concatenate([np.asarray(r["bt"]["bound_gaps"], dtype=float) for r in runs_serialized if "bt" in r]) if runs_serialized and has_bt else np.zeros(0)
+        gaps: Dict[str, np.ndarray] = {}
+        if has_kd:
+            gaps_kd = _sample_array(kd_all, max_gap_samples)
+            gaps["kd-tree Bounds"] = gaps_kd
+        if has_bt:
+            gaps_bt = _sample_array(bt_all, max_gap_samples)
+            gaps["ball-tree Bounds"] = gaps_bt
+        if gaps:
+            logging.info("    Bound gap samples: " + ", ".join([f"{k.split()[0].lower()}={v.size}" for k, v in gaps.items()]) + f" (cap={max_gap_samples})")
+            fig3 = plot_bound_tightness_kde(gaps, title=f"Bound Tightness on {dataset_name} ({add_label})")
+            if "png" in export_figs:
+                fig3.savefig(group_dir / "bound_tightness.png", dpi=dpi)
+            if "pdf" in export_figs:
+                fig3.savefig(group_dir / "bound_tightness.pdf", dpi=dpi)
+            plt.close(fig3)
 
         # Scaling pick: A@t at 0.2 T_max
         def pick_at(fracs: List[float], med: np.ndarray, lo: np.ndarray, hi: np.ndarray, f: float = 0.2) -> tuple[float, float, float]:
             idx = int(np.argmin(np.abs(np.array(fracs) - f)))
             return float(med[idx]), float(lo[idx]), float(hi[idx])
 
-        kd_v, kd_l, kd_h = pick_at(t_fracs, kd_t_m, kd_t_lo, kd_t_hi)
-        bt_v, bt_l, bt_h = pick_at(t_fracs, bt_t_m, bt_t_lo, bt_t_hi)
-        rnd_v, rnd_l, rnd_h = pick_at(t_fracs, rnd_t_m, rnd_t_lo, rnd_t_hi)
-
+        vals_row: List[float] = []
+        los_row: List[float] = []
+        his_row: List[float] = []
+        if has_kd:
+            kd_v, kd_l, kd_h = pick_at(t_fracs, kd_t_m, kd_t_lo, kd_t_hi)  # type: ignore
+            vals_row.append(kd_v); los_row.append(kd_l); his_row.append(kd_h)
+        if has_bt:
+            bt_v, bt_l, bt_h = pick_at(t_fracs, bt_t_m, bt_t_lo, bt_t_hi)  # type: ignore
+            vals_row.append(bt_v); los_row.append(bt_l); his_row.append(bt_h)
         scaling_categories.append(f"{dataset_name} (n={n_sub}, d={d_sub})")
-        scaling_vals.append([kd_v, bt_v, rnd_v])
-        scaling_los.append([kd_l, bt_l, rnd_l])
-        scaling_his.append([kd_h, bt_h, rnd_h])
+        if has_rnd:
+            rnd_v, rnd_l, rnd_h = pick_at(t_fracs, rnd_t_m, rnd_t_lo, rnd_t_hi)
+            vals_row.append(rnd_v); los_row.append(rnd_l); his_row.append(rnd_h)
+        else:
+            pass
+        scaling_vals.append(vals_row)
+        scaling_los.append(los_row)
+        scaling_his.append(his_row)
         # Use dimension (after augmentation) on the x-axis
         scaling_x.append(float(d_sub))
 
@@ -545,17 +591,20 @@ def run_dataset(
         if export_npz:
             # Pack curves and sampled gaps for compact storage
             try:
-                np.savez_compressed(
-                    group_dir / "runs.npz",
-                    kd_A_time=np.stack([np.asarray(run["kd"]["A_time"], dtype=float) for run in runs_serialized], axis=0) if runs_serialized else np.zeros((0, len(t_fracs))),
-                    kd_A_calls=np.stack([np.asarray(run["kd"]["A_calls"], dtype=float) for run in runs_serialized], axis=0) if runs_serialized else np.zeros((0, len(c_fracs))),
-                    bt_A_time=np.stack([np.asarray(run["bt"]["A_time"], dtype=float) for run in runs_serialized], axis=0) if runs_serialized else np.zeros((0, len(t_fracs))),
-                    bt_A_calls=np.stack([np.asarray(run["bt"]["A_calls"], dtype=float) for run in runs_serialized], axis=0) if runs_serialized else np.zeros((0, len(c_fracs))),
-                    kd_heap_calls=np.stack([np.asarray(run["kd"].get("heap_calls", np.zeros(len(c_fracs))), dtype=float) for run in runs_serialized], axis=0) if runs_serialized else np.zeros((0, len(c_fracs))),
-                    bt_heap_calls=np.stack([np.asarray(run["bt"].get("heap_calls", np.zeros(len(c_fracs))), dtype=float) for run in runs_serialized], axis=0) if runs_serialized else np.zeros((0, len(c_fracs))),
-                    kd_gaps=gaps_kd,
-                    bt_gaps=gaps_bt,
-                )
+                payload: Dict[str, np.ndarray] = {}
+                if has_kd:
+                    payload["kd_A_time"] = np.stack([np.asarray(run["kd"]["A_time"], dtype=float) for run in runs_serialized if "kd" in run], axis=0) if runs_serialized else np.zeros((0, len(t_fracs)))
+                    payload["kd_A_calls"] = np.stack([np.asarray(run["kd"]["A_calls"], dtype=float) for run in runs_serialized if "kd" in run], axis=0) if runs_serialized else np.zeros((0, len(c_fracs)))
+                    payload["kd_heap_calls"] = np.stack([np.asarray(run["kd"].get("heap_calls", np.zeros(len(c_fracs))), dtype=float) for run in runs_serialized if "kd" in run], axis=0) if runs_serialized else np.zeros((0, len(c_fracs)))
+                    if 'gaps_kd' in locals():
+                        payload["kd_gaps"] = gaps_kd  # type: ignore
+                if has_bt:
+                    payload["bt_A_time"] = np.stack([np.asarray(run["bt"]["A_time"], dtype=float) for run in runs_serialized if "bt" in run], axis=0) if runs_serialized else np.zeros((0, len(t_fracs)))
+                    payload["bt_A_calls"] = np.stack([np.asarray(run["bt"]["A_calls"], dtype=float) for run in runs_serialized if "bt" in run], axis=0) if runs_serialized else np.zeros((0, len(c_fracs)))
+                    payload["bt_heap_calls"] = np.stack([np.asarray(run["bt"].get("heap_calls", np.zeros(len(c_fracs))), dtype=float) for run in runs_serialized if "bt" in run], axis=0) if runs_serialized else np.zeros((0, len(c_fracs)))
+                    if 'gaps_bt' in locals():
+                        payload["bt_gaps"] = gaps_bt  # type: ignore
+                np.savez_compressed(group_dir / "runs.npz", **payload)
             except Exception as _e:
                 logging.warning(f"Failed to save NPZ traces in {group_dir}: {_e}")
         elif export_json:

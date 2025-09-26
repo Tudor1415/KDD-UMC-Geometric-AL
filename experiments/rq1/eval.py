@@ -133,6 +133,9 @@ def evaluate_dataset(
     rng: np.random.Generator,
     center: np.ndarray | None = None,
     random_pair_mode: str = "with_replacement",
+    random_enabled: bool = True,
+    kd_enabled: bool = True,
+    bt_enabled: bool = True,
     kd_tree_obj: Any | None = None,
     bt_tree_obj: Any | None = None,
     trace_tau: float | None = None,
@@ -146,19 +149,24 @@ def evaluate_dataset(
     kd_leaf = None if kd_config is None else kd_config.get("leaf_size")
     bt_leaf = None if bt_config is None else bt_config.get("leaf_size")
     # Suppress verbose setup logging; keep function quiet by default
-    kd_tree = kd_tree_obj if kd_tree_obj is not None else kd.build_tree(X, None if kd_config is None else dict(kd_config))
-    bt_tree = bt_tree_obj if bt_tree_obj is not None else bt.build_tree(X, None if bt_config is None else dict(bt_config), method=str(bt_build_method))
-
-    kd_strategy = get_strategy(kd_strategy_name)
-    bt_strategy = get_strategy(bt_strategy_name, queries=X)
-    kd_engine = Search(bounder=KdTreeBounds(), strategy=kd_strategy)
-    bt_engine = Search(strategy=bt_strategy)
+    kd_tree = None
+    bt_tree = None
+    kd_engine = None
+    bt_engine = None
+    if kd_enabled:
+        kd_tree = kd_tree_obj if kd_tree_obj is not None else kd.build_tree(X, None if kd_config is None else dict(kd_config))
+        kd_strategy = get_strategy(kd_strategy_name)
+        kd_engine = Search(bounder=KdTreeBounds(), strategy=kd_strategy)
+    if bt_enabled:
+        bt_tree = bt_tree_obj if bt_tree_obj is not None else bt.build_tree(X, None if bt_config is None else dict(bt_config), method=str(bt_build_method))
+        bt_strategy = get_strategy(bt_strategy_name, queries=X)
+        bt_engine = Search(strategy=bt_strategy)
 
     # Sample a shared center
     wc = _sample_center(X.shape[1], rng) if center is None else np.asarray(center, dtype=float)
     # Backward-compatible default: if no threshold provided, use 1.0
     tau_tr = 1.0 if (trace_tau is None) else float(trace_tau)
-    # Time normalization: run both methods until threshold
+    # Time normalization: run enabled methods until threshold
 
     def time_to_completion(engine: Search, tree, label: str) -> float:
         best = float("inf")
@@ -185,81 +193,90 @@ def evaluate_dataset(
         logging.info(_fmt_time_norm_row(label, elapsed, evl, best, lbp, dmp, prn, expl, tot))
         return elapsed
 
-    T_kd = time_to_completion(kd_engine, kd_tree, "kd")
-    T_bt = time_to_completion(bt_engine, bt_tree, "ball")
-    T_max = max(T_kd, T_bt)
+    times: List[float] = []
+    if kd_engine is not None and kd_tree is not None:
+        times.append(time_to_completion(kd_engine, kd_tree, "kd"))
+    if bt_engine is not None and bt_tree is not None:
+        times.append(time_to_completion(bt_engine, bt_tree, "ball"))
+    if not times:
+        raise ValueError("All methods disabled: enable at least one of kd-tree or ball-tree BnB.")
+    T_max = max(times)
 
     time_grid = [f * T_max for f in time_fracs]
     calls_grid = [int(round(f * Pmax)) for f in call_fracs]
 
     # Run anytime with tracing enabled
-    t0_kd = _t.perf_counter()
-    _, _, kd_best, kd_stats = kd_engine.search_pair(
-        kd_tree,
-        X,
-        wc,
-        tau=tau_tr,
-        return_stats=True,
-        dominance_prune=True,
-        eps=eps,
-        ensure_optimal=trace_certify,
-        time_checkpoints=time_grid,
-        calls_checkpoints=calls_grid,
-        collect_bound_gaps=True,
-    )
-    dt_kd = _t.perf_counter() - t0_kd
-    kd_lbp = int(kd_stats.get("pruned_lb_point_pairs", 0))
-    kd_dmp = int(kd_stats.get("pruned_dom_point_pairs", 0))
-    kd_prn = int(kd_stats.get("pruned_point_pairs", kd_lbp + kd_dmp))
-    kd_expl = int(kd_stats.get("explored_point_pairs", 0))
-    kd_tot = int(kd_stats.get("total_point_pairs", 0))
-    logging.info(
-        _fmt_trace_row(
-            "kd",
-            dur_s=dt_kd,
-            evals=int(kd_stats.get("objective_evals", 0)),
-            best=kd_best,
-            pr_lb=kd_lbp,
-            pr_dom=kd_dmp,
-            pr_tot=kd_prn,
-            explored=kd_expl,
-            total=kd_tot,
+    kd_stats = bt_stats = None
+    kd_A_t = kd_A_m = bt_A_t = bt_A_m = None  # type: ignore
+    kd_H_m = bt_H_m = None  # type: ignore
+    if kd_engine is not None and kd_tree is not None:
+        t0_kd = _t.perf_counter()
+        _, _, kd_best, kd_stats = kd_engine.search_pair(
+            kd_tree,
+            X,
+            wc,
+            tau=tau_tr,
+            return_stats=True,
+            dominance_prune=True,
+            eps=eps,
+            ensure_optimal=trace_certify,
+            time_checkpoints=time_grid,
+            calls_checkpoints=calls_grid,
+            collect_bound_gaps=True,
         )
-    )
-
-    t0_bt = _t.perf_counter()
-    _, _, bt_best, bt_stats = bt_engine.search_pair(
-        bt_tree,
-        X,
-        wc,
-        tau=tau_tr,
-        return_stats=True,
-        dominance_prune=True,
-        eps=eps,
-        ensure_optimal=trace_certify,
-        time_checkpoints=time_grid,
-        calls_checkpoints=calls_grid,
-        collect_bound_gaps=True,
-    )
-    dt_bt = _t.perf_counter() - t0_bt
-    bt_lbp = int(bt_stats.get("pruned_lb_point_pairs", 0))
-    bt_dmp = int(bt_stats.get("pruned_dom_point_pairs", 0))
-    bt_prn = int(bt_stats.get("pruned_point_pairs", bt_lbp + bt_dmp))
-    bt_expl = int(bt_stats.get("explored_point_pairs", 0))
-    bt_tot = int(bt_stats.get("total_point_pairs", 0))
-    logging.info(
-        _fmt_trace_row(
-            "ball",
-            dur_s=dt_bt,
-            evals=int(bt_stats.get("objective_evals", 0)),
-            best=bt_best,
-            pr_lb=bt_lbp,
-            pr_dom=bt_dmp,
-            pr_tot=bt_prn,
-            explored=bt_expl,
-            total=bt_tot,
+        dt_kd = _t.perf_counter() - t0_kd
+        kd_lbp = int(kd_stats.get("pruned_lb_point_pairs", 0))
+        kd_dmp = int(kd_stats.get("pruned_dom_point_pairs", 0))
+        kd_prn = int(kd_stats.get("pruned_point_pairs", kd_lbp + kd_dmp))
+        kd_expl = int(kd_stats.get("explored_point_pairs", 0))
+        kd_tot = int(kd_stats.get("total_point_pairs", 0))
+        logging.info(
+            _fmt_trace_row(
+                "kd",
+                dur_s=dt_kd,
+                evals=int(kd_stats.get("objective_evals", 0)),
+                best=kd_best,
+                pr_lb=kd_lbp,
+                pr_dom=kd_dmp,
+                pr_tot=kd_prn,
+                explored=kd_expl,
+                total=kd_tot,
+            )
         )
-    )
+    if bt_engine is not None and bt_tree is not None:
+        t0_bt = _t.perf_counter()
+        _, _, bt_best, bt_stats = bt_engine.search_pair(
+            bt_tree,
+            X,
+            wc,
+            tau=tau_tr,
+            return_stats=True,
+            dominance_prune=True,
+            eps=eps,
+            ensure_optimal=trace_certify,
+            time_checkpoints=time_grid,
+            calls_checkpoints=calls_grid,
+            collect_bound_gaps=True,
+        )
+        dt_bt = _t.perf_counter() - t0_bt
+        bt_lbp = int(bt_stats.get("pruned_lb_point_pairs", 0))
+        bt_dmp = int(bt_stats.get("pruned_dom_point_pairs", 0))
+        bt_prn = int(bt_stats.get("pruned_point_pairs", bt_lbp + bt_dmp))
+        bt_expl = int(bt_stats.get("explored_point_pairs", 0))
+        bt_tot = int(bt_stats.get("total_point_pairs", 0))
+        logging.info(
+            _fmt_trace_row(
+                "ball",
+                dur_s=dt_bt,
+                evals=int(bt_stats.get("objective_evals", 0)),
+                best=bt_best,
+                pr_lb=bt_lbp,
+                pr_dom=bt_dmp,
+                pr_tot=bt_prn,
+                explored=bt_expl,
+                total=bt_tot,
+            )
+        )
 
     def to_A(trace: Dict[str, Any]) -> Tuple[np.ndarray, np.ndarray]:
         tb = np.array(trace["time_best"], dtype=float)
@@ -269,105 +286,129 @@ def evaluate_dataset(
         A_m = np.minimum(1.0, (tau_tr + eps) / (cb + eps))
         return A_t, A_m
 
-    kd_A_t, kd_A_m = to_A(kd_stats["trace"])  # type: ignore
-    bt_A_t, bt_A_m = to_A(bt_stats["trace"])  # type: ignore
+    if kd_stats is not None:
+        kd_A_t, kd_A_m = to_A(kd_stats["trace"])  # type: ignore
+    if bt_stats is not None:
+        bt_A_t, bt_A_m = to_A(bt_stats["trace"])  # type: ignore
 
     # Heap size traces at calls checkpoints (max heap size up to each m/Pmax)
     def to_H(trace: Dict[str, Any]) -> np.ndarray:
         return np.array(trace.get("calls_heap_max", []), dtype=float)
 
-    kd_H_m = to_H(kd_stats["trace"])  # type: ignore
-    bt_H_m = to_H(bt_stats["trace"])  # type: ignore
+    if kd_stats is not None:
+        kd_H_m = to_H(kd_stats["trace"])  # type: ignore
+    if bt_stats is not None:
+        bt_H_m = to_H(bt_stats["trace"])  # type: ignore
 
-    # Random sampling baseline
-    def random_anytime(
-        X: np.ndarray,
-        wc: np.ndarray,
-        time_grid: List[float],
-        calls_grid: List[int],
-        eps: float,
-        rng: np.random.Generator,
-        *,
-        mode: str = "with_replacement",
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        import time as _t
-        n = X.shape[0]
-        best = float("inf")
-        A_t = np.zeros(len(time_grid), dtype=float)
-        A_m = np.zeros(len(calls_grid), dtype=float)
-        ti = ci = 0
-        t0 = _t.perf_counter()
-        calls = 0
-        mode = str(mode).strip().lower()
-        if mode in {"w", "with", "with_replacement"}:
-            sampler = None  # on-the-fly indices
-        elif mode in {"wo", "without", "without_replacement"}:
-            # Use index mapping from [0, Pmax) -> (i,j) to avoid storing pairs
-            P = n * (n - 1) // 2
-            order = rng.permutation(P)
-            k_ptr = 0
-            def idx_to_pair(k: int) -> Tuple[int, int]:
-                # Map 0 <= k < nC2 to unique (i,j), 0 <= i < j < n
-                # Compute i such that T(i) <= k < T(i+1), where T(i)=i*(2n - i -1)/2
-                lo, hi = 0, n - 1
-                while lo < hi:
-                    mid = (lo + hi) // 2
-                    Tmid = mid * (2 * n - mid - 1) // 2
-                    if Tmid <= k:
-                        lo = mid + 1
-                    else:
-                        hi = mid
-                i = lo - 1
-                Ti = i * (2 * n - i - 1) // 2
-                j = i + 1 + (k - Ti)
-                return int(i), int(j)
-        else:
-            sampler = None
+    # Assemble results for enabled methods
+    results: Dict[str, MethodResult] = {}
+    if kd_stats is not None and kd_A_t is not None and kd_A_m is not None and kd_H_m is not None:
+        results["kd"] = MethodResult(
+            A_time=kd_A_t,
+            A_calls=kd_A_m,
+            bound_gaps=np.array(kd_stats["trace"]["bound_gaps"], dtype=float),  # type: ignore
+            heap_calls=kd_H_m,
+        )
+    if bt_stats is not None and bt_A_t is not None and bt_A_m is not None and bt_H_m is not None:
+        results["bt"] = MethodResult(
+            A_time=bt_A_t,
+            A_calls=bt_A_m,
+            bound_gaps=np.array(bt_stats["trace"]["bound_gaps"], dtype=float),  # type: ignore
+            heap_calls=bt_H_m,
+        )
 
-        while (ti < len(time_grid)) or (ci < len(calls_grid)):
-            if mode in {"wo", "without", "without_replacement"}:
-                if k_ptr >= order.size:
-                    # Exhausted all pairs
-                    break
-                i, j = idx_to_pair(int(order[k_ptr]))
-                k_ptr += 1
+    # Random sampling baseline (optional)
+    if bool(random_enabled):
+        def random_anytime(
+            X: np.ndarray,
+            wc: np.ndarray,
+            time_grid: List[float],
+            calls_grid: List[int],
+            eps: float,
+            rng: np.random.Generator,
+            *,
+            mode: str = "with_replacement",
+        ) -> Tuple[np.ndarray, np.ndarray]:
+            import time as _t
+            n = X.shape[0]
+            best = float("inf")
+            A_t = np.zeros(len(time_grid), dtype=float)
+            A_m = np.zeros(len(calls_grid), dtype=float)
+            ti = ci = 0
+            t0 = _t.perf_counter()
+            calls = 0
+            mode = str(mode).strip().lower()
+            if mode in {"w", "with", "with_replacement"}:
+                sampler = None  # on-the-fly indices
+            elif mode in {"wo", "without", "without_replacement"}:
+                # Use index mapping from [0, Pmax) -> (i,j) to avoid storing pairs
+                P = n * (n - 1) // 2
+                order = rng.permutation(P)
+                k_ptr = 0
+                def idx_to_pair(k: int) -> Tuple[int, int]:
+                    # Map 0 <= k < nC2 to unique (i,j), 0 <= i < j < n
+                    # Compute i such that T(i) <= k < T(i+1), where T(i)=i*(2n - i -1)/2
+                    lo, hi = 0, n - 1
+                    while lo < hi:
+                        mid = (lo + hi) // 2
+                        Tmid = mid * (2 * n - mid - 1) // 2
+                        if Tmid <= k:
+                            lo = mid + 1
+                        else:
+                            hi = mid
+                    i = lo - 1
+                    Ti = i * (2 * n - i - 1) // 2
+                    j = i + 1 + (k - Ti)
+                    return int(i), int(j)
             else:
-                i = int(rng.integers(0, n))
-                j = int(rng.integers(0, n))
-                if i == j:
-                    continue
-                if j < i:
-                    i, j = j, i
-            diff = X[i] - X[j]
-            denom = float(np.linalg.norm(diff))
-            val = 0.0 if denom <= eps else abs(float(np.dot(diff, wc))) / denom
-            best = min(best, val)
-            calls += 1
-            now = _t.perf_counter() - t0
-            while ti < len(time_grid) and now >= float(time_grid[ti]):
+                sampler = None
+
+            while (ti < len(time_grid)) or (ci < len(calls_grid)):
+                if mode in {"wo", "without", "without_replacement"}:
+                    if k_ptr >= order.size:
+                        # Exhausted all pairs
+                        break
+                    i, j = idx_to_pair(int(order[k_ptr]))
+                    k_ptr += 1
+                else:
+                    i = int(rng.integers(0, n))
+                    j = int(rng.integers(0, n))
+                    if i == j:
+                        continue
+                    if j < i:
+                        i, j = j, i
+                diff = X[i] - X[j]
+                denom = float(np.linalg.norm(diff))
+                val = 0.0 if denom <= eps else abs(float(np.dot(diff, wc))) / denom
+                best = min(best, val)
+                calls += 1
+                now = _t.perf_counter() - t0
+                while ti < len(time_grid) and now >= float(time_grid[ti]):
+                    A_t[ti] = min(1.0, (tau_tr + eps) / (best + eps))
+                    ti += 1
+                while ci < len(calls_grid) and calls >= int(calls_grid[ci]):
+                    A_m[ci] = min(1.0, (tau_tr + eps) / (best + eps))
+                    ci += 1
+                if calls >= (n * (n - 1) // 2) and ti >= len(time_grid):
+                    break
+            # Pad remaining
+            while ti < len(time_grid):
                 A_t[ti] = min(1.0, (tau_tr + eps) / (best + eps))
                 ti += 1
-            while ci < len(calls_grid) and calls >= int(calls_grid[ci]):
+            while ci < len(calls_grid):
                 A_m[ci] = min(1.0, (tau_tr + eps) / (best + eps))
                 ci += 1
-            if calls >= (n * (n - 1) // 2) and ti >= len(time_grid):
-                break
-        # Pad remaining
-        while ti < len(time_grid):
-            A_t[ti] = min(1.0, (tau_tr + eps) / (best + eps))
-            ti += 1
-        while ci < len(calls_grid):
-            A_m[ci] = min(1.0, (tau_tr + eps) / (best + eps))
-            ci += 1
-        return A_t, A_m
+            return A_t, A_m
 
-    rnd_A_t, rnd_A_m = random_anytime(X, wc, time_grid, calls_grid, eps, rng, mode=random_pair_mode)
-
-    return {
-        "kd": MethodResult(A_time=kd_A_t, A_calls=kd_A_m, bound_gaps=np.array(kd_stats["trace"]["bound_gaps"], dtype=float), heap_calls=kd_H_m),  # type: ignore
-        "bt": MethodResult(A_time=bt_A_t, A_calls=bt_A_m, bound_gaps=np.array(bt_stats["trace"]["bound_gaps"], dtype=float), heap_calls=bt_H_m),  # type: ignore
-        "rnd": MethodResult(A_time=rnd_A_t, A_calls=rnd_A_m, bound_gaps=np.zeros(0), heap_calls=np.zeros_like(bt_H_m)),
-    }
+        rnd_A_t, rnd_A_m = random_anytime(X, wc, time_grid, calls_grid, eps, rng, mode=random_pair_mode)
+        if bt_H_m is not None:
+            zeros_like = np.zeros_like(bt_H_m)
+        elif kd_H_m is not None:
+            zeros_like = np.zeros_like(kd_H_m)
+        else:
+            zeros_like = np.zeros(len(calls_grid), dtype=float)
+        results["rnd"] = MethodResult(A_time=rnd_A_t, A_calls=rnd_A_m, bound_gaps=np.zeros(0), heap_calls=zeros_like)
+    return results
 
 
 def aggregate_runs(

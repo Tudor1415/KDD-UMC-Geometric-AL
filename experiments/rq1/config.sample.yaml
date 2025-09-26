@@ -6,11 +6,11 @@ global:
   epsilon: 1e-12
   ci_level: 0.95
   numexpr_max_threads: 64
-  max_points: 1000
+  max_points: 50000
   parallel_tree_build: true
-  parallel_centers: false
+  parallel_centers: true
   center_workers: 64
-  tau: 1e-1
+  tau: 1e-5
 
 budgets:
   time_checkpoints : [
@@ -36,15 +36,15 @@ budgets:
     0.627986, 0.724724, 0.836157, 0.964661, 1.000000]
 
 centers:
-  per_dataset: 10
+  per_dataset: 1
   sampler: "positive_l1_normalized"
 
 additivity:
-  values: [1]
+  values: [1,2,3,4,5]
 
 methods:
   random_sampling:
-    enabled: true
+    enabled: false
     pair_sampling: "without_replacement"
 
   dual_kdtree_bnb:
