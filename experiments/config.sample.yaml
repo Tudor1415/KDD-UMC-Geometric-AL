@@ -4,6 +4,7 @@ global:
   max_points: 0
 
 experiment:
+  # Single dataset (kept for backward compatibility)
   dataset_name: "MUSHROOM"
   oracle_name: "LinearOracle"
   center_name: "AnalyticCenter"   # one of: AnalyticCenter, ChebyshevCenter, MinkowskiCenter, VolumetricCenter
@@ -30,3 +31,12 @@ logging:
 
 oracles:
   names: ["linear_equal", "linear_simplex"]
+
+# Option B: multiple datasets (preferred when running many in one go)
+# Provide either string names (auto-derive paths) or objects with per-dataset paths.
+# datasets:
+#   - "MUSHROOM"
+#   - name: "CREDIT"
+#     paths:
+#       mnr_rules: "./mined_rules/credit_mnr.csv"
+#       # matrix_npy: "./matrices/credit_rules.npy"   # optional

@@ -60,6 +60,27 @@ python -m experiments.active.run my_al.yaml
 
 Outputs are written under `global.output_root` (default `results/al`). Each run creates a self-contained folder with `config.json`, `final_version_space.h5`, `query_vectors.h5`, `iterations.csv`, `tree.h5`, and per-iteration subdirectories with `search_trace.h5` and `center_model.npy`.
 
+To run multiple datasets in one go, add a top-level `datasets` list to your YAML (this overrides the single `experiment.dataset_name`):
+
+```yaml
+global:
+  output_root: "./results/al"
+  seed: 1729
+
+datasets:
+  - "MUSHROOM"
+  - name: "CREDIT"
+    paths:
+      mnr_rules: "./mined_rules/credit_mnr.csv"
+
+experiment:
+  oracle_name: "LinearOracle"
+  center_name: "AnalyticCenter"
+  active_learning_budget: 20
+```
+
+Each dataset will produce its own run directories under `global.output_root`.
+
 ### Other Utilities
 - End-to-end driver (legacy benchmark setup):
 

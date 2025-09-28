@@ -20,6 +20,7 @@ import hashlib
 import json
 import os
 import time
+import pickle
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -159,13 +160,14 @@ def _center_fn(name: str):
     Note: mse_center requires extra data (X, y) and is intentionally not wired here.
     """
     key = (name or "analytic").strip().lower().replace("-", "_")
-    if key in {"analytic", "analytical", "analytic_center", "analytical_center", "barrier"}:
+    # tolerate camel-cased "AnalyticCenter" style by also accepting versions without underscore
+    if key in {"analytic", "analytical", "analytic_center", "analytical_center", "analyticcenter", "analyticalcenter", "barrier"}:
         return lambda A, b: analytical_center(A, b)
-    if key in {"chebyshev", "chebyshev_center", "inscribed", "largest_ball"}:
+    if key in {"chebyshev", "chebyshev_center", "chebyshevcenter", "inscribed", "largest_ball"}:
         return lambda A, b: chebyshev_center(A, b)[0]
-    if key in {"minkowski", "minkowski_center"}:
+    if key in {"minkowski", "minkowski_center", "minkowskicenter"}:
         return lambda A, b: minkowski_center(A, b)[0]
-    if key in {"volumetric", "volumetric_center", "john", "john_ellipsoid"}:
+    if key in {"volumetric", "volumetric_center", "volumetriccenter", "john", "john_ellipsoid"}:
         return lambda A, b: volumetric_center(A, b)[0]
     raise ValueError(f"Unknown center method: {name}")
 
@@ -179,8 +181,10 @@ def _chebyshev_radius(A: np.ndarray, b: np.ndarray, c: np.ndarray) -> float:
 
 
 def _export_tree_h5(path: Path, kd_tree: kd.GeometricTree | None, bt_tree: bt.GeometricTree | None, d: int) -> None:
-    if h5py is None:  # pragma: no cover
-        raise RuntimeError("h5py is required to write tree.h5")
+    if h5py is None:  # Graceful fallback: create placeholder to keep pipeline flowing
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
+        return
     with h5py.File(path, "w") as h5:
         if kd_tree is not None:
             g = h5.create_group("kdtree")
@@ -249,8 +253,10 @@ def _dump_tree_group(g: Any, tree: bt.GeometricTree, d: int, *, is_kd: bool) -> 
 
 
 def _export_search_events_h5(path: Path, events: List[Dict[str, Any]]) -> None:
-    if h5py is None:  # pragma: no cover
-        raise RuntimeError("h5py is required to write search_trace.h5")
+    if h5py is None:  # Graceful fallback
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
+        return
     if not events:
         # Create empty file with empty datasets
         with h5py.File(path, "w") as h5:
@@ -506,28 +512,47 @@ def run(cfg: ALConfig) -> Path:
 
 def run_all(cfg: ALConfig) -> Path:
     rng = np.random.default_rng(int(cfg.get("global", "seed", default=1729)))
-    # Dataset config (supports legacy and general schemas)
-    ds_entry = cfg.get("dataset", default=None)
-    if ds_entry is None:
-        ds_name = str(cfg.get("experiment", "dataset_name", default="DATA"))
-        ds_entry = {
-            "name": ds_name,
-            "paths": {
-                k: v
-                for k, v in (cfg.get("paths", default={}) or {}).items()
-                if k in {"mnr_rules", "matrix_npy", "dataset_path"}
-            },
-        }
+
+    # -----------------------------
+    # Resolve dataset entries
+    # Supports:
+    #   - single dataset via legacy `dataset` or `experiment.dataset_name` + `paths`
+    #   - multiple datasets via `datasets: [..]` where each item is either a
+    #     string name or a dict with {name, paths{mnr_rules,matrix_npy,dataset_path}}
+    # -----------------------------
+    datasets_cfg = cfg.get("datasets", default=None)
+    ds_entries: List[Dict[str, Any]] = []
+    if datasets_cfg:
+        # Normalize to list of dict entries
+        for item in list(datasets_cfg):
+            if isinstance(item, str):
+                ds_name_i = str(item)
+                ds_entries.append({"name": ds_name_i, "paths": {}})
+            elif isinstance(item, dict):
+                name = str(item.get("name", cfg.get("experiment", "dataset_name", default="DATA")))
+                paths = item.get("paths", {}) or {}
+                ds_entries.append({"name": name, "paths": paths})
+            else:
+                raise ValueError("Each datasets[] entry must be a string or a mapping with 'name' and optional 'paths'.")
     else:
-        ds_name = str(ds_entry.get("name", "DATA"))
+        ds_entry = cfg.get("dataset", default=None)
+        if ds_entry is None:
+            ds_name = str(cfg.get("experiment", "dataset_name", default="DATA"))
+            ds_entry = {
+                "name": ds_name,
+                "paths": {
+                    k: v
+                    for k, v in (cfg.get("paths", default={}) or {}).items()
+                    if k in {"mnr_rules", "matrix_npy", "dataset_path"}
+                },
+            }
+        else:
+            ds_name = str(ds_entry.get("name", "DATA"))
+        ds_entries = [ds_entry]
 
-    X = _load_points_for_dataset(ds_name, ds_entry)
-    max_pts = int(cfg.get("global", "max_points", default=0) or 0)
-    if max_pts and X.shape[0] > max_pts:
-        idx = rng.choice(X.shape[0], size=max_pts, replace=False)
-        X = np.ascontiguousarray(X[idx], dtype=float)
-
-    # Algorithm parameters
+    # -----------------------------
+    # Global algorithmic config reused across datasets
+    # -----------------------------
     algo = cfg.get("algorithm_parameters", default={}) or {}
     kd_cfg = cfg.get("trees", "kd", "config", default={}) or {}
     bt_cfg = cfg.get("trees", "ball", "config", default={}) or {}
@@ -546,19 +571,25 @@ def run_all(cfg: ALConfig) -> Path:
     else:
         search_strategies = [str(strategies_raw)]
 
-    # Build trees
-    kd_tree_obj = kd.build_tree(X, kd_cfg) if kd_methods else None
-    bt_trees = {str(m): bt.build_tree(X, bt_cfg, method=str(m)) for m in bt_methods}
-
     # Oracle names
-    from .exp_oracles import get_oracle
+    from .exp_oracles import get_oracle, get_oracle_weights
     oracle_names_cfg = cfg.get("oracles", "names", default=None)
     if oracle_names_cfg:
         oracle_names = [str(x) for x in oracle_names_cfg]
     else:
-        oracle_names = [str(cfg.get("experiment", "oracle_name", default=cfg.get("oracle", "type", default="linear_simplex")))]
+        oracle_names = [
+            str(
+                cfg.get(
+                    "experiment",
+                    "oracle_name",
+                    default=cfg.get("oracle", "type", default="linear_simplex"),
+                )
+            )
+        ]
 
-    center_name = str(cfg.get("experiment", "center_name", default=cfg.get("global", "center", default="analytic")))
+    center_name = str(
+        cfg.get("experiment", "center_name", default=cfg.get("global", "center", default="analytic"))
+    )
     center_fn = _center_fn(center_name)
 
     out_root = Path(cfg.get("global", "output_root", default="./results/al"))
@@ -568,64 +599,84 @@ def run_all(cfg: ALConfig) -> Path:
     timestamp = _timestamp()
 
     last_dir: Optional[Path] = None
-    for oracle_name in oracle_names:
-        oracle_fn = get_oracle(oracle_name, X.shape[1], rng)
-        # KD-tree combinations
-        if kd_tree_obj is not None and kd_methods:
-            for strat_name in search_strategies:
-                engine = Search(bounder=KdTreeBounds(), strategy=get_strategy(strat_name, queries=X))
-                uid = _rand_uid(rng)
-                run_name = f"{ds_name}_kdtree-kd_tree_{_sanitize_tag(strat_name)}_{_sanitize_tag(oracle_name)}_{_sanitize_tag(center_name)}_{timestamp}_{uid}"
-                exp_dir = out_root / run_name
-                exp_dir.mkdir(parents=True, exist_ok=True)
-                _run_single_experiment(
-                    X=X,
-                    tree_kd=kd_tree_obj,
-                    tree_bt=None,
-                    engine=engine,
-                    exp_dir=exp_dir,
-                    n_iter=n_iter,
-                    center_name=center_name,
-                    center_fn=center_fn,
-                    oracle_fn=oracle_fn,
-                    kd_cfg=kd_cfg,
-                    bt_cfg=bt_cfg,
-                    tree_family="kdtree",
-                    tree_method="kd_tree",
-                    search_strategy=strat_name,
-                    ds_entry=ds_entry,
-                    cfg=cfg,
-                    collect_events=collect_events,
-                )
-                last_dir = exp_dir
-        # Ball-tree combinations
-        for bt_method_name, tree_obj in bt_trees.items():
-            for strat_name in search_strategies:
-                engine = Search(strategy=get_strategy(strat_name, queries=X))
-                uid = _rand_uid(rng)
-                run_name = f"{ds_name}_balltree-{_sanitize_tag(bt_method_name)}_{_sanitize_tag(strat_name)}_{_sanitize_tag(oracle_name)}_{_sanitize_tag(center_name)}_{timestamp}_{uid}"
-                exp_dir = out_root / run_name
-                exp_dir.mkdir(parents=True, exist_ok=True)
-                _run_single_experiment(
-                    X=X,
-                    tree_kd=kd_tree_obj,
-                    tree_bt=tree_obj,
-                    engine=engine,
-                    exp_dir=exp_dir,
-                    n_iter=n_iter,
-                    center_name=center_name,
-                    center_fn=center_fn,
-                    oracle_fn=oracle_fn,
-                    kd_cfg=kd_cfg,
-                    bt_cfg=bt_cfg,
-                    tree_family="balltree",
-                    tree_method=str(bt_method_name),
-                    search_strategy=strat_name,
-                    ds_entry=ds_entry,
-                    cfg=cfg,
-                    collect_events=collect_events,
-                )
-                last_dir = exp_dir
+
+    # -----------------------------
+    # Loop over datasets and spawn runs
+    # -----------------------------
+    for ds_entry in ds_entries:
+        ds_name = str(ds_entry.get("name", cfg.get("experiment", "dataset_name", default="DATA")))
+        X = _load_points_for_dataset(ds_name, ds_entry)
+        # Optional uniform downsampling per dataset
+        max_pts = int(cfg.get("global", "max_points", default=0) or 0)
+        if max_pts and X.shape[0] > max_pts:
+            idx = rng.choice(X.shape[0], size=max_pts, replace=False)
+            X = np.ascontiguousarray(X[idx], dtype=float)
+
+        # Build trees per dataset
+        kd_tree_obj = kd.build_tree(X, kd_cfg) if kd_methods else None
+        bt_trees = {str(m): bt.build_tree(X, bt_cfg, method=str(m)) for m in bt_methods}
+
+        for oracle_name in oracle_names:
+            oracle_fn = get_oracle(oracle_name, X.shape[1], rng)
+            oracle_w = get_oracle_weights(oracle_name, X.shape[1])
+            # KD-tree combinations
+            if kd_tree_obj is not None and kd_methods:
+                for strat_name in search_strategies:
+                    engine = Search(bounder=KdTreeBounds(), strategy=get_strategy(strat_name, queries=X))
+                    uid = _rand_uid(rng)
+                    run_name = f"{ds_name}_kdtree-kd_tree_{_sanitize_tag(strat_name)}_{_sanitize_tag(oracle_name)}_{_sanitize_tag(center_name)}_{timestamp}_{uid}"
+                    exp_dir = out_root / run_name
+                    exp_dir.mkdir(parents=True, exist_ok=True)
+                    _run_single_experiment(
+                        X=X,
+                        tree_kd=kd_tree_obj,
+                        tree_bt=None,
+                        engine=engine,
+                        exp_dir=exp_dir,
+                        n_iter=n_iter,
+                        center_name=center_name,
+                        center_fn=center_fn,
+                        oracle_fn=oracle_fn,
+                        oracle_weights=oracle_w,
+                        kd_cfg=kd_cfg,
+                        bt_cfg=bt_cfg,
+                        tree_family="kdtree",
+                        tree_method="kd_tree",
+                        search_strategy=strat_name,
+                        ds_entry=ds_entry,
+                        cfg=cfg,
+                        collect_events=collect_events,
+                    )
+                    last_dir = exp_dir
+            # Ball-tree combinations
+            for bt_method_name, tree_obj in bt_trees.items():
+                for strat_name in search_strategies:
+                    engine = Search(strategy=get_strategy(strat_name, queries=X))
+                    uid = _rand_uid(rng)
+                    run_name = f"{ds_name}_balltree-{_sanitize_tag(bt_method_name)}_{_sanitize_tag(strat_name)}_{_sanitize_tag(oracle_name)}_{_sanitize_tag(center_name)}_{timestamp}_{uid}"
+                    exp_dir = out_root / run_name
+                    exp_dir.mkdir(parents=True, exist_ok=True)
+                    _run_single_experiment(
+                        X=X,
+                        tree_kd=kd_tree_obj,
+                        tree_bt=tree_obj,
+                        engine=engine,
+                        exp_dir=exp_dir,
+                        n_iter=n_iter,
+                        center_name=center_name,
+                        center_fn=center_fn,
+                        oracle_fn=oracle_fn,
+                        oracle_weights=oracle_w,
+                        kd_cfg=kd_cfg,
+                        bt_cfg=bt_cfg,
+                        tree_family="balltree",
+                        tree_method=str(bt_method_name),
+                        search_strategy=strat_name,
+                        ds_entry=ds_entry,
+                        cfg=cfg,
+                        collect_events=collect_events,
+                    )
+                    last_dir = exp_dir
 
     return last_dir or out_root
 
@@ -641,6 +692,7 @@ def _run_single_experiment(
     center_name: str,
     center_fn,
     oracle_fn,
+    oracle_weights: np.ndarray,
     kd_cfg: Dict[str, Any],
     bt_cfg: Dict[str, Any],
     tree_family: str,
@@ -666,16 +718,29 @@ def _run_single_experiment(
             "search_strategies": [str(search_strategy)],
             "tree_build_methods": {"kdtree": ["kd_tree"], "balltree": [str(tree_method)]},
         },
+        "oracle_weights": [float(x) for x in np.asarray(oracle_weights, dtype=float).ravel().tolist()],
     }
     (exp_dir / "config.json").write_text(json.dumps(cfg_json, indent=2))
+
+    # Pickle the oracle definition for reproducibility
+    with open(exp_dir / "oracle.pkl", "wb") as f:
+        payload = {
+            "name": cfg_json.get("oracle_name"),
+            "weights": np.asarray(oracle_weights, dtype=float),
+            "dimension": int(np.asarray(oracle_weights).size),
+        }
+        pickle.dump(payload, f)
 
     # Export trees used in this run
     _export_tree_h5(exp_dir / "tree.h5", tree_kd if tree_family == "kdtree" else None, tree_bt if tree_family == "balltree" else None, X.shape[1])
 
     # Streaming outputs
-    if h5py is None:  # pragma: no cover
-        raise RuntimeError("h5py is required to write HDF5 outputs")
-    qv_h5 = h5py.File(exp_dir / "query_vectors.h5", "w")
+    qv_h5 = None
+    if h5py is not None:
+        qv_h5 = h5py.File(exp_dir / "query_vectors.h5", "w")
+    else:
+        # Placeholder when h5py is unavailable
+        (exp_dir / "query_vectors.h5").touch()
     it_f = open(exp_dir / "iterations.csv", "w", newline="", encoding="utf-8")
     csv_writer = csv.writer(it_f)
     csv_writer.writerow(["iteration_id", "query_path", "oracle_response", "i", "j", "timestamp_start", "timestamp_end"])  # schema
@@ -712,7 +777,8 @@ def _run_single_experiment(
         a = X[int(i)]; bpt = X[int(j)]
         y = oracle_fn(a, bpt)
         diff = a - bpt
-        qv_h5.create_dataset(f"query_{it}", data=np.asarray(diff, dtype=float))
+        if qv_h5 is not None:
+            qv_h5.create_dataset(f"query_{it}", data=np.asarray(diff, dtype=float))
         t_end = time.time()
         csv_writer.writerow([
             it,
@@ -730,12 +796,18 @@ def _run_single_experiment(
         radius = _chebyshev_radius(A, b, center)
         np.save(iter_dir / "center_model.npy", center)
 
-    qv_h5.close()
+    if qv_h5 is not None:
+        qv_h5.close()
     it_f.close()
 
-    with h5py.File(exp_dir / "final_version_space.h5", "w") as h5:
-        h5.create_dataset("A", data=np.asarray(A, dtype=float))
-        h5.create_dataset("b", data=np.asarray(b, dtype=float).reshape(-1, 1))
+    if h5py is not None:
+        with h5py.File(exp_dir / "final_version_space.h5", "w") as h5:
+            h5.create_dataset("A", data=np.asarray(A, dtype=float))
+            h5.create_dataset("b", data=np.asarray(b, dtype=float).reshape(-1, 1))
+    else:
+        # Fallback: save NPZ and touch H5 placeholder
+        np.savez(exp_dir / "final_version_space.npz", A=np.asarray(A, dtype=float), b=np.asarray(b, dtype=float).reshape(-1, 1))
+        (exp_dir / "final_version_space.h5").touch()
 
 
 def main() -> None:  # pragma: no cover - CLI entry

@@ -1,0 +1,23 @@
+global:
+  output_root: "./results/test_multi"
+  seed: 1
+  max_points: 64
+
+datasets:
+  - "SYNTH1"
+  - "SYNTH2"
+
+experiment:
+  oracle_name: "linear_equal"
+  center_name: "AnalyticCenter"
+  active_learning_budget: 1
+
+algorithm_parameters:
+  leaf_size: 8
+  search_strategies: ["lower_bound"]
+  tree_build_methods:
+    kdtree: ["kd_tree"]
+    balltree: ["disjoint_greedy"]
+
+logging:
+  search_events: true

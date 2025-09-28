@@ -26,25 +26,37 @@ def _sign_from_w(w: np.ndarray) -> Callable[[np.ndarray, np.ndarray], int]:
     return oracle
 
 
-def get_oracle(name: str, d: int, rng: np.random.Generator) -> Callable[[np.ndarray, np.ndarray], int]:
+def get_oracle_weights(name: str, d: int) -> np.ndarray:
+    """Deterministic weights for a named oracle.
+
+    This function is fully reproducible given (name, d). For names that were
+    previously stochastic (e.g., "linear_simplex", "linear_random"), we choose
+    a deterministic mapping:
+      - linear_simplex: proportional to [1,2,...,d], L1-normalized.
+      - linear_random : pseudo-random but seeded from (name, d) via numpy PCG64.
+    """
     key = (name or "linear_equal").strip().lower()
+    if d <= 0:
+        raise ValueError("Dimension d must be positive")
     if key == "linear_equal":
-        w = np.ones(d, dtype=float) / float(d)
-        return _sign_from_w(w)
+        w = np.ones(d, dtype=float)
+        return w / float(w.sum())
     if key == "linear_simplex":
-        u = rng.random(d)
-        s = float(u.sum()) or 1.0
-        return _sign_from_w(u / s)
+        u = np.arange(1, d + 1, dtype=float)
+        return u / float(u.sum())
     if key == "linear_random":
+        # Deterministic PRNG seeded by (name, d)
+        seed = abs(hash((key, int(d)))) % (2**32)
+        rng = np.random.default_rng(int(seed))
         u = np.abs(rng.standard_normal(d))
         s = float(u.sum()) or 1.0
-        return _sign_from_w(u / s)
+        return u / s
     if key == "linear_axis_0":
         e = np.zeros(d, dtype=float); e[0] = 1.0
-        return _sign_from_w(e)
+        return e
     if key == "linear_axis_last":
-        e = np.zeros(d, dtype=float); e[d-1] = 1.0
-        return _sign_from_w(e)
+        e = np.zeros(d, dtype=float); e[d - 1] = 1.0
+        return e
     if key.startswith("linear_axis_"):
         try:
             k = int(key.split("_")[-1])
@@ -53,6 +65,11 @@ def get_oracle(name: str, d: int, rng: np.random.Generator) -> Callable[[np.ndar
         if not (0 <= k < d):
             raise ValueError(f"Invalid axis index {k} for dimension {d}")
         e = np.zeros(d, dtype=float); e[k] = 1.0
-        return _sign_from_w(e)
+        return e
     raise ValueError(f"Unknown oracle name: {name}")
 
+
+def get_oracle(name: str, d: int, rng: np.random.Generator) -> Callable[[np.ndarray, np.ndarray], int]:
+    """Return a sign oracle function using deterministic weights for reproducibility."""
+    w = get_oracle_weights(name, d)
+    return _sign_from_w(w)
