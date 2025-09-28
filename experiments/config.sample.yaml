@@ -1,0 +1,32 @@
+global:
+  output_root: "./results/al"
+  seed: 1729
+  n_iter: 20
+  max_points: 0
+  center: "analytic"   # one of: analytic, chebyshev
+
+dataset:
+  name: "MUSHROOM"
+  paths:
+    mnr_rules: "./mined_rules/mushroom_mnr.csv"
+    matrix_npy: null
+
+trees:
+  kd:
+    enabled: true
+    config:
+      leaf_size: 25
+      split_rule: "widest_axis_median"
+  ball:
+    enabled: true
+    method: "disjoint_greedy"
+    config:
+      leaf_size: 25
+
+oracle:
+  type: "Linear"
+  # w_star: [0.2, 0.1, 0.3, 0.4]   # optional; if omitted, sampled on simplex
+
+logging:
+  search_events: true
+

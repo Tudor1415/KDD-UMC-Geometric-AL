@@ -10,7 +10,7 @@ global:
   parallel_tree_build: true
   parallel_centers: true
   center_workers: 64
-  tau: 1e-8
+  tau: 1e-10
 
 budgets:
   time_checkpoints : [

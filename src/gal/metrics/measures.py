@@ -117,3 +117,34 @@ def revsupport(x, y, z, n, smooth_counts=0.0):
     if np.any((value < 0) | (value > 1)):
         print(f"Illegal reverse support values detected.")
     return value
+
+# Margin of Error for Confidence
+def margin_of_error_confidence(x, y, z, n, smooth_counts=0.0, z_score=1.96):
+    """
+    Calculates the margin of error for the confidence metric.
+    This provides a measure of robustness; a smaller margin of error
+    indicates a more stable and reliable rule.
+
+    Args:
+        x: Support count of the antecedent (the "if" part).
+        y: Support count of the consequent (the "then" part).
+        z: Support count of both antecedent and consequent.
+        n: Total number of transactions.
+        smooth_counts: Additive smoothing value.
+        z_score: The Z-score for the desired confidence level (1.96 for 95%).
+
+    Returns:
+        The margin of error for the rule's confidence.
+    """
+    if smooth_counts > 0:
+        n, x, y, z = apply_smoothing(n, x, y, z, smooth_counts)
+
+    conf = confidence(x, y, z, n, smooth_counts=0.0) # Use unsmoothed confidence for calculation
+
+    # Handle division by zero for the formula's denominator (support of antecedent)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        # Formula: Z * sqrt( (p * (1 - p)) / n_antecedent )
+        value = z_score * np.sqrt(np.true_divide(conf * (1 - conf), x))
+        # Where x is zero, margin of error is undefined, so we set to 0
+        value[~np.isfinite(value)] = 0
+    return value

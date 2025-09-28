@@ -1,0 +1,24 @@
+dataset:
+  name: MUSHROOM
+  paths:
+    mnr_rules: ./mined_rules/mushroom_mnr.csv
+global:
+  center: analytic
+  max_points: 200
+  n_iter: 2
+  output_root: ./results/al_test
+  seed: 123
+logging:
+  search_events: true
+oracle:
+  type: Linear
+trees:
+  ball:
+    config:
+      leaf_size: 16
+    enabled: true
+    method: disjoint_greedy
+  kd:
+    config:
+      leaf_size: 16
+    enabled: true

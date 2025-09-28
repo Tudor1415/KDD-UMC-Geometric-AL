@@ -141,6 +141,7 @@ class Search:
         time_checkpoints: Optional[Sequence[float]] = None,
         calls_checkpoints: Optional[Sequence[int]] = None,
         collect_bound_gaps: bool = False,
+        collect_events: bool = False,
     ) -> Tuple[Optional[int], Optional[int], float] | Tuple[Optional[int], Optional[int], float, Dict[str, object]]:
         data = np.ascontiguousarray(X, dtype=np.float64)
         wc = np.asarray(wc, dtype=np.float64)
@@ -205,6 +206,39 @@ class Search:
         heap_size_max = 0
         calls_heap_max: list[int] = []
 
+        # Optional event logging (creation, expansion, pruning)
+        events: list[Dict[str, float | int | str]] | None = [] if collect_events else None
+        pair_ids: Dict[Tuple[int, int], int] = {}
+        next_pair_id = 0
+
+        def _pair_key(a: Node, b: Node) -> Tuple[int, int]:
+            ia, ib = id(a), id(b)
+            return (ia, ib) if ia <= ib else (ib, ia)
+
+        def _assign_pair_id(a: Node, b: Node) -> int:
+            nonlocal next_pair_id
+            key = _pair_key(a, b)
+            pid = pair_ids.get(key)
+            if pid is None:
+                pid = next_pair_id
+                pair_ids[key] = pid
+                next_pair_id += 1
+            return pid
+
+        def _log_event(ev_type: str, a: Node, b: Node, lb: float, ub: float, parent_id: int | None) -> int:
+            if events is None:
+                return -1
+            pid = _assign_pair_id(a, b)
+            events.append({
+                "event_type": str(ev_type),
+                "node_id": int(pid),
+                "parent_id": int(-1 if parent_id is None else parent_id),
+                "timestamp": float(time.perf_counter() - t0),
+                "lower_bound": float(lb),
+                "upper_bound": float(ub),
+            })
+            return pid
+
         def record_time_if_needed() -> None:
             nonlocal time_idx
             if time_grid is None:
@@ -224,7 +258,7 @@ class Search:
                 calls_heap_max.append(int(heap_size_max))
                 calls_idx += 1
 
-        def enqueue(a: Node, b: Node) -> None:
+        def enqueue(a: Node, b: Node, *, parent_id: int | None = None) -> None:
             nonlocal best_distance, heap_size_max
             if id(a) > id(b):
                 a, b = b, a
@@ -237,11 +271,17 @@ class Search:
 
             if dominance_prune and self._dominates(a, b, eps=eps):
                 stats["pruned_dom_point_pairs"] = int(stats["pruned_dom_point_pairs"]) + pair_mass
+                # Log prune with NaN bounds (no bounder invoked)
+                if collect_events:
+                    _log_event("PRUNED", a, b, float("nan"), float("nan"), parent_id)
                 return
 
             bounds = self.bounder(a, b, bound_context)
             if bounds.lower >= min(best_distance, tau) - eps:
                 stats["pruned_lb_point_pairs"] = int(stats["pruned_lb_point_pairs"]) + pair_mass
+                # Pruned by lower bound at enqueue time
+                if collect_events:
+                    _log_event("PRUNED", a, b, float(bounds.lower), float(bounds.upper), parent_id)
                 return
 
             # Do not update the incumbent best distance with an upper bound.
@@ -252,6 +292,8 @@ class Search:
             # Push with a numeric tie-breaker before Node objects to avoid
             # comparisons between Node instances when tuple prefixes tie.
             heapq.heappush(heap, (score, next(tie), bounds.lower, bounds.upper, a, b))
+            if collect_events:
+                _log_event("CREATED", a, b, float(bounds.lower), float(bounds.upper), parent_id)
             # Update heap size maximum after every push
             if len(heap) > heap_size_max:
                 heap_size_max = len(heap)
@@ -262,12 +304,12 @@ class Search:
 
         for i in range(len(root.children)):
             for j in range(i + 1, len(root.children)):
-                enqueue(root.children[i], root.children[j])
+                enqueue(root.children[i], root.children[j], parent_id=None)
         # Also explore within-subtree pairs by enqueuing (child, child)
         # so that pairs across different leaves under the same branch are considered.
         for ch in root.children:
             if not self._node_is_leaf(ch):
-                enqueue(ch, ch)
+                enqueue(ch, ch, parent_id=None)
 
         # If tau is infinite, explore all queued pairs; otherwise stop early when possible.
         while heap and (math.isinf(tau) or best_distance > tau + eps):
@@ -276,10 +318,26 @@ class Search:
                 gap = float(max(0.0, ub - lb))
                 bound_gaps.append(gap)
             if lb >= min(best_distance, tau):
+                # Popped but immediately pruned by updated incumbent/tau
+                if collect_events:
+                    # parent unknown here (already created earlier); set to existing id
+                    pid = _assign_pair_id(a, b)
+                    events.append({
+                        "event_type": "PRUNED",
+                        "node_id": int(pid),
+                        "parent_id": int(-1),
+                        "timestamp": float(time.perf_counter() - t0),
+                        "lower_bound": float(lb),
+                        "upper_bound": float(ub),
+                    })
                 continue
 
             a_leaf = self._node_is_leaf(a)
             b_leaf = self._node_is_leaf(b)
+
+            parent_pid: int | None = None
+            if collect_events:
+                parent_pid = _log_event("EXPANDED", a, b, float(lb), float(ub), None)
 
             if a_leaf and b_leaf:
                 pair_mass = mass(a, b)
@@ -304,17 +362,17 @@ class Search:
             if a is b and not a_leaf:
                 for i in range(len(a.children)):
                     for j in range(i + 1, len(a.children)):
-                        enqueue(a.children[i], a.children[j])
+                        enqueue(a.children[i], a.children[j], parent_id=parent_pid)
                 # Continue descending within each child as needed
                 for child in a.children:
                     if not self._node_is_leaf(child):
-                        enqueue(child, child)
+                        enqueue(child, child, parent_id=parent_pid)
             elif not a_leaf and (b_leaf or a.radius >= b.radius):
                 for child in a.children:
-                    enqueue(child, b)
+                    enqueue(child, b, parent_id=parent_pid)
             else:
                 for child in b.children:
-                    enqueue(a, child)
+                    enqueue(a, child, parent_id=parent_pid)
             record_time_if_needed()
 
         # Evaluate pairs within the same leaf across the whole tree only as a last recourse.
@@ -378,7 +436,7 @@ class Search:
         stats["best_distance"] = None if best_pair is None else best_distance
         stats["pruned_point_pairs"] = int(stats["pruned_lb_point_pairs"]) + int(stats["pruned_dom_point_pairs"])
         stats["unexplored_point_pairs"] = stats["total_point_pairs"] - stats["pruned_point_pairs"] - stats["explored_point_pairs"]
-        if time_grid is not None or calls_grid is not None or collect_bound_gaps:
+        if time_grid is not None or calls_grid is not None or collect_bound_gaps or collect_events:
             trace: Dict[str, object] = {}
             if time_grid is not None:
                 trace["time_grid"] = list(map(float, time_grid))
@@ -389,6 +447,8 @@ class Search:
                 trace["calls_heap_max"] = list(map(int, calls_heap_max))
             if collect_bound_gaps:
                 trace["bound_gaps"] = list(map(float, bound_gaps))
+            if collect_events and events is not None:
+                trace["events"] = events
             stats["trace"] = trace
 
         if best_pair is None:
@@ -413,6 +473,7 @@ def search_pair(
     time_checkpoints: Optional[Sequence[float]] = None,
     calls_checkpoints: Optional[Sequence[int]] = None,
     collect_bound_gaps: bool = False,
+    collect_events: bool = False,
 ) -> Tuple[Optional[int], Optional[int], float] | Tuple[Optional[int], Optional[int], float, Dict[str, object]]:
     """Convenience wrapper using the :class:`Search` engine."""
 
@@ -429,4 +490,5 @@ def search_pair(
         time_checkpoints=time_checkpoints,
         calls_checkpoints=calls_checkpoints,
         collect_bound_gaps=collect_bound_gaps,
+        collect_events=collect_events,
     )

@@ -25,7 +25,15 @@ class KdNode(Node):
     - ir2_max: float (max squared L2 norm inside AABB)
     """
 
-    __slots__ = Node.__slots__ + ("bbox_min", "bbox_max", "count", "ir2_min", "ir2_max")
+    __slots__ = Node.__slots__ + (
+        "bbox_min",
+        "bbox_max",
+        "count",
+        "ir2_min",
+        "ir2_max",
+        "split_axis",
+        "split_val",
+    )
 
     def __init__(
         self,
@@ -38,6 +46,8 @@ class KdNode(Node):
         children: List[Node] | None = None,
         indices: np.ndarray | None = None,
         is_leaf: bool = False,
+        split_axis: int | None = None,
+        split_val: float | None = None,
     ) -> None:
         super().__init__(center=center, radius=radius, children=children, indices=indices, is_leaf=is_leaf)
         self.bbox_min = bbox_min
@@ -45,6 +55,8 @@ class KdNode(Node):
         self.count = int(count)
         # Precompute Ir2 interval from bbox to avoid per-query cost
         self.ir2_min, self.ir2_max = _bbox_ir2_interval(bbox_min, bbox_max)
+        self.split_axis = -1 if split_axis is None else int(split_axis)
+        self.split_val = float("nan") if split_val is None else float(split_val)
 
 
 def _bbox_enclosing_ball(bmin: np.ndarray, bmax: np.ndarray) -> Tuple[np.ndarray, float]:
@@ -123,8 +135,20 @@ def build_tree(X: np.ndarray, config: Dict | None = None) -> GeometricTree:
                 children=None,
                 indices=indices.copy(),
                 is_leaf=True,
+                split_axis=None,
+                split_val=None,
             )
         axis = widest_axis(bmin, bmax)
+        order = indices[np.argsort(data[indices, axis], kind="mergesort")]
+        mid = order.size // 2
+        # compute a representative split value between left/right
+        if mid > 0 and mid < order.size:
+            left_max = float(data[order[:mid], axis].max(initial=float("nan")))
+            right_min = float(data[order[mid:], axis].min(initial=float("nan")))
+            split_val = 0.5 * (left_max + right_min)
+        else:
+            split_val = float(data[order[mid], axis]) if order.size else float("nan")
+        # Actually split indices (with fallback)
         left_idx, right_idx = split_indices(indices, axis)
         children: List[KdNode] = [build(left_idx), build(right_idx)]
         # Derive bbox from children to avoid recomputation
@@ -140,6 +164,8 @@ def build_tree(X: np.ndarray, config: Dict | None = None) -> GeometricTree:
             children=children,
             indices=None,
             is_leaf=False,
+            split_axis=int(axis),
+            split_val=float(split_val),
         )
 
     root = build(indices_all)
@@ -154,4 +180,3 @@ def build_tree(X: np.ndarray, config: Dict | None = None) -> GeometricTree:
 
 
 __all__ = ["KdNode", "build_tree"]
-

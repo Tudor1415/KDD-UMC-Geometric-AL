@@ -43,22 +43,22 @@ For more details on preprocessing options, run:
 python -m scripts.preprocess --help
 ```
 
-### Quickstart: Experiment RQ1 (Anytime BnB)
-This experiment compares kd-tree and ball-tree branch-and-bound against a random sampling baseline, and produces A@time/A@calls figures.
+### Quickstart: Active Learning (raw logs)
+Runs the full active learning loop and writes raw artifacts per NOTES/experiments/general.md.
 
 1) Copy the sample config and edit dataset paths:
 
 ```bash
-cp experiments/rq1/config.sample.yaml my_rq1.yaml
+cp experiments/config.sample.yaml my_al.yaml
 ```
 
 2) Run the experiment as a module:
 
 ```bash
-python -m experiments.rq1.run my_rq1.yaml
+python -m experiments.active.run my_al.yaml
 ```
 
-Outputs are written under the `global.output_dir` specified in the YAML (e.g., `results/rq1`). See docs page “Experiment RQ1: Anytime BnB” for configuration details.
+Outputs are written under `global.output_root` (default `results/al`). Each run creates a self-contained folder with `config.json`, `final_version_space.h5`, `query_vectors.h5`, `iterations.csv`, `tree.h5`, and per-iteration subdirectories with `search_trace.h5` and `center_model.npy`.
 
 ### Other Utilities
 - End-to-end driver (legacy benchmark setup):
