@@ -71,8 +71,8 @@ Outputs
 
 Per dataset and additivity group, the runner exports:
 
-- ``A_at_time.(png|pdf)`` — Anytime A@time curves with bootstrap CIs
-- ``A_at_calls.(png|pdf)`` — Anytime A@calls curves with bootstrap CIs
+- ``A_at_time.(png|pdf)`` — Anytime A@time curves with empirical CIs
+- ``A_at_calls.(png|pdf)`` — Anytime A@calls curves with empirical CIs
 - ``heap_at_calls.(png|pdf)`` — Max heap size vs. normalized calls (BnB only)
 - ``bound_tightness.(png|pdf)`` — KDE of bound gaps collected along the trace
 - ``curves_time.csv`` and ``curves_calls.csv`` when CSV export is enabled
@@ -94,8 +94,7 @@ The runner consumes a YAML file with these top-level sections. The example
   - ``rng_seed_base``: Base RNG seed used for reproducible sampling.
   - ``num_runs``: Repeats per center for variance estimation.
   - ``epsilon``: Small positive constant to avoid divide-by-zero.
-  - ``n_bootstrap``: Number of bootstrap resamples for confidence bands.
-  - ``ci_level``: Confidence level for bootstrap intervals (e.g., 0.95).
+  - ``ci_level``: Confidence level for empirical intervals across runs (e.g., 0.95).
   - ``numexpr_max_threads``: Caps threads for optional numexpr warnings.
   - ``max_points``: Uniformly subsample at most this many rules per dataset (0 disables subsampling).
   - ``parallel_tree_build``: Build kd/ball trees once per group in parallel.

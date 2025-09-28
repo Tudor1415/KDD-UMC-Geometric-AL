@@ -206,6 +206,7 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../getting_started.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../ball_tree_builders.html">Ball-tree builders</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../experiments/active.html">Active Learning Runner</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../experiments/rq1.html">Experiment RQ1: Anytime BnB</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
@@ -321,6 +322,25 @@
 <dt class="sig sig-object py" id="gal.metrics.measures.revsupport">
 <span class="sig-prename descclassname"><span class="pre">gal.metrics.measures.</span></span><span class="sig-name descname"><span class="pre">revsupport</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">z</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">smooth_counts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gal/metrics/measures.html#revsupport"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gal.metrics.measures.revsupport" title="Permalink to this definition">¶</a></dt>
 <dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gal.metrics.measures.margin_of_error_confidence">
+<span class="sig-prename descclassname"><span class="pre">gal.metrics.measures.</span></span><span class="sig-name descname"><span class="pre">margin_of_error_confidence</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">y</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">z</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">smooth_counts</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">z_score</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">1.96</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gal/metrics/measures.html#margin_of_error_confidence"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gal.metrics.measures.margin_of_error_confidence" title="Permalink to this definition">¶</a></dt>
+<dd><p>Calculates the margin of error for the confidence metric.
+This provides a measure of robustness; a smaller margin of error
+indicates a more stable and reliable rule.</p>
+<dl class="simple">
+<dt>Args:</dt><dd><p>x: Support count of the antecedent (the “if” part).
+y: Support count of the consequent (the “then” part).
+z: Support count of both antecedent and consequent.
+n: Total number of transactions.
+smooth_counts: Additive smoothing value.
+z_score: The Z-score for the desired confidence level (1.96 for 95%).</p>
+</dd>
+<dt>Returns:</dt><dd><p>The margin of error for the rule’s confidence.</p>
+</dd>
+</dl>
+</dd></dl>
 
 <span class="target" id="module-gal.metrics.metrics"></span><dl class="py function">
 <dt class="sig sig-object py" id="gal.metrics.metrics.compute_ranking_metrics">
@@ -461,6 +481,7 @@
 <li><a class="reference internal" href="#gal.metrics.measures.certainty"><code class="docutils literal notranslate"><span class="pre">certainty()</span></code></a></li>
 <li><a class="reference internal" href="#gal.metrics.measures.support"><code class="docutils literal notranslate"><span class="pre">support()</span></code></a></li>
 <li><a class="reference internal" href="#gal.metrics.measures.revsupport"><code class="docutils literal notranslate"><span class="pre">revsupport()</span></code></a></li>
+<li><a class="reference internal" href="#gal.metrics.measures.margin_of_error_confidence"><code class="docutils literal notranslate"><span class="pre">margin_of_error_confidence()</span></code></a></li>
 <li><a class="reference internal" href="#gal.metrics.metrics.compute_ranking_metrics"><code class="docutils literal notranslate"><span class="pre">compute_ranking_metrics()</span></code></a></li>
 <li><a class="reference internal" href="#gal.metrics.rule_metrics.apply_smoothing"><code class="docutils literal notranslate"><span class="pre">apply_smoothing()</span></code></a></li>
 <li><a class="reference internal" href="#gal.metrics.rule_metrics.confidence"><code class="docutils literal notranslate"><span class="pre">confidence()</span></code></a></li>

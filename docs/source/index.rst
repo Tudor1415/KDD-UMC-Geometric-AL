@@ -22,6 +22,7 @@ Contents
 
    getting_started
    ball_tree_builders
+   experiments/active
    experiments/rq1
 
 .. toctree::

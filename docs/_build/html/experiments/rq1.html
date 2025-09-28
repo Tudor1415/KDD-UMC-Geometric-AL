@@ -3,7 +3,7 @@
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="next" title="API reference" href="../api/index.html" /><link rel="prev" title="Ball-tree builders" href="../ball_tree_builders.html" />
+<link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="next" title="API reference" href="../api/index.html" /><link rel="prev" title="Active Learning Runner" href="active.html" />
 
     <!-- Generated with Sphinx 7.1.2 and Furo 2024.08.06 -->
         <title>Experiment RQ1: Anytime BnB - Geometry-Aware Learning 0.1.0 documentation</title>
@@ -206,6 +206,7 @@
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../getting_started.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../ball_tree_builders.html">Ball-tree builders</a></li>
+<li class="toctree-l1"><a class="reference internal" href="active.html">Active Learning Runner</a></li>
 <li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Experiment RQ1: Anytime BnB</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
@@ -337,8 +338,8 @@ local artefacts.</p></li>
 <h2>Outputs<a class="headerlink" href="#outputs" title="Permalink to this heading">¶</a></h2>
 <p>Per dataset and additivity group, the runner exports:</p>
 <ul class="simple">
-<li><p><code class="docutils literal notranslate"><span class="pre">A_at_time.(png|pdf)</span></code> — Anytime <a class="reference external" href="mailto:A&#37;&#52;&#48;time">A<span>&#64;</span>time</a> curves with bootstrap CIs</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">A_at_calls.(png|pdf)</span></code> — Anytime <a class="reference external" href="mailto:A&#37;&#52;&#48;calls">A<span>&#64;</span>calls</a> curves with bootstrap CIs</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">A_at_time.(png|pdf)</span></code> — Anytime <a class="reference external" href="mailto:A&#37;&#52;&#48;time">A<span>&#64;</span>time</a> curves with empirical CIs</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">A_at_calls.(png|pdf)</span></code> — Anytime <a class="reference external" href="mailto:A&#37;&#52;&#48;calls">A<span>&#64;</span>calls</a> curves with empirical CIs</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">heap_at_calls.(png|pdf)</span></code> — Max heap size vs. normalized calls (BnB only)</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">bound_tightness.(png|pdf)</span></code> — KDE of bound gaps collected along the trace</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">curves_time.csv</span></code> and <code class="docutils literal notranslate"><span class="pre">curves_calls.csv</span></code> when CSV export is enabled</p></li>
@@ -358,8 +359,7 @@ figures. When multiple datasets are configured, a global scaling figure
 <li><p><code class="docutils literal notranslate"><span class="pre">rng_seed_base</span></code>: Base RNG seed used for reproducible sampling.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">num_runs</span></code>: Repeats per center for variance estimation.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">epsilon</span></code>: Small positive constant to avoid divide-by-zero.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">n_bootstrap</span></code>: Number of bootstrap resamples for confidence bands.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">ci_level</span></code>: Confidence level for bootstrap intervals (e.g., 0.95).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ci_level</span></code>: Confidence level for empirical intervals across runs (e.g., 0.95).</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">numexpr_max_threads</span></code>: Caps threads for optional numexpr warnings.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">max_points</span></code>: Uniformly subsample at most this many rules per dataset (0 disables subsampling).</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">parallel_tree_build</span></code>: Build kd/ball trees once per group in parallel.</p></li>
@@ -533,14 +533,14 @@ default strategies and a modest threshold:</p>
               </div>
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
             </a>
-          <a class="prev-page" href="../ball_tree_builders.html">
+          <a class="prev-page" href="active.html">
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
               <div class="page-info">
                 <div class="context">
                   <span>Previous</span>
                 </div>
                 
-                <div class="title">Ball-tree builders</div>
+                <div class="title">Active Learning Runner</div>
                 
               </div>
             </a>

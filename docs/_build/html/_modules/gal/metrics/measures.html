@@ -1,34 +1,34 @@
 <!doctype html>
-<html class="no-js" lang="en" data-content_root="../../../">
+<html class="no-js" lang="en" data-content_root="">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../genindex.html" /><link rel="search" title="Search" href="../../../search.html" />
 
-    <!-- Generated with Sphinx 8.2.3 and Furo 2025.07.19 -->
+    <!-- Generated with Sphinx 7.1.2 and Furo 2024.08.06 -->
         <title>gal.metrics.measures - Geometry-Aware Learning 0.1.0 documentation</title>
-      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d111a655" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=25af2a20" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo-extensions.css?v=8dab3a3b" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=354aac6f" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo-extensions.css?v=302659d7" />
     
     
 
 
 <style>
   body {
-    --color-code-background: #f2f2f2;
-  --color-code-foreground: #1e1e1e;
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
   
   }
   @media not print {
     body[data-theme="dark"] {
-      --color-code-background: #2b2b2b;
-  --color-code-foreground: #f8f8f2;
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
   
     }
     @media (prefers-color-scheme: dark) {
       body:not([data-theme="light"]) {
-        --color-code-background: #2b2b2b;
-  --color-code-foreground: #f8f8f2;
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
   
       }
     }
@@ -192,6 +192,7 @@
       
       <div class="sidebar-sticky"><a class="sidebar-brand" href="../../../index.html">
   
+  
   <span class="sidebar-brand-text">Geometry-Aware Learning 0.1.0 documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="../../../search.html" role="search">
@@ -200,11 +201,19 @@
   <input type="hidden" name="area" value="default">
 </form>
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
-  <p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+  <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../getting_started.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../ball_tree_builders.html">Ball-tree builders</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../experiments/active.html">Active Learning Runner</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../experiments/rq1.html">Experiment RQ1: Anytime BnB</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
 <ul>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../api/index.html">API reference</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle navigation of API reference</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/core.html">Core utilities</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/trees.html">Ball-tree APIs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/search.html">Search APIs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/centers.html">Centre solvers</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/learning.html">Learning and mining</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/metrics.html">Metrics and measures</a></li>
@@ -254,9 +263,7 @@
 <span></span><span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 
 
-<div class="viewcode-block" id="apply_smoothing">
-<a class="viewcode-back" href="../../../api/metrics.html#gal.metrics.measures.apply_smoothing">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">apply_smoothing</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="p">):</span>
+<div class="viewcode-block" id="apply_smoothing"><a class="viewcode-back" href="../../../api/metrics.html#gal.metrics.measures.apply_smoothing">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">apply_smoothing</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="p">):</span>
     <span class="n">n</span> <span class="o">+=</span> <span class="mi">4</span> <span class="o">*</span> <span class="n">smooth_counts</span>
     <span class="n">x</span> <span class="o">+=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">smooth_counts</span>
     <span class="n">y</span> <span class="o">+=</span> <span class="mi">2</span> <span class="o">*</span> <span class="n">smooth_counts</span>
@@ -264,11 +271,8 @@
     <span class="k">return</span> <span class="n">n</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span></div>
 
 
-
 <span class="c1"># Confidence</span>
-<div class="viewcode-block" id="confidence">
-<a class="viewcode-back" href="../../../api/metrics.html#gal.metrics.measures.confidence">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">confidence</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
+<div class="viewcode-block" id="confidence"><a class="viewcode-back" href="../../../api/metrics.html#gal.metrics.measures.confidence">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">confidence</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
     <span class="k">if</span> <span class="n">smooth_counts</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
         <span class="n">n</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span> <span class="o">=</span> <span class="n">apply_smoothing</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="p">)</span>
     <span class="n">value</span> <span class="o">=</span> <span class="n">z</span> <span class="o">/</span> <span class="n">x</span>
@@ -277,11 +281,8 @@
     <span class="k">return</span> <span class="n">value</span></div>
 
 
-
 <span class="c1"># Lift</span>
-<div class="viewcode-block" id="lift">
-<a class="viewcode-back" href="../../../api/metrics.html#gal.metrics.measures.lift">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">lift</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
+<div class="viewcode-block" id="lift"><a class="viewcode-back" href="../../../api/metrics.html#gal.metrics.measures.lift">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">lift</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
     <span class="k">if</span> <span class="n">smooth_counts</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
         <span class="n">n</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span> <span class="o">=</span> <span class="n">apply_smoothing</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="p">)</span>
     <span class="n">value</span> <span class="o">=</span> <span class="n">n</span> <span class="o">*</span> <span class="n">z</span> <span class="o">/</span> <span class="p">(</span><span class="n">x</span> <span class="o">*</span> <span class="n">y</span><span class="p">)</span>
@@ -290,11 +291,8 @@
     <span class="k">return</span> <span class="n">value</span></div>
 
 
-
 <span class="c1"># Cosine</span>
-<div class="viewcode-block" id="cosine">
-<a class="viewcode-back" href="../../../api/metrics.html#gal.metrics.measures.cosine">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">cosine</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
+<div class="viewcode-block" id="cosine"><a class="viewcode-back" href="../../../api/metrics.html#gal.metrics.measures.cosine">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">cosine</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
     <span class="k">if</span> <span class="n">smooth_counts</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
         <span class="n">n</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span> <span class="o">=</span> <span class="n">apply_smoothing</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="p">)</span>
     <span class="n">value</span> <span class="o">=</span> <span class="n">z</span> <span class="o">/</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">x</span> <span class="o">*</span> <span class="n">y</span><span class="p">)</span>
@@ -303,11 +301,8 @@
     <span class="k">return</span> <span class="n">value</span></div>
 
 
-
 <span class="c1"># Phi</span>
-<div class="viewcode-block" id="phi">
-<a class="viewcode-back" href="../../../api/metrics.html#gal.metrics.measures.phi">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">phi</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
+<div class="viewcode-block" id="phi"><a class="viewcode-back" href="../../../api/metrics.html#gal.metrics.measures.phi">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">phi</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
     <span class="k">if</span> <span class="n">smooth_counts</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
         <span class="n">n</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span> <span class="o">=</span> <span class="n">apply_smoothing</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="p">)</span>
     <span class="n">x_not</span> <span class="o">=</span> <span class="n">n</span> <span class="o">-</span> <span class="n">x</span>
@@ -319,11 +314,8 @@
     <span class="k">return</span> <span class="n">value</span></div>
 
 
-
 <span class="c1"># Kruskal</span>
-<div class="viewcode-block" id="kruskal">
-<a class="viewcode-back" href="../../../api/metrics.html#gal.metrics.measures.kruskal">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">kruskal</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
+<div class="viewcode-block" id="kruskal"><a class="viewcode-back" href="../../../api/metrics.html#gal.metrics.measures.kruskal">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">kruskal</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
     <span class="k">if</span> <span class="n">smooth_counts</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
         <span class="n">n</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span> <span class="o">=</span> <span class="n">apply_smoothing</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="p">)</span>
     <span class="n">x_not</span> <span class="o">=</span> <span class="n">n</span> <span class="o">-</span> <span class="n">x</span>
@@ -337,11 +329,8 @@
     <span class="k">return</span> <span class="n">value</span></div>
 
 
-
 <span class="c1"># YuleQ</span>
-<div class="viewcode-block" id="yuleQ">
-<a class="viewcode-back" href="../../../api/metrics.html#gal.metrics.measures.yuleQ">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">yuleQ</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
+<div class="viewcode-block" id="yuleQ"><a class="viewcode-back" href="../../../api/metrics.html#gal.metrics.measures.yuleQ">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">yuleQ</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
     <span class="k">if</span> <span class="n">smooth_counts</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
         <span class="n">n</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span> <span class="o">=</span> <span class="n">apply_smoothing</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="p">)</span>
     <span class="n">x_not</span> <span class="o">=</span> <span class="n">n</span> <span class="o">-</span> <span class="n">x</span>
@@ -354,22 +343,16 @@
     <span class="k">return</span> <span class="n">value</span></div>
 
 
-
 <span class="c1"># Added Value</span>
-<div class="viewcode-block" id="added_value">
-<a class="viewcode-back" href="../../../api/metrics.html#gal.metrics.measures.added_value">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">added_value</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
+<div class="viewcode-block" id="added_value"><a class="viewcode-back" href="../../../api/metrics.html#gal.metrics.measures.added_value">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">added_value</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
     <span class="k">if</span> <span class="n">smooth_counts</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
         <span class="n">n</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span> <span class="o">=</span> <span class="n">apply_smoothing</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="p">)</span>
     <span class="n">value</span> <span class="o">=</span> <span class="n">z</span> <span class="o">/</span> <span class="n">x</span> <span class="o">-</span> <span class="n">y</span> <span class="o">/</span> <span class="n">n</span>
     <span class="k">return</span> <span class="n">value</span></div>
 
 
-
 <span class="c1"># Certainty</span>
-<div class="viewcode-block" id="certainty">
-<a class="viewcode-back" href="../../../api/metrics.html#gal.metrics.measures.certainty">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">certainty</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
+<div class="viewcode-block" id="certainty"><a class="viewcode-back" href="../../../api/metrics.html#gal.metrics.measures.certainty">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">certainty</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
     <span class="k">if</span> <span class="n">smooth_counts</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
         <span class="n">n</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span> <span class="o">=</span> <span class="n">apply_smoothing</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="p">)</span>
     <span class="n">value1</span> <span class="o">=</span> <span class="p">(</span><span class="n">z</span> <span class="o">/</span> <span class="n">x</span> <span class="o">-</span> <span class="n">y</span> <span class="o">/</span> <span class="n">n</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">y</span> <span class="o">/</span> <span class="n">n</span><span class="p">)</span>
@@ -380,11 +363,8 @@
     <span class="k">return</span> <span class="n">value</span></div>
 
 
-
 <span class="c1"># Support</span>
-<div class="viewcode-block" id="support">
-<a class="viewcode-back" href="../../../api/metrics.html#gal.metrics.measures.support">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">support</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
+<div class="viewcode-block" id="support"><a class="viewcode-back" href="../../../api/metrics.html#gal.metrics.measures.support">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">support</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
     <span class="k">if</span> <span class="n">smooth_counts</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
         <span class="n">n</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span> <span class="o">=</span> <span class="n">apply_smoothing</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="p">)</span>
     <span class="n">value</span> <span class="o">=</span> <span class="n">z</span> <span class="o">/</span> <span class="n">n</span>
@@ -393,16 +373,43 @@
     <span class="k">return</span> <span class="n">value</span></div>
 
 
-
 <span class="c1"># Reverse Support</span>
-<div class="viewcode-block" id="revsupport">
-<a class="viewcode-back" href="../../../api/metrics.html#gal.metrics.measures.revsupport">[docs]</a>
-<span class="k">def</span><span class="w"> </span><span class="nf">revsupport</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
+<div class="viewcode-block" id="revsupport"><a class="viewcode-back" href="../../../api/metrics.html#gal.metrics.measures.revsupport">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">revsupport</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="o">=</span><span class="mf">0.0</span><span class="p">):</span>
     <span class="n">value</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">-</span> <span class="n">support</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">((</span><span class="n">value</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">)</span> <span class="o">|</span> <span class="p">(</span><span class="n">value</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">)):</span>
         <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Illegal reverse support values detected.&quot;</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">value</span></div>
 
+<span class="c1"># Margin of Error for Confidence</span>
+<div class="viewcode-block" id="margin_of_error_confidence"><a class="viewcode-back" href="../../../api/metrics.html#gal.metrics.measures.margin_of_error_confidence">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">margin_of_error_confidence</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">z_score</span><span class="o">=</span><span class="mf">1.96</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Calculates the margin of error for the confidence metric.</span>
+<span class="sd">    This provides a measure of robustness; a smaller margin of error</span>
+<span class="sd">    indicates a more stable and reliable rule.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        x: Support count of the antecedent (the &quot;if&quot; part).</span>
+<span class="sd">        y: Support count of the consequent (the &quot;then&quot; part).</span>
+<span class="sd">        z: Support count of both antecedent and consequent.</span>
+<span class="sd">        n: Total number of transactions.</span>
+<span class="sd">        smooth_counts: Additive smoothing value.</span>
+<span class="sd">        z_score: The Z-score for the desired confidence level (1.96 for 95%).</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The margin of error for the rule&#39;s confidence.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">smooth_counts</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">n</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span> <span class="o">=</span> <span class="n">apply_smoothing</span><span class="p">(</span><span class="n">n</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="p">)</span>
+
+    <span class="n">conf</span> <span class="o">=</span> <span class="n">confidence</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">y</span><span class="p">,</span> <span class="n">z</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="o">=</span><span class="mf">0.0</span><span class="p">)</span> <span class="c1"># Use unsmoothed confidence for calculation</span>
+
+    <span class="c1"># Handle division by zero for the formula&#39;s denominator (support of antecedent)</span>
+    <span class="k">with</span> <span class="n">np</span><span class="o">.</span><span class="n">errstate</span><span class="p">(</span><span class="n">divide</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">,</span> <span class="n">invalid</span><span class="o">=</span><span class="s1">&#39;ignore&#39;</span><span class="p">):</span>
+        <span class="c1"># Formula: Z * sqrt( (p * (1 - p)) / n_antecedent )</span>
+        <span class="n">value</span> <span class="o">=</span> <span class="n">z_score</span> <span class="o">*</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">true_divide</span><span class="p">(</span><span class="n">conf</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">conf</span><span class="p">),</span> <span class="n">x</span><span class="p">))</span>
+        <span class="c1"># Where x is zero, margin of error is undefined, so we set to 0</span>
+        <span class="n">value</span><span class="p">[</span><span class="o">~</span><span class="n">np</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">value</span><span class="p">)]</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">return</span> <span class="n">value</span></div>
 </pre></div>
         </article>
       </div>
@@ -435,9 +442,9 @@
       
     </aside>
   </div>
-</div><script src="../../../_static/documentation_options.js?v=01f34227"></script>
-    <script src="../../../_static/doctools.js?v=9bcbadda"></script>
-    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
-    <script src="../../../_static/scripts/furo.js?v=46bd48cc"></script>
+</div><script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js?v=2389946f"></script>
+    <script src="../../../_static/doctools.js?v=888ff710"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=4825356b"></script>
+    <script src="../../../_static/scripts/furo.js?v=5fa4622c"></script>
     </body>
 </html>

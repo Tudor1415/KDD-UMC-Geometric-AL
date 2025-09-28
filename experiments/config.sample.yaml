@@ -2,35 +2,34 @@ global:
   output_root: "./results/al"
   seed: 1729
   max_points: 0
+  numexpr_max_threads: 24
 
 experiment:
   # Single dataset (kept for backward compatibility)
   dataset_name: "MUSHROOM"
   oracle_name: "LinearOracle"
-  center_name: "AnalyticCenter"   # one of: AnalyticCenter, ChebyshevCenter, MinkowskiCenter, VolumetricCenter
-  active_learning_budget: 20      # number of iterations
+  center_name: "ChebyshevCenter"   # one of: AnalyticCenter, ChebyshevCenter, MinkowskiCenter, VolumetricCenter
+  active_learning_budget: 10      # number of iterations (defaults to 25)
+  additivity_k: 2                  # optional; Choquet additivity order (1 = no augmentation)
+  tau_max: 1e-5                    # optional; max tau per iteration (default 1e-5)
 
 paths:
   mnr_rules: "./mined_rules/mushroom_mnr.csv"
-  matrix_npy: null                # optional fallback
-  # dataset_path: null            # alternative single-path input (e.g., .npy)
 
 algorithm_parameters:
   leaf_size: 25
-  search_strategies: ["lower_bound", "diversity"]
+  search_strategies: ["lower_bound"]
   tree_build_methods:
     kdtree: ["kd_tree"]
-    balltree: ["disjoint_greedy", "axis_median", "two_pivot", "pca_ballstar", "bottom_up", "middle_out"]
-
-oracle:
-  type: "Linear"
-  # w_star: [0.2, 0.1, 0.3, 0.4]   # optional; if omitted, sampled on simplex
+    balltree: ["two_pivot"]
 
 logging:
   search_events: true
+  level: INFO           # INFO or DEBUG for more detail
+  log_every: 1          # when DEBUG, emit every N iterations
 
 oracles:
-  names: ["linear_equal", "linear_simplex"]
+  names: ["linear_simplex"]
 
 # Option B: multiple datasets (preferred when running many in one go)
 # Provide either string names (auto-derive paths) or objects with per-dataset paths.
