@@ -1,0 +1,30 @@
+algorithm_parameters:
+  leaf_size: 25
+  preferred_tree: balltree
+  search_strategy: lower_bound
+  tree_build_methods:
+    balltree:
+    - disjoint_greedy
+    - axis_median
+    - two_pivot
+    - pca_ballstar
+    - bottom_up
+    - middle_out
+    kdtree:
+    - kd_tree
+experiment:
+  active_learning_budget: 20
+  center_name: AnalyticCenter
+  dataset_name: MUSHROOM
+  oracle_name: LinearOracle
+global:
+  max_points: 0
+  output_root: ./results/al
+  seed: 1729
+logging:
+  search_events: true
+oracle:
+  type: Linear
+paths:
+  matrix_npy: null
+  mnr_rules: ./mined_rules/mushroom_mnr.csv

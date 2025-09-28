@@ -1,27 +1,25 @@
 global:
   output_root: "./results/al"
   seed: 1729
-  n_iter: 20
   max_points: 0
-  center: "analytic"   # one of: analytic, chebyshev
 
-dataset:
-  name: "MUSHROOM"
-  paths:
-    mnr_rules: "./mined_rules/mushroom_mnr.csv"
-    matrix_npy: null
+experiment:
+  dataset_name: "MUSHROOM"
+  oracle_name: "LinearOracle"
+  center_name: "AnalyticCenter"   # one of: AnalyticCenter, ChebyshevCenter, MinkowskiCenter, VolumetricCenter
+  active_learning_budget: 20      # number of iterations
 
-trees:
-  kd:
-    enabled: true
-    config:
-      leaf_size: 25
-      split_rule: "widest_axis_median"
-  ball:
-    enabled: true
-    method: "disjoint_greedy"
-    config:
-      leaf_size: 25
+paths:
+  mnr_rules: "./mined_rules/mushroom_mnr.csv"
+  matrix_npy: null                # optional fallback
+  # dataset_path: null            # alternative single-path input (e.g., .npy)
+
+algorithm_parameters:
+  leaf_size: 25
+  search_strategies: ["lower_bound", "diversity"]
+  tree_build_methods:
+    kdtree: ["kd_tree"]
+    balltree: ["disjoint_greedy", "axis_median", "two_pivot", "pca_ballstar", "bottom_up", "middle_out"]
 
 oracle:
   type: "Linear"
@@ -30,3 +28,5 @@ oracle:
 logging:
   search_events: true
 
+oracles:
+  names: ["linear_equal", "linear_simplex"]
