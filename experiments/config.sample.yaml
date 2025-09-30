@@ -8,8 +8,8 @@ experiment:
   # Single dataset (kept for backward compatibility)
   dataset_name: "MUSHROOM"
   oracle_name: "LinearOracle"
-  center_name: "ChebyshevCenter"   # one of: AnalyticCenter, ChebyshevCenter, MinkowskiCenter, VolumetricCenter
-  active_learning_budget: 10      # number of iterations (defaults to 25)
+  center_name: "MinkowskiCenter"   # one of: AnalyticCenter, ChebyshevCenter, MinkowskiCenter, VolumetricCenter
+  active_learning_budget: 100      # number of iterations (defaults to 25)
   additivity_k: 2                  # optional; Choquet additivity order (1 = no augmentation)
   tau_max: 1e-5                    # optional; max tau per iteration (default 1e-5)
 
@@ -20,7 +20,7 @@ algorithm_parameters:
   leaf_size: 25
   search_strategies: ["lower_bound"]
   tree_build_methods:
-    kdtree: ["kd_tree"]
+    # kdtree: ["kd_tree"]
     balltree: ["two_pivot"]
 
 logging:

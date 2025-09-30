@@ -101,7 +101,8 @@ Outputs
 Each run writes a timestamped directory under ``global.output_root`` with:
 
 - ``config.json``: Run metadata and algorithm parameters.
-- ``oracle.pkl``: Pickled oracle description (name, weights, dimension).
+- ``oracle.pkl``: Pickled scoring-oracle object with a ``score_dataset`` API
+  for downstream analysis tools (e.g., ranking evaluation).
 - ``tree.h5``: kd-/ball-tree structure as HDF5 tables.
 - ``query_vectors.h5``: One dataset per iteration named ``/query_<k>``.
 - ``iterations.csv``: Iteration timeline (indices and timestamps).
@@ -152,4 +153,3 @@ Notes
   ``algorithm_parameters.tree_build_methods.balltree: ["two_pivot"]``.
 - The runner honours ``global.numexpr_max_threads`` to cap numexpr threads,
   which helps silence warning messages on multi-core machines.
-

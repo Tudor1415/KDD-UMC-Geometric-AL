@@ -855,14 +855,11 @@ def _run_single_experiment(
     }
     (exp_dir / "config.json").write_text(json.dumps(cfg_json, indent=2))
 
-    # Pickle the oracle definition for reproducibility
+    # Pickle a scoring-oracle object for reproducibility and analysis
+    from .exp_oracles import PickledLinearOracle
     with open(exp_dir / "oracle.pkl", "wb") as f:
-        payload = {
-            "name": cfg_json.get("oracle_name"),
-            "weights": np.asarray(oracle_weights, dtype=float),
-            "dimension": int(np.asarray(oracle_weights).size),
-        }
-        pickle.dump(payload, f)
+        obj = PickledLinearOracle(cfg_json.get("oracle_name"), np.asarray(oracle_weights, dtype=float))
+        pickle.dump(obj, f)
 
     # Export trees used in this run
     _export_tree_h5(exp_dir / "tree.h5", tree_kd if tree_family == "kdtree" else None, tree_bt if tree_family == "balltree" else None, X.shape[1])

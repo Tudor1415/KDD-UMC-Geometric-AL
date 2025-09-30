@@ -58,6 +58,10 @@ cp experiments/config.sample.yaml my_al.yaml
 python -m experiments.active.run my_al.yaml
 ```
 
+Notes
+- Ensure the repo is installed editable (see Installation) or export `PYTHONPATH=src` before running.
+- `experiments/config.sample.yaml` points to `mined_rules/mushroom_mnr.csv` by default; adjust `paths` for other datasets.
+
 Outputs are written under `global.output_root` (default `results/al`). Each run creates a self-contained folder with `config.json`, `final_version_space.h5`, `query_vectors.h5`, `iterations.csv`, `tree.h5`, and per-iteration subdirectories with `search_trace.h5` and `center_model.npy`.
 
 To run multiple datasets in one go, add a top-level `datasets` list to your YAML (this overrides the single `experiment.dataset_name`):
@@ -80,6 +84,55 @@ experiment:
 ```
 
 Each dataset will produce its own run directories under `global.output_root`.
+
+### Analyze Results
+After a run finishes, set `RUN_DIR` to the run folder (or grab the latest):
+
+```bash
+# Example: pick the newest run
+RUN_DIR=$(ls -1dt results/al/* | head -n1)
+echo "$RUN_DIR"
+```
+
+The analysis utilities live under `scripts/` and run as modules.
+
+- Diversity metrics per iteration (feature-space cosine; optional Jaccard on rule covers):
+
+```bash
+python -m scripts.analyze_diversity \
+  "$RUN_DIR" \
+  --rules mined_rules/mushroom_mnr.csv \
+  --item-rule matrices/mushroom_rules.npy \
+  --topk 5 10 20 50 \
+  --center chebyshev
+# Optional cover sources (choose one if you want Jaccard on covers):
+#   --txn-matrix path/to/transactions_x_items_bool.npy
+#   --transactions datasets/mushroom.csv
+```
+
+This writes `diversity_stats.csv` inside the run directory.
+
+- Ranking metrics per iteration (AP@K vs oracle; also AP/Recall at top 1%):
+
+```bash
+python -m scripts.analyze_ranking \
+  "$RUN_DIR" \
+  --rules mined_rules/mushroom_mnr.csv \
+  --topk 5 10 20 50 \
+  --center chebyshev
+# For non-linear oracles that require transactions, also pass:
+#   --transactions datasets/mushroom.csv
+```
+
+This writes `ranking_stats.csv` inside the run directory.
+
+- Search trace statistics (per-iteration search_trace.h5 summaries):
+
+```bash
+python -m scripts.analyze_traces "$RUN_DIR"
+```
+
+This writes `trace_stats.csv` inside the run directory.
 
 ### Other Utilities
 - End-to-end driver (legacy benchmark setup):

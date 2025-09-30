@@ -73,3 +73,40 @@ def get_oracle(name: str, d: int, rng: np.random.Generator) -> Callable[[np.ndar
     """Return a sign oracle function using deterministic weights for reproducibility."""
     w = get_oracle_weights(name, d)
     return _sign_from_w(w)
+
+
+# ----------------------------------------------------------------------------
+# Picklable scoring-oracle object for downstream analysis tools
+# ----------------------------------------------------------------------------
+class PickledLinearOracle:
+    """
+    Lightweight, picklable oracle object with a scoring API.
+
+    Implements the minimal interface expected by analysis tools:
+      - set_dataset(dataset)
+      - score_dataset(dataset) -> np.ndarray of scores (one per rule)
+
+    Scoring is linear with a fixed weight vector.
+    """
+
+    def __init__(self, name: str, weights: np.ndarray):
+        self.name = str(name or "linear")
+        self.weights = np.asarray(weights, dtype=float).reshape(-1)
+        self._d = int(self.weights.size)
+        self.ds = None  # attached later via set_dataset
+
+    # make sure we don't pickle heavy dataset accidentally
+    def __getstate__(self):
+        state = dict(self.__dict__)
+        state["ds"] = None
+        return state
+
+    def set_dataset(self, dataset) -> None:
+        self.ds = dataset
+
+    def score_dataset(self, dataset) -> np.ndarray:
+        # Use dataset.points; only the first d measures if points wider
+        X = dataset.points.astype(float, copy=False)
+        d = min(X.shape[1], self._d)
+        w = self.weights[:d]
+        return X[:, :d] @ w
