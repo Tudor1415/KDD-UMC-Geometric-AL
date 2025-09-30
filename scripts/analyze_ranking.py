@@ -14,15 +14,19 @@ Inputs
  - run_dir: Folder with a single AL run (contains iterations.csv and centers).
  - rules:   Path to the dataset rule CSV (e.g., mined_rules/mushroom_mnr.csv).
  - topk:    Space-separated list of K values.
- - center:  Centre reconstruction method if the center vector isn’t stored.
+ - center:  Optional centre method for what‑if analysis. If provided, the
+            analyzer reconstructs centers from constraints (ignoring stored
+            centers). If omitted, stored per‑iteration centers must exist
+            (iteration_XXX/center_model.npz or .npy).
 
 Output
 ------
 Saves a CSV (default <run_dir>/ranking_stats.csv) with one row per iteration:
   iteration, top{K}_ap, top{K}_recall (for each requested K), top1pct_ap, top1pct_recall,
   centered_inscribed_radius (radius of the largest Euclidean ball centered at the model
-  that fits in the iteration’s feasible polyhedron). The radius is written in scientific
-  notation.
+  that fits in the iteration’s feasible polyhedron), and max_inscribed_ball_radius
+  (Chebyshev radius: the radius of the maximum‑volume inscribed ball of the feasible
+  polyhedron at that iteration). Radii are written in scientific notation.
 """
 
 from __future__ import annotations
@@ -88,13 +92,12 @@ def _unique_iterations(path: Path) -> List[int]:
 def _load_center_for_iteration(
     run_dir: Path, it: int, *, n_iters: int | None = None, method: str = "chebyshev"
 ) -> np.ndarray | None:
-    """Return center vector for iteration it, or None if unavailable.
+    """Return center vector for iteration it if stored on disk, else None.
 
-    Order:
-      1) iteration_XXX/center_model.npz['center'] (or .npy)
-      2) Compute from version-space constraints in final_version_space.h5 by
-         taking base constraints + the first (it+1) query constraints and
-         solving for the requested centre method.
+    Only loads on-disk artifacts; does not reconstruct from constraints.
+    Expected files per iteration:
+      - iteration_XXX/center_model.npz (with key 'center'), or
+      - iteration_XXX/center_model.npy
     """
     it_dir = run_dir / f"iteration_{it:03d}"
     npz = it_dir / "center_model.npz"
@@ -113,66 +116,7 @@ def _load_center_for_iteration(
         except Exception:
             pass
 
-    # 2) Reconstruct centre from final_version_space.h5
-    fvs = run_dir / "final_version_space.h5"
-    if not fvs.exists():
-        return None
-    try:
-        import h5py as _h5
-
-        with _h5.File(fvs, "r") as h5:
-            A = np.asarray(h5["A"][...], dtype=float)
-            b = np.asarray(h5["b"][...], dtype=float).reshape(-1)
-    except Exception:
-        return None
-
-    # Determine total iterations
-    if n_iters is None:
-        try:
-            n_iters = sum(
-                1 for p in run_dir.iterdir() if p.is_dir() and p.name.startswith("iteration_")
-            )
-        except Exception:
-            n_iters = None
-        if not n_iters:
-            it_csv = run_dir / "iterations.csv"
-            try:
-                pairs = _read_iterations_csv(it_csv)
-                n_iters = max((x for x, _ in pairs), default=-1) + 1
-            except Exception:
-                n_iters = 0
-
-    if n_iters <= 0 or it < 0:
-        return None
-
-    base = A.shape[0] - n_iters
-    base = max(0, base)
-    end = min(A.shape[0], base + it + 1)
-    if end <= 0:
-        return None
-
-    Ai = A[:end]
-    bi = b[:end]
-
-    try:
-        if method == "chebyshev":
-            c, _ = chebyshev_center(Ai, bi)
-            return np.asarray(c, dtype=float)
-        elif method == "analytical":
-            c = analytical_center(Ai, bi)
-            return np.asarray(c, dtype=float)
-        elif method == "minkowski":
-            c, _ = minkowski_center(Ai, bi)
-            return np.asarray(c, dtype=float)
-        elif method == "volumetric":
-            c, _ = volumetric_center(Ai, bi)
-            return np.asarray(c, dtype=float)
-        elif method == "mse":
-            c = mse_center(Ai, bi, X=np.empty((0, Ai.shape[1])), y=np.array([]))
-            return np.asarray(c, dtype=float) if c is not None else None
-    except Exception:
-        return None
-
+    # No reconstruction fallback
     return None
 
 
@@ -327,12 +271,10 @@ class Inputs:
     transactions_csv: Path | None
     topk: List[int]
     out_csv: Path
-    center_method: str = "auto"
+    center_method: str | None = None
 
 
-def _normalize_center_method(name: str | None) -> str | None:
-    if not name:
-        return None
+def _normalize_center_method(name: str) -> str:
     key = str(name).strip().lower().replace("-", "_")
     if key in {"analytic", "analytical", "analytic_center", "analytical_center", "analyticcenter", "analyticalcenter", "barrier"}:
         return "analytical"
@@ -345,22 +287,6 @@ def _normalize_center_method(name: str | None) -> str | None:
     if key in {"mse"}:
         return "mse"
     return key
-
-
-def _infer_center_method_from_config(run_dir: Path) -> str | None:
-    cfg = run_dir / "config.json"
-    if not cfg.exists():
-        return None
-    try:
-        import json
-        with cfg.open("r", encoding="utf-8") as f:
-            conf = json.load(f)
-        name = None
-        if isinstance(conf, dict):
-            name = conf.get("center_name") or conf.get("center")
-        return _normalize_center_method(name)
-    except Exception:
-        return None
 
 
 def compute_ranking(inp: Inputs) -> Path:
@@ -387,30 +313,55 @@ def compute_ranking(inp: Inputs) -> Path:
     n_iters = len(its)
     Rmax = len(Xrules)
 
-    # Determine centre reconstruction method if needed
-    center_method = inp.center_method
-    if center_method == "auto":
-        inferred = _infer_center_method_from_config(run_dir)
-        center_method = inferred or "chebyshev"
-
     # Load final constraints once (if available) to compute centered radius per iteration
     A_full, B_full = _load_final_constraints(run_dir)
 
     for it in its:
         row: Dict[str, float | int] = {"iteration": int(it)}
 
-        center = _load_center_for_iteration(run_dir, it, n_iters=n_iters, method=center_method)
-        if center is None:
-            # fill NaNs for all requested K APs and the 1% metrics
-            for k in inp.topk:
-                row[f"top{k}_ap"] = float("nan")
-                row[f"top{k}_recall"] = float("nan")
-            row["top1pct_ap"] = float("nan")
-            row["top1pct_recall"] = float("nan")
-            # centered radius not computable without a center
-            row["centered_inscribed_radius"] = "nan"
-            rows.append(row)
-            continue
+        # If --center provided: reconstruct; else load stored
+        if inp.center_method:
+            method = _normalize_center_method(inp.center_method)
+            if A_full is None or B_full is None:
+                raise SystemExit(
+                    "Cannot reconstruct centers: final_version_space.h5 is missing or invalid. "
+                    "Ensure the run contains 'A' and 'b' datasets."
+                )
+            Ai, Bi = _constraints_prefix_for_iteration(A_full, B_full, it, n_iters)
+            if Ai is None or Bi is None:
+                raise SystemExit("Cannot reconstruct center: invalid constraints sizing for iteration prefix")
+            try:
+                if method == "chebyshev":
+                    c, _ = chebyshev_center(Ai, Bi)
+                    center = np.asarray(c, dtype=float)
+                elif method == "analytical":
+                    center = np.asarray(analytical_center(Ai, Bi), dtype=float)
+                elif method == "minkowski":
+                    c, _ = minkowski_center(Ai, Bi)
+                    center = np.asarray(c, dtype=float)
+                elif method == "volumetric":
+                    c, _ = volumetric_center(Ai, Bi)
+                    center = np.asarray(c, dtype=float)
+                elif method == "mse":
+                    c = mse_center(Ai, Bi, X=np.empty((0, Ai.shape[1])), y=np.array([]))
+                    center = np.asarray(c, dtype=float) if c is not None else None
+                else:
+                    raise SystemExit(f"Unknown center method: {inp.center_method}")
+            except Exception as e:
+                raise SystemExit(f"Failed to reconstruct center for iteration {it} with method '{inp.center_method}': {e}")
+            if center is None:
+                raise SystemExit(f"Center reconstruction returned None for method '{inp.center_method}' at iteration {it}")
+        else:
+            center = _load_center_for_iteration(run_dir, it, n_iters=n_iters, method="disk")
+            if center is None:
+                it_dir = run_dir / f"iteration_{it:03d}"
+                npz = it_dir / "center_model.npz"
+                npy = it_dir / "center_model.npy"
+                raise SystemExit(
+                    f"Missing center weights for iteration {it} in {it_dir}. "
+                    f"Expected {npz} (key 'center') or {npy}. "
+                    f"Either pass --center to reconstruct for what-if analysis, or re-run the experiment to persist centers."
+                )
 
         w = center[:n_measures].astype(float, copy=False)
         pred_scores = Xrules @ w
@@ -438,14 +389,24 @@ def compute_ranking(inp: Inputs) -> Path:
         row["top1pct_ap"] = float(_ap_at_k(pred_top1, true_top1))
         row["top1pct_recall"] = float(_recall_at_k(pred_top1, true_top1))
 
-        # Compute centered inscribed radius for this iteration (scientific notation)
+        # Compute radii for this iteration (scientific notation)
         if A_full is not None and B_full is not None:
             Ai, Bi = _constraints_prefix_for_iteration(A_full, B_full, it, n_iters)
         else:
             Ai, Bi = None, None
+        # Centered ball radius at current model center
         rc = _centered_inscribed_radius(Ai, Bi, center) if (Ai is not None and Bi is not None) else float("nan")
-        # write as scientific notation string
         row["centered_inscribed_radius"] = (f"{rc:.6e}" if np.isfinite(rc) else "nan")
+        # Maximum-volume inscribed ball radius (Chebyshev radius)
+        if Ai is not None and Bi is not None:
+            try:
+                _, r_cheb = chebyshev_center(Ai, Bi)
+                rstar = float(r_cheb)
+            except Exception:
+                rstar = float("nan")
+        else:
+            rstar = float("nan")
+        row["max_inscribed_ball_radius"] = (f"{rstar:.6e}" if np.isfinite(rstar) else "nan")
 
         rows.append(row)
 
@@ -454,7 +415,7 @@ def compute_ranking(inp: Inputs) -> Path:
     for k in inp.topk:
         keys.append(f"top{k}_ap")
         keys.append(f"top{k}_recall")
-    keys.extend(["top1pct_ap", "top1pct_recall", "centered_inscribed_radius"])
+    keys.extend(["top1pct_ap", "top1pct_recall", "centered_inscribed_radius", "max_inscribed_ball_radius"])
 
     inp.out_csv.parent.mkdir(parents=True, exist_ok=True)
     with inp.out_csv.open("w", newline="", encoding="utf-8") as f:
@@ -497,9 +458,8 @@ def parse_args() -> Inputs:
     ap.add_argument(
         "--center",
         type=str,
-        choices=["auto", "chebyshev", "analytical", "minkowski", "volumetric", "mse"],
-        default="auto",
-        help="Centre used to reconstruct model per iteration if not stored (default: auto from config.json)",
+        default=None,
+        help="Optional: reconstruct centers with this method (analytical|chebyshev|minkowski|volumetric|mse). If omitted, use stored centers.",
     )
     ap.add_argument(
         "--out",

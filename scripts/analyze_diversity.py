@@ -59,6 +59,7 @@ from gal.centers.poly_centers import (
     chebyshev_center,
     analytical_center,
     minkowski_center,
+    volumetric_center,
     mse_center,
 )
 
@@ -268,17 +269,55 @@ class Inputs:
     cover_mode: str
     topk: List[int]
     out_csv: Path
-    center_method: str = "chebyshev"
+    center_method: str | None = None
+
+
+def _normalize_center_method(name: str) -> str:
+    key = str(name).strip().lower().replace("-", "_")
+    if key in {"analytic", "analytical", "analytic_center", "analytical_center", "analyticcenter", "analyticalcenter", "barrier"}:
+        return "analytical"
+    if key in {"chebyshev", "chebyshev_center", "chebyshevcenter", "inscribed", "largest_ball"}:
+        return "chebyshev"
+    if key in {"minkowski", "minkowski_center", "minkowskicenter"}:
+        return "minkowski"
+    if key in {"volumetric", "volumetric_center", "volumetriccenter", "john", "john_ellipsoid"}:
+        return "volumetric"
+    if key in {"mse"}:
+        return "mse"
+    return key
+
+
+def _load_final_constraints(run_dir: Path) -> tuple[np.ndarray, np.ndarray] | tuple[None, None]:
+    fvs = run_dir / "final_version_space.h5"
+    if not fvs.exists():
+        return None, None
+    try:
+        import h5py as _h5
+        with _h5.File(fvs, "r") as h5:
+            A = np.asarray(h5["A"][...], dtype=float)
+            b = np.asarray(h5["b"][...], dtype=float).reshape(-1)
+        return A, b
+    except Exception:
+        return None, None
+
+
+def _constraints_prefix_for_iteration(A: np.ndarray, b: np.ndarray, it: int, n_iters: int) -> tuple[np.ndarray, np.ndarray] | tuple[None, None]:
+    if A is None or b is None or A.size == 0 or b.size == 0:
+        return None, None
+    base = max(0, A.shape[0] - int(n_iters))
+    end = int(min(A.shape[0], base + int(it) + 1))
+    if end <= 0:
+        return None, None
+    return A[:end], b[:end]
 
 
 def _load_center_for_iteration(run_dir: Path, it: int, *, n_iters: int | None = None, method: str = "chebyshev") -> np.ndarray | None:
-    """Return center vector for iteration it, or None if unavailable.
+    """Return center vector for iteration it if stored on disk, else None.
 
-    Order:
-    1) iteration_XXX/center_model.npz['center'] (or .npy)
-    2) Compute from version-space constraints in final_version_space.h5
-       by taking base constraints + the first (it+1) query constraints and
-       solving for the requested centre method.
+    Only loads on-disk artifacts; does not reconstruct from constraints.
+    Expected files per iteration:
+      - iteration_XXX/center_model.npz (with key 'center'), or
+      - iteration_XXX/center_model.npy
     """
     it_dir = run_dir / f"iteration_{it:03d}"
     npz = it_dir / "center_model.npz"
@@ -298,60 +337,7 @@ def _load_center_for_iteration(run_dir: Path, it: int, *, n_iters: int | None = 
         except Exception:
             pass
 
-    # 2) Reconstruct centre from final_version_space.h5
-    fvs = run_dir / "final_version_space.h5"
-    if not fvs.exists():
-        return None
-    try:
-        import h5py as _h5
-
-        with _h5.File(fvs, "r") as h5:
-            A = np.asarray(h5["A"][...], dtype=float)
-            b = np.asarray(h5["b"][...], dtype=float).reshape(-1)
-    except Exception:
-        return None
-
-    # Determine how many iterations are present
-    if n_iters is None:
-        # Infer from available iteration_* subdirs
-        n_iters = sum(1 for p in run_dir.iterdir() if p.is_dir() and p.name.startswith("iteration_"))
-        if n_iters <= 0:
-            # fallback: try  max(iteration_id)+1 from iterations.csv
-            it_csv = run_dir / "iterations.csv"
-            try:
-                pairs = _read_iterations_csv(it_csv)
-                n_iters = max((it for it, _ in pairs), default=-1) + 1
-            except Exception:
-                n_iters = 0
-
-    if n_iters <= 0 or it < 0:
-        return None
-
-    base = A.shape[0] - n_iters  # e.g., simplex constraints + queries
-    base = max(0, base)
-    end = min(A.shape[0], base + it + 1)
-    if end <= 0:
-        return None
-
-    Ai = A[:end]
-    bi = b[:end]
-
-    try:
-        if method == "chebyshev":
-            c, _ = chebyshev_center(Ai, bi)
-            return np.asarray(c, dtype=float)
-        elif method == "analytical":
-            c = analytical_center(Ai, bi)
-            return np.asarray(c, dtype=float)
-        elif method == "minkowski":
-            c, _ = minkowski_center(Ai, bi)
-            return np.asarray(c, dtype=float)
-        elif method == "mse":
-            c = mse_center(Ai, bi, X=np.empty((0, Ai.shape[1])), y=np.array([]))
-            return np.asarray(c, dtype=float) if c is not None else None
-    except Exception:
-        return None
-
+    # No reconstruction fallback
     return None
 
 
@@ -390,6 +376,10 @@ def compute_diversity(inp: Inputs) -> Path:
 
     # --------------------------- read iteration→query paths
     groups = _group_by_iteration(_read_iterations_csv(it_csv))
+    n_iters = len(groups)
+
+    # Optionally load final constraints for on-the-fly reconstruction when --center is given
+    A_full, B_full = _load_final_constraints(run_dir)
 
     # No query-cover computation here; Jaccard stats are only computed over
     # top‑k rule covers per iteration.
@@ -432,7 +422,50 @@ def compute_diversity(inp: Inputs) -> Path:
         row["jaccard_mean"] = float("nan")
 
         # ------------------- per-iteration top‑k metrics using model center
-        center = _load_center_for_iteration(run_dir, it, n_iters=len(groups), method=inp.center_method)
+        # Select center: reconstruct if --center was provided; else load stored
+        if inp.center_method:
+            method = _normalize_center_method(inp.center_method)
+            if A_full is None or B_full is None:
+                raise SystemExit(
+                    "Cannot reconstruct centers: final_version_space.h5 is missing or invalid. "
+                    "Ensure the run contains 'A' and 'b' datasets."
+                )
+            Ai, Bi = _constraints_prefix_for_iteration(A_full, B_full, it, n_iters)
+            if Ai is None or Bi is None:
+                raise SystemExit("Cannot reconstruct center: invalid constraints sizing for iteration prefix")
+            try:
+                if method == "chebyshev":
+                    c, _ = chebyshev_center(Ai, Bi)
+                    center = np.asarray(c, dtype=float)
+                elif method == "analytical":
+                    center = np.asarray(analytical_center(Ai, Bi), dtype=float)
+                elif method == "minkowski":
+                    c, _ = minkowski_center(Ai, Bi)
+                    center = np.asarray(c, dtype=float)
+                elif method == "volumetric":
+                    c, _ = volumetric_center(Ai, Bi)
+                    center = np.asarray(c, dtype=float)
+                elif method == "mse":
+                    c = mse_center(Ai, Bi, X=np.empty((0, Ai.shape[1])), y=np.array([]))
+                    center = np.asarray(c, dtype=float) if c is not None else None
+                else:
+                    raise SystemExit(f"Unknown center method: {inp.center_method}")
+            except Exception as e:
+                raise SystemExit(f"Failed to reconstruct center for iteration {it} with method '{inp.center_method}': {e}")
+            if center is None:
+                raise SystemExit(f"Center reconstruction returned None for method '{inp.center_method}' at iteration {it}")
+        else:
+            center = _load_center_for_iteration(run_dir, it, n_iters=n_iters, method="disk")
+            if center is None:
+                it_dir = run_dir / f"iteration_{it:03d}"
+                npz = it_dir / "center_model.npz"
+                npy = it_dir / "center_model.npy"
+                raise SystemExit(
+                    f"Missing center weights for iteration {it} in {it_dir}. "
+                    f"Expected {npz} (key 'center') or {npy}. "
+                    f"Either pass --center to reconstruct for what-if analysis, or re-run the experiment to persist centers."
+                )
+
         if center is not None:
             w = center[:n_measures].astype(float, copy=False)
             # Rule feature matrix (n_rules × d)
@@ -475,13 +508,8 @@ def compute_diversity(inp: Inputs) -> Path:
                     row[f"top{k}_jaccard_p95"] = float("nan")
                     row[f"top{k}_jaccard_mean"] = float("nan")
         else:
-            for k in inp.topk:
-                row[f"top{k}_cosine_mean"] = float("nan")
-                row[f"top{k}_cosine_median"] = float("nan")
-                row[f"top{k}_cosine_p95"] = float("nan")
-                row[f"top{k}_jaccard_median"] = float("nan")
-                row[f"top{k}_jaccard_p95"] = float("nan")
-                row[f"top{k}_jaccard_mean"] = float("nan")
+            # unreachable: we error above, but keep branch for safety
+            raise SystemExit(f"Missing center for iteration {it}")
 
         rows.append(row)
 
@@ -514,7 +542,12 @@ def parse_args() -> Inputs:
     ap.add_argument("--transactions", type=str, default=None, help="Optional transactions CSV (fallback if --txn-matrix is missing)")
     ap.add_argument("--cover", type=str, choices=["all", "any"], default="all", help="Cover definition: all=all items present, any=any item present")
     ap.add_argument("--topk", type=int, nargs="*", default=[5, 10, 20, 50], help="List of k values for top-k metrics")
-    ap.add_argument("--center", type=str, choices=["chebyshev", "analytical", "minkowski", "mse"], default="chebyshev", help="Centre used to reconstruct model per iteration (if not stored)")
+    ap.add_argument(
+        "--center",
+        type=str,
+        default=None,
+        help="Optional: reconstruct centers with this method (analytical|chebyshev|minkowski|volumetric|mse). If omitted, use stored centers.",
+    )
     ap.add_argument("--out", type=str, default=None, help="Output CSV path (default: <run_dir>/diversity_stats.csv)")
 
     args = ap.parse_args()
