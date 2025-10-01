@@ -12,7 +12,8 @@ import numpy as np
 from scipy.spatial.distance import pdist
 
 from gal.core.data import Dataset
-from gal.utils.helpers import augment_with_minimums, k_additive_constraints
+from gal.core.data import augment_with_minimums
+from gal.core.constraints import k_additive_constraints
 from gal.centers.poly_centers import (
     chebyshev_center,
     minkowski_center,

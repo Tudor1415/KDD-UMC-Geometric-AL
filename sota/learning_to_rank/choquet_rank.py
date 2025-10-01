@@ -15,7 +15,8 @@ import numpy as np
 from gal.core.data import Dataset
 from gal.learning.learn import project_constraint
 from gal.oracles.oracles import ObjectiveMeasureOracle, SurpriseOracle
-from gal.utils.helpers import augment_with_minimums, k_additive_constraints
+from gal.core.data import augment_with_minimums
+from gal.core.constraints import k_additive_constraints
 
 R_SCRIPT = Path("scripts/call_kappalab.R")  # ← path to your R file
 EMPTY = frozenset()

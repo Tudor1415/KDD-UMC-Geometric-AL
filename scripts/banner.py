@@ -36,7 +36,8 @@ except ImportError:  # pragma: no cover
         """Fallback noop when *adjustText* is unavailable."""
         pass
 
-from gal.utils.helpers import augment_with_minimums, k_additive_constraints
+from gal.core.data import augment_with_minimums
+from gal.core.constraints import k_additive_constraints
 from gal.centers.poly_centers import chebyshev_center, minkowski_center
 from gal.trees import build_ball_tree
 from gal.search import search_pair

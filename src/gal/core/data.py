@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import itertools
+
 # data.py
 # ===============================
 from pathlib import Path
@@ -25,6 +27,38 @@ def _needs_load(method):
         return method(self, *args, **kw)
 
     return wrapper
+
+
+def augment_with_minimums(
+    X: np.ndarray,
+    k: int,
+    *,
+    return_index_map: bool = False,
+) -> Tuple[np.ndarray, List[Tuple[int, ...]]]:
+    """Augment input samples with minimums over all subsets up to size k."""
+    X = np.asanyarray(X)
+    if X.ndim != 2:
+        raise ValueError('X must be a 2-D array (samples x features)')
+
+    m, n = X.shape
+    if not (1 <= k <= n):
+        raise ValueError('k must satisfy 1 <= k <= n_features')
+
+    subset_list: List[Tuple[int, ...]] = []
+    new_columns: List[np.ndarray] = []
+    for r in range(2, k + 1):
+        for comb in itertools.combinations(range(n), r):
+            subset_list.append(comb)
+            new_columns.append(np.min(X[:, comb], axis=1))
+
+    if new_columns:
+        X_aug = np.hstack([X] + [col[:, None] for col in new_columns])
+    else:
+        X_aug = X.copy()
+
+    if return_index_map:
+        return X_aug, subset_list
+    return X_aug
 
 
 class Dataset:

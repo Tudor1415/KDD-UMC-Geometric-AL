@@ -17,7 +17,8 @@ from gal.core.data import Dataset
 from gal.trees import build_ball_tree
 from gal.oracles.oracles import Oracle  # <- NEW
 from gal.metrics.metrics import compute_ranking_metrics  # <- NEW
-from gal.utils.helpers import k_additive_constraints, augment_with_minimums
+from gal.core.constraints import k_additive_constraints
+from gal.core.data import augment_with_minimums
 
 ################################################################################
 logging.basicConfig(

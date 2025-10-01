@@ -37,10 +37,8 @@ from gal.trees import build_ball_tree
 from gal.metrics.metrics import compute_ranking_metrics
 from gal.core.data import Dataset
 from .experiments import Config
-from gal.utils.helpers import (
-    augment_with_minimums,
-    k_additive_constraints,
-)
+from gal.core.data import augment_with_minimums
+from gal.core.constraints import k_additive_constraints
 
 __all__ = ["run_experiments"]
 

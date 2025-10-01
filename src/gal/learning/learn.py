@@ -25,7 +25,8 @@ from __future__ import annotations
 from typing import Callable, Tuple, Optional
 
 import numpy as np
-from gal.utils.helpers import augment_with_minimums, k_additive_constraints
+from gal.core.data import augment_with_minimums
+from gal.core.constraints import k_additive_constraints
 from gal.trees import GeometricTree, build_ball_tree
 from gal.search import search_pair
 

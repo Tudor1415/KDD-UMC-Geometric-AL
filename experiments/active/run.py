@@ -292,7 +292,7 @@ def _prepare_capacity_space(
         X_work = np.ascontiguousarray(X_aug, dtype=float)
         if log is not None:
             log.info(
-                "Applied additivity augmentation (k=%d) � shape %s",
+                "Applied additivity augmentation (k=%d) - shape %s",
                 k_val,
                 X_work.shape,
             )
@@ -505,11 +505,9 @@ def run(cfg: ALConfig) -> Path:
         idx = rng.choice(X.shape[0], size=max_pts, replace=False)
         X = np.ascontiguousarray(X[idx], dtype=float)
 
-    # Optional feature augmentation via additivity_k
-    add_k = int(cfg.get("experiment", "additivity_k", default=1) or 1)
-    if add_k > 1:
-        X = augment_with_minimums(X, add_k)
-        log.info("Applied additivity augmentation (k=%d) → shape %s", add_k, X.shape)
+    # Feature augmentation via additivity_k and constraint initialization
+    add_k_cfg = int(cfg.get("experiment", "additivity_k", default=1) or 1)
+    X, space, A0, b0 = _prepare_capacity_space(X, add_k=add_k_cfg, log=log)
 
     # Trees (build once) — accept either legacy `trees` block or general.md-style `algorithm_parameters`.
     kd_enabled = bool(cfg.get("trees", "kd", "enabled", default=True))
@@ -580,14 +578,16 @@ def run(cfg: ALConfig) -> Path:
         val = float(np.dot(a - b, w_star))
         return 1 if val >= 0 else -1
 
-    # Initial constraints: simplex
-    A, b = _simplex_constraints(X.shape[1])
+    # Initial constraints: k-additive capacity polytope
+    A = np.asarray(A0, dtype=float).copy()
+    b = np.asarray(b0, dtype=float).copy()
     center_name = str(
         cfg.get("experiment", "center_name", default=cfg.get("global", "center", default="analytic"))
     )
     center_fn = _center_fn(center_name)
-    center = np.asarray(center_fn(A, b), dtype=float)
-    radius = _chebyshev_radius(A, b, center)
+    center_proj = np.asarray(center_fn(A, b), dtype=float)
+    center_full = space.expand_center(center_proj)
+    radius = _chebyshev_radius(A, b, center_proj)
 
     # Tau cap from config (max allowed tau per iteration)
     tau_cap = float(cfg.get("experiment", "tau_max", default=1e-5))
@@ -681,7 +681,7 @@ def run(cfg: ALConfig) -> Path:
         i, j, dist, stats = engine.search_pair(
             tree,
             X,
-            center,
+            center_full,
             tau=float(tau),
             return_stats=True,
             ensure_optimal=False,
@@ -724,20 +724,22 @@ def run(cfg: ALConfig) -> Path:
             time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(t_end)) + f".{int((t_end%1)*1000):03d}Z",
         ])
 
-        # Append constraint: y·(a-b)^T w >= 0  =>  A <- [A; -y*(a-b)], b <- [b; 0]
-        h = -float(y) * diff
-        A = np.vstack([A, h.reshape(1, -1)])
-        b = np.concatenate([b, np.array([0.0])])
+        # Append constraint: y*(a-b)^T w >= 0 (projected to reduced coordinates)
+        constraint = -float(y) * diff
+        proj_row, proj_rhs = space.project(constraint)
+        A = np.vstack([A, proj_row.reshape(1, -1)])
+        b = np.concatenate([b, np.array([proj_rhs], dtype=float)])
 
         # Recompute center and radius, save center snapshot for this iteration
-        center = np.asarray(center_fn(A, b), dtype=float)
-        radius = _chebyshev_radius(A, b, center)
-        np.save(iter_dir / "center_model.npy", center)
+        center_proj = np.asarray(center_fn(A, b), dtype=float)
+        center_full = space.expand_center(center_proj)
+        radius = _chebyshev_radius(A, b, center_proj)
+        np.save(iter_dir / "center_model.npy", center_full)
         # Also save tau and radius alongside center in a single NPZ archive
         try:
             np.savez(
                 iter_dir / "center_model.npz",
-                center=np.asarray(center, dtype=float),
+                center=np.asarray(center_full, dtype=float),
                 radius=float(radius),
                 tau=float(tau),
             )
@@ -873,11 +875,9 @@ def run_all(cfg: ALConfig) -> Path:
         if max_pts and X.shape[0] > max_pts:
             idx = rng.choice(X.shape[0], size=max_pts, replace=False)
             X = np.ascontiguousarray(X[idx], dtype=float)
-        # Optional additivity augmentation per dataset
-        add_k = int(cfg.get("experiment", "additivity_k", default=1) or 1)
-        if add_k > 1:
-            X = augment_with_minimums(X, add_k)
-            log.info("Applied additivity augmentation (k=%d) → shape %s", add_k, X.shape)
+        # Feature augmentation via additivity_k and constraint initialization
+        add_k_cfg = int(cfg.get("experiment", "additivity_k", default=1) or 1)
+        X, space, A0, b0 = _prepare_capacity_space(X, add_k=add_k_cfg, log=log)
 
         # Build trees per dataset
         if kd_methods:
@@ -917,6 +917,9 @@ def run_all(cfg: ALConfig) -> Path:
                         center_fn=center_fn,
                         oracle_fn=oracle_fn,
                         oracle_weights=oracle_w,
+                        space=space,
+                        A0=A0,
+                        b0=b0,
                         kd_cfg=kd_cfg,
                         bt_cfg=bt_cfg,
                         tree_family="kdtree",
@@ -954,6 +957,9 @@ def run_all(cfg: ALConfig) -> Path:
                         center_fn=center_fn,
                         oracle_fn=oracle_fn,
                         oracle_weights=oracle_w,
+                        space=space,
+                        A0=A0,
+                        b0=b0,
                         kd_cfg=kd_cfg,
                         bt_cfg=bt_cfg,
                         tree_family="balltree",
@@ -981,6 +987,9 @@ def _run_single_experiment(
     center_fn,
     oracle_fn,
     oracle_weights: np.ndarray,
+    space: CapacitySpace,
+    A0: np.ndarray,
+    b0: np.ndarray,
     kd_cfg: Dict[str, Any],
     bt_cfg: Dict[str, Any],
     tree_family: str,
@@ -1040,9 +1049,11 @@ def _run_single_experiment(
     csv_writer.writerow(["iteration_id", "query_path", "oracle_response", "i", "j", "timestamp_start", "timestamp_end"])  # schema
 
     # Init version space
-    A, b = _simplex_constraints(X.shape[1])
-    center = np.asarray(center_fn(A, b), dtype=float)
-    radius = _chebyshev_radius(A, b, center)
+    A = np.asarray(A0, dtype=float).copy()
+    b = np.asarray(b0, dtype=float).copy()
+    center_proj = np.asarray(center_fn(A, b), dtype=float)
+    center_full = space.expand_center(center_proj)
+    radius = _chebyshev_radius(A, b, center_proj)
 
     for it in range(n_iter):
         t_start = time.time()
@@ -1056,7 +1067,7 @@ def _run_single_experiment(
         i, j, dist, stats = engine.search_pair(
             tree,
             X,
-            center,
+            center_full,
             tau=float(tau),
             return_stats=True,
             ensure_optimal=False,
@@ -1086,15 +1097,18 @@ def _run_single_experiment(
             time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(t_end)) + f".{int((t_end%1)*1000):03d}Z",
         ])
 
-        A = np.vstack([A, (-float(y) * diff).reshape(1, -1)])
-        b = np.concatenate([b, np.array([0.0])])
-        center = np.asarray(center_fn(A, b), dtype=float)
-        radius = _chebyshev_radius(A, b, center)
-        np.save(iter_dir / "center_model.npy", center)
+        constraint = -float(y) * diff
+        proj_row, proj_rhs = space.project(constraint)
+        A = np.vstack([A, proj_row.reshape(1, -1)])
+        b = np.concatenate([b, np.array([proj_rhs], dtype=float)])
+        center_proj = np.asarray(center_fn(A, b), dtype=float)
+        center_full = space.expand_center(center_proj)
+        radius = _chebyshev_radius(A, b, center_proj)
+        np.save(iter_dir / "center_model.npy", center_full)
         try:
             np.savez(
                 iter_dir / "center_model.npz",
-                center=np.asarray(center, dtype=float),
+                center=np.asarray(center_full, dtype=float),
                 radius=float(radius),
                 tau=float(tau),
             )
