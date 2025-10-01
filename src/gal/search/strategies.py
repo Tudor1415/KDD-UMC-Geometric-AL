@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Dict, Generic, List, Tuple, TypeVar
 
+import random
 import numpy as np
 
 from ..trees.common import Node
@@ -15,7 +16,15 @@ TNode = TypeVar('TNode')
 class VisitStrategy(Generic[TNode]):
     """Base class for visit-ordering strategies."""
 
-    def setup(self, root: TNode, *, data: np.ndarray | None = None) -> None:
+    def setup(
+        self,
+        root: TNode,
+        *,
+        data: np.ndarray | None = None,
+        wc: np.ndarray | None = None,
+        tau: float = float('inf'),
+        eps: float = 1e-12,
+    ) -> None:
         """Prepare the strategy for a new search tree."""
 
     def priority(self, a: TNode, b: TNode, bounds: BoundsResult, mass: int) -> Tuple[float, ...]:
@@ -24,10 +33,44 @@ class VisitStrategy(Generic[TNode]):
 
 
 class LowerBoundVisitStrategy(VisitStrategy[Node]):
-    """Order candidate pairs by their bound tightness."""
+    """Order candidate pairs using query-aligned centre distances and bounds."""
+
+    def __init__(self, *, rng: random.Random | None = None) -> None:
+        self._query: np.ndarray | None = None
+        self._tau: float = float('inf')
+        self._eps: float = 1e-12
+        self._rng: random.Random = rng or random.Random()
+
+    def setup(
+        self,
+        root: Node,
+        *,
+        data: np.ndarray | None = None,
+        wc: np.ndarray | None = None,
+        tau: float = float('inf'),
+        eps: float = 1e-12,
+    ) -> None:
+        """Capture query vector and thresholds for upcoming priority calls."""
+        if wc is not None:
+            self._query = np.asarray(wc, dtype=float)
+        else:
+            self._query = None
+        self._tau = float(tau)
+        self._eps = float(eps)
+
+    def _center_distance(self, a: Node, b: Node) -> float:
+        if self._query is None:
+            return 0.0
+        diff = np.asarray(a.center, dtype=float) - np.asarray(b.center, dtype=float)
+        denom = float(np.linalg.norm(diff))
+        if denom <= self._eps:
+            return 0.0
+        return abs(float(np.dot(diff, self._query))) / max(denom, self._eps)
 
     def priority(self, a: Node, b: Node, bounds: BoundsResult, mass: int) -> Tuple[float, ...]:
-        return (bounds.lower, bounds.upper, float(mass))
+        distance = self._center_distance(a, b)
+        key0 = 0.0 if bounds.upper <= self._tau else distance
+        return (float(key0), float(bounds.lower), float(self._rng.random()))
 
 
 class DiversityVisitStrategy(VisitStrategy[Node]):
@@ -53,7 +96,15 @@ class DiversityVisitStrategy(VisitStrategy[Node]):
                 )
         return self._diversity_cache[node_id]
 
-    def setup(self, root: Node, *, data: np.ndarray | None = None) -> None:
+    def setup(
+        self,
+        root: Node,
+        *,
+        data: np.ndarray | None = None,
+        wc: np.ndarray | None = None,
+        tau: float = float('inf'),
+        eps: float = 1e-12,
+    ) -> None:
         """
         Pre-computes diversity scores for all nodes in the tree.
         """

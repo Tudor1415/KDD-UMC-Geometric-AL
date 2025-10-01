@@ -191,7 +191,7 @@ class Search:
         tie = count()
         # Provide a per-search cache so bounders can reuse per-center computations
         bound_context = BoundContext(wc=wc, eps=float(eps), proj_cache={})
-        self.strategy.setup(root, data=data)
+        self.strategy.setup(root, data=data, wc=wc, tau=float(tau), eps=float(eps))
 
         # Tracing support (optional)
         t0 = time.perf_counter()
