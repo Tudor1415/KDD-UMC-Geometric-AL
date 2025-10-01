@@ -39,7 +39,8 @@ from gal.centers.poly_centers import (
     minkowski_center,
     volumetric_center,
 )
-from gal.utils.helpers import augment_with_minimums
+from gal.learning.learn import project_constraint
+from gal.utils.helpers import augment_with_minimums, k_additive_constraints, enumerate_subsets
 
 
 try:
@@ -124,6 +125,41 @@ def _normalize_measure_list(values: Any) -> List[str]:
         raise ValueError(f"Expected an iterable of measure names, got {values!r}") from exc
     return [c for c in cleaned if c]
 
+
+_ALLOWED_PATH_KEYS = {"mnr_rules", "matrix_npy", "dataset_path"}
+
+
+def _dataset_entry_from_cfg(cfg: "ALConfig", item: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    if item is not None and not isinstance(item, dict):
+        raise ValueError("The new schema requires each datasets[] entry to be a mapping.")
+    base_name = str(cfg.get("experiment", "dataset_name", default="DATA"))
+    name = str((item or {}).get("name", base_name))
+    if not name:
+        raise ValueError("experiment.dataset_name must be provided in the configuration.")
+    base_paths_raw = cfg.get("paths", default={}) or {}
+    base_paths = {k: v for k, v in base_paths_raw.items() if k in _ALLOWED_PATH_KEYS and v is not None}
+    item_paths_raw = ((item or {}).get("paths", {}) or {})
+    item_paths = {k: v for k, v in item_paths_raw.items() if k in _ALLOWED_PATH_KEYS and v is not None}
+    paths: Dict[str, Any] = {}
+    paths.update(base_paths)
+    paths.update(item_paths)
+    entry: Dict[str, Any] = {}
+    if item:
+        entry.update({k: v for k, v in item.items() if k not in {"paths", "measures", "name"}})
+    entry["name"] = name
+    entry["paths"] = paths
+    for source in (
+        (item or {}).get("measures"),
+        cfg.get("experiment", "measures", default=None),
+        cfg.get("global", "measures", default=None),
+    ):
+        measures = _normalize_measure_list(source)
+        if measures:
+            entry["measures"] = measures
+            break
+    entry.setdefault("measures", list(DEFAULT_MEASURE_COLUMNS))
+    return entry
+
 def _load_points_for_dataset(name: str, ds_entry: Dict[str, Any]) -> np.ndarray:
     paths = ds_entry.get("paths", {}) if isinstance(ds_entry, dict) else {}
     if isinstance(ds_entry, dict):
@@ -186,15 +222,95 @@ def _load_points_for_dataset(name: str, ds_entry: Dict[str, Any]) -> np.ndarray:
     X = rng.normal(size=(256, len(cols)))
     return np.ascontiguousarray(X, dtype=float)
 
-def _simplex_constraints(d: int) -> Tuple[np.ndarray, np.ndarray]:
-    # Sum <= 1 and w >= 0 (componentwise)
-    A = []
-    b = []
-    A.append(np.ones(d))
-    b.append(1.0)
-    A.extend([-np.eye(d)[i] for i in range(d)])
-    b.extend([0.0] * d)
-    return np.asarray(A, dtype=float), np.asarray(b, dtype=float)
+@dataclass
+class CapacitySpace:
+    subsets: List[Tuple[int, ...]]
+    proj_index: Dict[Tuple[int, ...], int]
+    n_single: int
+    add_k: int
+
+    def __post_init__(self) -> None:
+        if not self.subsets:
+            raise ValueError("Expected at least one subset for capacity space.")
+        self.full_index: Dict[Tuple[int, ...], int] = {
+            subset: idx for idx, subset in enumerate(self.subsets)
+        }
+        self.last_subset: Tuple[int, ...] = self.subsets[-1]
+        self.full_dim: int = len(self.subsets)
+        if len(self.proj_index) != self.full_dim - 1:
+            raise ValueError("Projected index map must omit exactly one subset.")
+        if self.last_subset not in self.full_index:
+            raise ValueError("Last subset missing from full index.")
+        self.last_pos: int = self.full_index[self.last_subset]
+        self.permutation: np.ndarray = np.asarray(
+            [self.full_index[s] for s in self.subsets],
+            dtype=np.int64,
+        )
+
+    def expand_center(self, center_proj: np.ndarray) -> np.ndarray:
+        vec = np.asarray(center_proj, dtype=float).reshape(-1)
+        expected = self.full_dim - 1
+        if vec.size != expected:
+            raise ValueError(
+                f"Center length {vec.size} does not match projected dim {expected}."
+            )
+        full = np.zeros(self.full_dim, dtype=float)
+        for subset, idx in self.proj_index.items():
+            full[self.full_index[subset]] = vec[idx]
+        full[self.last_pos] = 1.0 - float(np.sum(vec))
+        return full
+
+    def project(self, constraint: np.ndarray) -> Tuple[np.ndarray, float]:
+        vec = np.asarray(constraint, dtype=float).reshape(-1)
+        if vec.size != self.full_dim:
+            raise ValueError(
+                f"Constraint length {vec.size} does not match full dim {self.full_dim}."
+            )
+        ordered = vec[self.permutation]
+        proj_row, proj_rhs = project_constraint(ordered)
+        return np.asarray(proj_row, dtype=float), float(proj_rhs)
+
+
+def _prepare_capacity_space(
+    X: np.ndarray,
+    *,
+    add_k: int,
+    log: Optional[logging.Logger] = None,
+) -> Tuple[np.ndarray, CapacitySpace, np.ndarray, np.ndarray]:
+    X = np.ascontiguousarray(X, dtype=float)
+    if X.ndim != 2:
+        raise ValueError("X must be a 2D array.")
+    n_single = X.shape[1]
+    k_val = int(add_k) if add_k else 1
+    if k_val < 1:
+        k_val = 1
+    if k_val > n_single:
+        k_val = n_single
+    extra_subsets: List[Tuple[int, ...]] = []
+    if k_val > 1:
+        X_aug, extra_subsets = augment_with_minimums(X, k_val, return_index_map=True)
+        X_work = np.ascontiguousarray(X_aug, dtype=float)
+        if log is not None:
+            log.info(
+                "Applied additivity augmentation (k=%d) – shape %s",
+                k_val,
+                X_work.shape,
+            )
+    else:
+        X_work = X.copy()
+    subsets = [(i,) for i in range(n_single)] + list(extra_subsets)
+    if not subsets:
+        raise RuntimeError("Failed to enumerate subsets for capacity space.")
+    if subsets != enumerate_subsets(n_single, k_val):
+        raise RuntimeError("Subset ordering mismatch between augmentation and canonical order.")
+    A0, b0, proj_index = k_additive_constraints(n_single, k_val)
+    space = CapacitySpace(
+        subsets=subsets,
+        proj_index=proj_index,
+        n_single=n_single,
+        add_k=k_val,
+    )
+    return X_work, space, np.asarray(A0, dtype=float), np.asarray(b0, dtype=float)
 
 
 def _center_fn(name: str):
@@ -378,37 +494,8 @@ def run(cfg: ALConfig) -> Path:
     _configure_runtime_from_config(cfg)
 
     rng = np.random.default_rng(int(cfg.get("global", "seed", default=1729)))
-    # Support two schema variants:
-    #  - legacy: dataset{name, paths{mnr_rules,matrix_npy}}
-    #  - general.md style: experiment{dataset_name, center_name, oracle_name, active_learning_budget}
-    #                      + paths{mnr_rules,matrix_npy,dataset_path}
-    ds_entry_cfg = cfg.get("dataset", default=None)
-    if ds_entry_cfg is None:
-        ds_name = str(cfg.get("experiment", "dataset_name", default="DATA"))
-        ds_entry = {
-            "name": ds_name,
-            "paths": {
-                k: v
-                for k, v in (cfg.get("paths", default={}) or {}).items()
-                if k in {"mnr_rules", "matrix_npy", "dataset_path"}
-            },
-        }
-    else:
-        ds_entry = dict(ds_entry_cfg)
-        ds_name = str(ds_entry.get("name", "DATA"))
-
-    for source in (
-        ds_entry.get("measures"),
-        cfg.get("dataset", "measures", default=None),
-        cfg.get("experiment", "measures", default=None),
-        cfg.get("global", "measures", default=None),
-    ):
-        normalized = _normalize_measure_list(source)
-        if normalized:
-            ds_entry["measures"] = normalized
-            break
-
-    ds_entry.setdefault("measures", list(DEFAULT_MEASURE_COLUMNS))
+    ds_entry = _dataset_entry_from_cfg(cfg)
+    ds_name = str(ds_entry["name"])
 
     X = _load_points_for_dataset(ds_name, ds_entry)
     log.info("Loaded dataset '%s' with shape %s", ds_name, getattr(X, 'shape', None))
@@ -523,11 +610,13 @@ def run(cfg: ALConfig) -> Path:
     exp_dir.mkdir(parents=True, exist_ok=True)
 
     # Serialize config.json
+    ds_paths = ds_entry.get("paths", {}) or {}
+    dataset_path = ds_paths.get("dataset_path") or ds_paths.get("matrix_npy")
     cfg_json = {
         "experiment_uid": exp_uid,
         "dataset_name": ds_name,
         # No dataset hash per request
-        "dataset_path": (cfg.get("paths", "dataset_path", default=None) or (ds_entry.get("paths", {}) or {}).get("matrix_npy")),
+        "dataset_path": dataset_path,
         "oracle_name": str(cfg.get("experiment", "oracle_name", default=cfg.get("oracle", "type", default="Linear"))),
         "center_name": center_name,
         "random_seed": int(cfg.get("global", "seed", default=1729)),
@@ -686,64 +775,19 @@ def run_all(cfg: ALConfig) -> Path:
     rng = np.random.default_rng(int(cfg.get("global", "seed", default=1729)))
 
     # -----------------------------
-    # Resolve dataset entries
-    # Supports:
-    #   - single dataset via legacy `dataset` or `experiment.dataset_name` + `paths`
-    #   - multiple datasets via `datasets: [..]` where each item is either a
-    #     string name or a dict with {name, paths{mnr_rules,matrix_npy,dataset_path}}
+    # Resolve dataset entries using the general.md schema
     # -----------------------------
     datasets_cfg = cfg.get("datasets", default=None)
     ds_entries: List[Dict[str, Any]] = []
-    if datasets_cfg:
-        # Normalize to list of dict entries
-        for item in list(datasets_cfg):
-            if isinstance(item, str):
-                entry = {"name": str(item), "paths": {}}
-            elif isinstance(item, dict):
-                entry = dict(item)
-                entry["name"] = str(item.get("name", cfg.get("experiment", "dataset_name", default="DATA")))
-                entry_paths = entry.get("paths", {}) or {}
-                entry["paths"] = dict(entry_paths)
-                measures = _normalize_measure_list(entry.get("measures"))
-                if measures:
-                    entry["measures"] = measures
-                elif "measures" in entry:
-                    entry.pop("measures")
-            else:
-                raise ValueError("Each datasets[] entry must be a string or a mapping with 'name' and optional 'paths'.")
-            entry.setdefault("paths", {})
-            ds_entries.append(entry)
+    if datasets_cfg is not None:
+        if not isinstance(datasets_cfg, (list, tuple)):
+            raise ValueError("datasets must be a list when using the new schema.")
+        for item in datasets_cfg:
+            ds_entries.append(_dataset_entry_from_cfg(cfg, item))
     else:
-        ds_entry_cfg = cfg.get("dataset", default=None)
-        if ds_entry_cfg is None:
-            ds_name = str(cfg.get("experiment", "dataset_name", default="DATA"))
-            ds_entry = {
-                "name": ds_name,
-                "paths": {
-                    k: v
-                    for k, v in (cfg.get("paths", default={}) or {}).items()
-                    if k in {"mnr_rules", "matrix_npy", "dataset_path"}
-                },
-            }
-        else:
-            ds_entry = dict(ds_entry_cfg)
-            if "paths" in ds_entry:
-                ds_entry["paths"] = dict(ds_entry.get("paths", {}) or {})
-        ds_entries = [ds_entry]
-
-    for entry in ds_entries:
-        entry.setdefault("paths", {})
-        for source in (
-            entry.get("measures"),
-            cfg.get("dataset", "measures", default=None),
-            cfg.get("experiment", "measures", default=None),
-            cfg.get("global", "measures", default=None),
-        ):
-            normalized = _normalize_measure_list(source)
-            if normalized:
-                entry["measures"] = normalized
-                break
-        entry.setdefault("measures", list(DEFAULT_MEASURE_COLUMNS))
+        ds_entries.append(_dataset_entry_from_cfg(cfg))
+    if not ds_entries:
+        raise ValueError("No datasets resolved from configuration.")
     # -----------------------------
     # Global algorithmic config reused across datasets
     # -----------------------------
@@ -951,9 +995,11 @@ def _run_single_experiment(
     tau_cap = float(cfg.get("experiment", "tau_max", default=1e-5))
 
     # Serialize per-run config.json (no dataset hash)
+    ds_paths = ds_entry.get("paths", {}) or {}
+    dataset_path = ds_paths.get("dataset_path") or ds_paths.get("matrix_npy")
     cfg_json = {
         "dataset_name": str(ds_entry.get("name", cfg.get("experiment", "dataset_name", default="DATA"))),
-        "dataset_path": (cfg.get("paths", "dataset_path", default=None) or (ds_entry.get("paths", {}) or {}).get("matrix_npy")),
+        "dataset_path": dataset_path,
         "oracle_name": str(cfg.get("experiment", "oracle_name", default=cfg.get("oracle", "type", default="Linear"))),
         "center_name": str(center_name),
         "random_seed": int(cfg.get("global", "seed", default=1729)),

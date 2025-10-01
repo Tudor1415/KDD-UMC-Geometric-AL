@@ -1,13 +1,13 @@
 global:
   output_root: "./results/al"
   seed: 1729
-  max_points: 0
+  max_points: 1000
   numexpr_max_threads: 24
 
 experiment:
   # Single dataset (kept for backward compatibility)
   dataset_name: "MUSHROOM"
-  measures: ["supportY", "supportZ", "support", "confidence", "lift", "cosine", "phi", "kruskal", "yuleQ", "added_value", "certainty", "revsupport"]
+  measures: ["support", "confidence"]
   oracle_name: "LinearOracle"
   center_name: "ChebyshevCenter"   # one of: AnalyticCenter, ChebyshevCenter, MinkowskiCenter, VolumetricCenter
   active_learning_budget: 25      # number of iterations (defaults to 25)
