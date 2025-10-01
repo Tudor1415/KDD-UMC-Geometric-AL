@@ -42,7 +42,7 @@ experiment
 ^^^^^^^^^^
 
 - ``dataset_name``: Name used in run folders when a single dataset is provided.
-- ``oracle_name``: String identifier for the oracle (see ``experiments/active/exp_oracles.py``).
+- ``oracle_name``: String identifier for the oracle (see ``gal/oracles/linear.py``).
   Examples: ``linear_equal``, ``linear_simplex``, ``linear_random``, ``linear_axis_0``.
 - ``center_name``: Polyhedral centre to recompute each iteration. Accepted
   values (case-insensitive, synonyms allowed): ``AnalyticCenter``,

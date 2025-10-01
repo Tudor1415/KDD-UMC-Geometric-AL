@@ -41,6 +41,11 @@ from gal.centers.poly_centers import (
 )
 from gal.learning.learn import project_constraint
 from gal.utils.helpers import augment_with_minimums, k_additive_constraints, enumerate_subsets
+from gal.oracles.linear import (
+    get_oracle as get_linear_oracle,
+    get_oracle_weights as get_linear_oracle_weights,
+    PickledLinearOracle,
+)
 
 
 try:
@@ -826,8 +831,7 @@ def run_all(cfg: ALConfig) -> Path:
         search_strategies = [str(strategies_raw)]
 
     # Oracle names
-    from .exp_oracles import get_oracle, get_oracle_weights
-    oracle_names_cfg = cfg.get("oracles", "names", default=None)
+        oracle_names_cfg = cfg.get("oracles", "names", default=None)
     if oracle_names_cfg:
         oracle_names = [str(x) for x in oracle_names_cfg]
     else:
@@ -889,8 +893,8 @@ def run_all(cfg: ALConfig) -> Path:
         bt_trees = {str(m): bt.build_tree(X, bt_cfg, method=str(m)) for m in bt_methods}
 
         for oracle_name in oracle_names:
-            oracle_fn = get_oracle(oracle_name, X.shape[1], rng)
-            oracle_w = get_oracle_weights(oracle_name, X.shape[1])
+            oracle_fn = get_linear_oracle(oracle_name, X.shape[1], rng)
+            oracle_w = get_linear_oracle_weights(oracle_name, X.shape[1])
             # KD-tree combinations
             if kd_tree_obj is not None and kd_methods:
                 for strat_name in search_strategies:
@@ -1029,7 +1033,6 @@ def _run_single_experiment(
     (exp_dir / "config.json").write_text(json.dumps(cfg_json, indent=2))
 
     # Pickle a scoring-oracle object for reproducibility and analysis
-    from .exp_oracles import PickledLinearOracle
     with open(exp_dir / "oracle.pkl", "wb") as f:
         obj = PickledLinearOracle(cfg_json.get("oracle_name"), np.asarray(oracle_weights, dtype=float))
         pickle.dump(obj, f)

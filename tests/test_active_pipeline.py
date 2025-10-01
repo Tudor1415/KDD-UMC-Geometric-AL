@@ -15,7 +15,7 @@ if str(SRC) not in sys.path:
 
 
 def test_exp_oracles_mapping():
-    from experiments.active.exp_oracles import get_oracle
+    from gal.oracles.linear import get_oracle
 
     d = 3
     rng = np.random.default_rng(0)
