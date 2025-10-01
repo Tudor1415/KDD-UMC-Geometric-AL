@@ -68,6 +68,7 @@ def test_run_all_generates_outputs(tmp_path: Path):
             "dataset_name": "SYNTH",
             "oracle_name": "linear_equal",
             "center_name": "AnalyticCenter",
+            "measures": ["support", "confidence"],
             "active_learning_budget": 1,
         },
         "paths": {},
@@ -98,3 +99,6 @@ def test_run_all_generates_outputs(tmp_path: Path):
     cfg_json = json.loads((run_dir / "config.json").read_text())
     assert cfg_json.get("tree_family") in {"kdtree", "balltree"}
     assert cfg_json.get("search_strategy") == "lower_bound"
+    assert cfg_json.get("measures") == ["support", "confidence"]
+
+

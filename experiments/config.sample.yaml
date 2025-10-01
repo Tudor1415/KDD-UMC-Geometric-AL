@@ -7,11 +7,13 @@ global:
 experiment:
   # Single dataset (kept for backward compatibility)
   dataset_name: "MUSHROOM"
+  measures: ["supportY", "supportZ", "support", "confidence", "lift", "cosine", "phi", "kruskal", "yuleQ", "added_value", "certainty", "revsupport"]
   oracle_name: "LinearOracle"
-  center_name: "MinkowskiCenter"   # one of: AnalyticCenter, ChebyshevCenter, MinkowskiCenter, VolumetricCenter
-  active_learning_budget: 100      # number of iterations (defaults to 25)
-  additivity_k: 2                  # optional; Choquet additivity order (1 = no augmentation)
+  center_name: "ChebyshevCenter"   # one of: AnalyticCenter, ChebyshevCenter, MinkowskiCenter, VolumetricCenter
+  active_learning_budget: 25      # number of iterations (defaults to 25)
+  additivity_k: 1                  # optional; Choquet additivity order (1 = no augmentation)
   tau_max: 1e-5                    # optional; max tau per iteration (default 1e-5)
+  tau_radius_multiplier: 0.5          # optional; scales radius when computing tau (default 0.5)
 
 paths:
   mnr_rules: "./mined_rules/mushroom_mnr.csv"
@@ -20,12 +22,11 @@ algorithm_parameters:
   leaf_size: 25
   search_strategies: ["lower_bound"]
   tree_build_methods:
-    # kdtree: ["kd_tree"]
     balltree: ["two_pivot"]
 
 logging:
   search_events: true
-  level: INFO           # INFO or DEBUG for more detail
+  level: DEBUG           # INFO or DEBUG for more detail
   log_every: 1          # when DEBUG, emit every N iterations
 
 oracles:
@@ -39,3 +40,6 @@ oracles:
 #     paths:
 #       mnr_rules: "./mined_rules/credit_mnr.csv"
 #       # matrix_npy: "./matrices/credit_rules.npy"   # optional
+
+
+

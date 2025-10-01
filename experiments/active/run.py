@@ -96,22 +96,45 @@ def _configure_runtime_from_config(cfg: "ALConfig") -> None:
         pass
 
 
+DEFAULT_MEASURE_COLUMNS = [
+    "supportY",
+    "supportZ",
+    "support",
+    "confidence",
+    "lift",
+    "cosine",
+    "phi",
+    "kruskal",
+    "yuleQ",
+    "added_value",
+    "certainty",
+    "revsupport",
+]
+
+
+def _normalize_measure_list(values: Any) -> List[str]:
+    if values is None:
+        return []
+    if isinstance(values, str):
+        cleaned = str(values).strip()
+        return [cleaned] if cleaned else []
+    try:
+        cleaned = [str(v).strip() for v in list(values)]
+    except TypeError as exc:
+        raise ValueError(f"Expected an iterable of measure names, got {values!r}") from exc
+    return [c for c in cleaned if c]
+
 def _load_points_for_dataset(name: str, ds_entry: Dict[str, Any]) -> np.ndarray:
     paths = ds_entry.get("paths", {}) if isinstance(ds_entry, dict) else {}
-    cols = [
-        "supportY",
-        "supportZ",
-        "support",
-        "confidence",
-        "lift",
-        "cosine",
-        "phi",
-        "kruskal",
-        "yuleQ",
-        "added_value",
-        "certainty",
-        "revsupport",
-    ]
+    if isinstance(ds_entry, dict):
+        measures = _normalize_measure_list(ds_entry.get("measures"))
+        if measures:
+            ds_entry["measures"] = measures
+        else:
+            ds_entry["measures"] = list(DEFAULT_MEASURE_COLUMNS)
+        cols = list(ds_entry["measures"])
+    else:
+        cols = list(DEFAULT_MEASURE_COLUMNS)
 
     mnr_path = paths.get("mnr_rules")
     if mnr_path is None:
@@ -154,9 +177,14 @@ def _load_points_for_dataset(name: str, ds_entry: Dict[str, Any]) -> np.ndarray:
         return np.ascontiguousarray(np.load(npy_path), dtype=float)
 
     # synthetic fallback
-    rng = np.random.default_rng(int(ds_entry.get("seed", 1729)))
-    return rng.normal(size=(256, 12))
-
+    seed_raw = ds_entry.get("seed", 1729) if isinstance(ds_entry, dict) else 1729
+    try:
+        seed_val = int(seed_raw)
+    except Exception:
+        seed_val = 1729
+    rng = np.random.default_rng(seed_val)
+    X = rng.normal(size=(256, len(cols)))
+    return np.ascontiguousarray(X, dtype=float)
 
 def _simplex_constraints(d: int) -> Tuple[np.ndarray, np.ndarray]:
     # Sum <= 1 and w >= 0 (componentwise)
@@ -354,8 +382,8 @@ def run(cfg: ALConfig) -> Path:
     #  - legacy: dataset{name, paths{mnr_rules,matrix_npy}}
     #  - general.md style: experiment{dataset_name, center_name, oracle_name, active_learning_budget}
     #                      + paths{mnr_rules,matrix_npy,dataset_path}
-    ds_entry = cfg.get("dataset", default=None)
-    if ds_entry is None:
+    ds_entry_cfg = cfg.get("dataset", default=None)
+    if ds_entry_cfg is None:
         ds_name = str(cfg.get("experiment", "dataset_name", default="DATA"))
         ds_entry = {
             "name": ds_name,
@@ -366,7 +394,22 @@ def run(cfg: ALConfig) -> Path:
             },
         }
     else:
+        ds_entry = dict(ds_entry_cfg)
         ds_name = str(ds_entry.get("name", "DATA"))
+
+    for source in (
+        ds_entry.get("measures"),
+        cfg.get("dataset", "measures", default=None),
+        cfg.get("experiment", "measures", default=None),
+        cfg.get("global", "measures", default=None),
+    ):
+        normalized = _normalize_measure_list(source)
+        if normalized:
+            ds_entry["measures"] = normalized
+            break
+
+    ds_entry.setdefault("measures", list(DEFAULT_MEASURE_COLUMNS))
+
     X = _load_points_for_dataset(ds_name, ds_entry)
     log.info("Loaded dataset '%s' with shape %s", ds_name, getattr(X, 'shape', None))
     # Optional uniform downsampling
@@ -398,15 +441,29 @@ def run(cfg: ALConfig) -> Path:
             kd_cfg.setdefault("leaf_size", int(kd_leaf))
         if bt_leaf is not None:
             bt_cfg.setdefault("leaf_size", int(bt_leaf))
-        # build method for ball-tree: prefer explicit method, else first in tree_build_methods.balltree
-        if not bt_method:
-            tbm = algo.get("tree_build_methods", {}) or {}
-            b_list = tbm.get("balltree") or tbm.get("ball_tree") or []
-            if isinstance(b_list, list) and b_list:
-                bt_method = str(b_list[0])
-        # enabled toggles (optional)
-        kd_enabled = bool((algo.get("kd_tree", {}) or {}).get("enabled", kd_enabled))
-        bt_enabled = bool((algo.get("ball_tree", {}) or {}).get("enabled", bt_enabled))
+        tbm = algo.get("tree_build_methods", {}) or {}
+        b_raw = tbm.get("balltree") or tbm.get("ball_tree") or []
+        kd_raw = tbm.get("kdtree") or tbm.get("kd_tree") or []
+        b_list = list(b_raw) if isinstance(b_raw, (list, tuple)) else ([b_raw] if b_raw else [])
+        kd_list = list(kd_raw) if isinstance(kd_raw, (list, tuple)) else ([kd_raw] if kd_raw else [])
+
+        if not bt_method and b_list:
+            bt_method = str(b_list[0])
+
+        kd_block = (algo.get("kd_tree", {}) or {})
+        bt_block = (algo.get("ball_tree", {}) or {})
+        kd_enabled_explicit = kd_block.get("enabled")
+        bt_enabled_explicit = bt_block.get("enabled")
+
+        if kd_enabled_explicit is not None:
+            kd_enabled = bool(kd_enabled_explicit)
+        elif tbm:
+            kd_enabled = bool(kd_list)
+
+        if bt_enabled_explicit is not None:
+            bt_enabled = bool(bt_enabled_explicit)
+        elif tbm:
+            bt_enabled = bool(b_list)
     preferred_tree = str((algo or {}).get("preferred_tree", "balltree")).strip().lower()
     if not bt_method:
         bt_method = "disjoint_greedy"
@@ -447,6 +504,15 @@ def run(cfg: ALConfig) -> Path:
 
     # Tau cap from config (max allowed tau per iteration)
     tau_cap = float(cfg.get("experiment", "tau_max", default=1e-5))
+    tau_multiplier_cfg = cfg.get("experiment", "tau_radius_multiplier", default=None)
+    if tau_multiplier_cfg is None:
+        tau_multiplier_cfg = cfg.get("algorithm_parameters", "tau_radius_multiplier", default=None)
+    try:
+        tau_multiplier = float(tau_multiplier_cfg)
+    except (TypeError, ValueError):
+        tau_multiplier = 0.5
+    if tau_multiplier <= 0:
+        tau_multiplier = 0.5
 
     # Output directory
     out_root = Path(cfg.get("global", "output_root", default="./results/al"))
@@ -477,6 +543,8 @@ def run(cfg: ALConfig) -> Path:
             },
         },
     }
+    if ds_entry.get("measures"):
+        cfg_json["measures"] = list(ds_entry["measures"])
     (exp_dir / "config.json").write_text(json.dumps(cfg_json, indent=2))
 
     # Save tree structures once
@@ -520,7 +588,7 @@ def run(cfg: ALConfig) -> Path:
         if not (np.isfinite(radius) and radius > 0):
             log.info("Stopping early: non-positive/invalid radius (radius=%s)", str(radius))
             break
-        tau = min(radius / 2.0, float(tau_cap))
+        tau = min(radius * float(tau_multiplier), float(tau_cap))
         i, j, dist, stats = engine.search_pair(
             tree,
             X,
@@ -630,17 +698,24 @@ def run_all(cfg: ALConfig) -> Path:
         # Normalize to list of dict entries
         for item in list(datasets_cfg):
             if isinstance(item, str):
-                ds_name_i = str(item)
-                ds_entries.append({"name": ds_name_i, "paths": {}})
+                entry = {"name": str(item), "paths": {}}
             elif isinstance(item, dict):
-                name = str(item.get("name", cfg.get("experiment", "dataset_name", default="DATA")))
-                paths = item.get("paths", {}) or {}
-                ds_entries.append({"name": name, "paths": paths})
+                entry = dict(item)
+                entry["name"] = str(item.get("name", cfg.get("experiment", "dataset_name", default="DATA")))
+                entry_paths = entry.get("paths", {}) or {}
+                entry["paths"] = dict(entry_paths)
+                measures = _normalize_measure_list(entry.get("measures"))
+                if measures:
+                    entry["measures"] = measures
+                elif "measures" in entry:
+                    entry.pop("measures")
             else:
                 raise ValueError("Each datasets[] entry must be a string or a mapping with 'name' and optional 'paths'.")
+            entry.setdefault("paths", {})
+            ds_entries.append(entry)
     else:
-        ds_entry = cfg.get("dataset", default=None)
-        if ds_entry is None:
+        ds_entry_cfg = cfg.get("dataset", default=None)
+        if ds_entry_cfg is None:
             ds_name = str(cfg.get("experiment", "dataset_name", default="DATA"))
             ds_entry = {
                 "name": ds_name,
@@ -651,9 +726,24 @@ def run_all(cfg: ALConfig) -> Path:
                 },
             }
         else:
-            ds_name = str(ds_entry.get("name", "DATA"))
+            ds_entry = dict(ds_entry_cfg)
+            if "paths" in ds_entry:
+                ds_entry["paths"] = dict(ds_entry.get("paths", {}) or {})
         ds_entries = [ds_entry]
 
+    for entry in ds_entries:
+        entry.setdefault("paths", {})
+        for source in (
+            entry.get("measures"),
+            cfg.get("dataset", "measures", default=None),
+            cfg.get("experiment", "measures", default=None),
+            cfg.get("global", "measures", default=None),
+        ):
+            normalized = _normalize_measure_list(source)
+            if normalized:
+                entry["measures"] = normalized
+                break
+        entry.setdefault("measures", list(DEFAULT_MEASURE_COLUMNS))
     # -----------------------------
     # Global algorithmic config reused across datasets
     # -----------------------------
@@ -665,8 +755,22 @@ def run_all(cfg: ALConfig) -> Path:
         kd_cfg.setdefault("leaf_size", int(leaf))
         bt_cfg.setdefault("leaf_size", int(leaf))
     tbm = (algo.get("tree_build_methods", {}) or {})
-    kd_methods = list(tbm.get("kdtree", []) or tbm.get("kd_tree", []) or ["kd_tree"])
-    bt_methods = list(tbm.get("balltree", []) or [])
+    kd_raw = tbm.get("kdtree")
+    if kd_raw is None:
+        kd_raw = tbm.get("kd_tree")
+    if kd_raw is None:
+        kd_methods = [] if tbm else ["kd_tree"]
+    elif isinstance(kd_raw, (list, tuple)):
+        kd_methods = [str(m) for m in kd_raw]
+    else:
+        kd_methods = [str(kd_raw)]
+    bt_raw = tbm.get("balltree") or tbm.get("ball_tree") or []
+    if isinstance(bt_raw, (list, tuple)):
+        bt_methods = [str(m) for m in bt_raw]
+    elif bt_raw:
+        bt_methods = [str(bt_raw)]
+    else:
+        bt_methods = []
     strategies_raw = algo.get("search_strategies", None)
     if strategies_raw is None:
         search_strategies = [str(algo.get("search_strategy", "lower_bound"))]
@@ -700,6 +804,15 @@ def run_all(cfg: ALConfig) -> Path:
     out_root.mkdir(parents=True, exist_ok=True)
     n_iter = int(cfg.get("experiment", "active_learning_budget", default=cfg.get("global", "n_iter", default=25)))
     collect_events = bool(cfg.get("logging", "search_events", default=True))
+    tau_multiplier_cfg = cfg.get("experiment", "tau_radius_multiplier", default=None)
+    if tau_multiplier_cfg is None:
+        tau_multiplier_cfg = cfg.get("algorithm_parameters", "tau_radius_multiplier", default=None)
+    try:
+        tau_multiplier = float(tau_multiplier_cfg)
+    except (TypeError, ValueError):
+        tau_multiplier = 0.5
+    if tau_multiplier <= 0:
+        tau_multiplier = 0.5
     timestamp = _timestamp()
 
     last_dir: Optional[Path] = None
@@ -767,6 +880,7 @@ def run_all(cfg: ALConfig) -> Path:
                         search_strategy=strat_name,
                         ds_entry=ds_entry,
                         cfg=cfg,
+                        tau_multiplier=tau_multiplier,
                         collect_events=collect_events,
                     )
                     last_dir = exp_dir
@@ -803,6 +917,7 @@ def run_all(cfg: ALConfig) -> Path:
                         search_strategy=strat_name,
                         ds_entry=ds_entry,
                         cfg=cfg,
+                        tau_multiplier=tau_multiplier,
                         collect_events=collect_events,
                     )
                     last_dir = exp_dir
@@ -829,6 +944,7 @@ def _run_single_experiment(
     search_strategy: str,
     ds_entry: Dict[str, Any],
     cfg: ALConfig,
+    tau_multiplier: float,
     collect_events: bool,
 ) -> None:
     # Tau cap (maximum tau per iteration)
@@ -853,6 +969,8 @@ def _run_single_experiment(
         },
         "oracle_weights": [float(x) for x in np.asarray(oracle_weights, dtype=float).ravel().tolist()],
     }
+    if ds_entry.get("measures"):
+        cfg_json["measures"] = list(ds_entry["measures"])
     (exp_dir / "config.json").write_text(json.dumps(cfg_json, indent=2))
 
     # Pickle a scoring-oracle object for reproducibility and analysis
@@ -888,7 +1006,7 @@ def _run_single_experiment(
 
         if not (np.isfinite(radius) and radius > 0):
             break
-        tau = min(radius / 2.0, float(tau_cap))
+        tau = min(radius * float(tau_multiplier), float(tau_cap))
         i, j, dist, stats = engine.search_pair(
             tree,
             X,
@@ -975,3 +1093,4 @@ def main() -> None:  # pragma: no cover - CLI entry
 
 if __name__ == "__main__":  # pragma: no cover - CLI entry
     main()
+
