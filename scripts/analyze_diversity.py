@@ -495,7 +495,7 @@ def compute_diversity(inp: Inputs) -> Path:
     rows: List[Dict[str, object]] = []
 
     # Cumulative containers for queries up to iteration i
-    cum_vecs: List[np.ndarray] = []
+    cum_rule_vectors: List[np.ndarray] = []
     cum_query_covers: List[np.ndarray] = []
 
     # Precompute covers helper for a rule index → items
@@ -542,15 +542,22 @@ def compute_diversity(inp: Inputs) -> Path:
                     f"Failed to load query vectors for iteration {it}: {', '.join(missing_refs)}. "
                     "Ensure iterations.csv points to existing query files or datasets."
                 )
-            it_vecs = [np.asarray(vec, dtype=float) for vec in raw_vecs if vec is not None]
-            for v in it_vecs:
-                cum_vecs.append(v)
 
             # Map query pairs to rule item lists for coverage metrics
             per_rule_items: List[List[int]] = []
+            per_rule_vectors: List[np.ndarray] = []
             for entry in entries:
-                per_rule_items.append(items_for_index(entry.get("i"), it))
-                per_rule_items.append(items_for_index(entry.get("j"), it))
+                idx_i = entry.get("i")
+                idx_j = entry.get("j")
+                if idx_i is not None:
+                    per_rule_items.append(items_for_index(idx_i, it))
+                    per_rule_vectors.append(np.asarray(ds.points[int(idx_i)], dtype=float))
+                if idx_j is not None:
+                    per_rule_items.append(items_for_index(idx_j, it))
+                    per_rule_vectors.append(np.asarray(ds.points[int(idx_j)], dtype=float))
+
+            if per_rule_vectors:
+                cum_rule_vectors.extend(per_rule_vectors)
 
             if per_rule_items and (txn_matrix is not None or txn_df is not None):
                 per_rule_covers = compute_covers(per_rule_items)
@@ -564,8 +571,8 @@ def compute_diversity(inp: Inputs) -> Path:
             }
 
             # ------------------- cumulative feature-space diversity
-            if len(cum_vecs) >= 2:
-                X = np.vstack([v for v in cum_vecs if v.size >= n_measures])
+            if len(cum_rule_vectors) >= 2:
+                X = np.vstack(cum_rule_vectors)
                 row["cosine_mean"] = _pairwise_cosine_mean(X)
             else:
                 row["cosine_mean"] = float("nan")
