@@ -69,8 +69,11 @@ class LowerBoundVisitStrategy(VisitStrategy[Node]):
 
     def priority(self, a: Node, b: Node, bounds: BoundsResult, mass: int) -> Tuple[float, ...]:
         distance = self._center_distance(a, b)
-        key0 = 0.0 if bounds.upper <= self._tau else distance
-        return (float(key0), float(bounds.lower), float(self._rng.random()))
+        key0 = -1 if bounds.upper <= self._tau else distance
+        
+        if distance < self._tau:
+            print(f"Found a close pair with priority key {float(key0)}, upper bound {float(bounds.upper)}, and mass {mass}.")
+        return (float(key0), float(bounds.lower), float(bounds.upper))
 
 
 class DiversityVisitStrategy(VisitStrategy[Node]):
@@ -142,8 +145,8 @@ class DiversityVisitStrategy(VisitStrategy[Node]):
         div_b = self._get_diversity_score(b)
         diversity_score = max(div_a, div_b)
         distance = self._center_distance(a, b)
-        key0 = 0.0 if bounds.upper <= self._tau else distance
-        return (float(key0), -float(diversity_score), float(self._rng.random()))
+        key0 = -1 if bounds.upper <= self._tau else distance
+        return (float(key0), -float(diversity_score), float(bounds.lower), float(bounds.upper))
 
 
 
