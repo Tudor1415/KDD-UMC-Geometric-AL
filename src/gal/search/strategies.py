@@ -119,7 +119,10 @@ class LowerBoundVisitStrategy(VisitStrategy[Node]):
     def priority(self, a: Node, b: Node, bounds: BoundsResult, mass: int) -> Tuple[float, ...]:
         div_a = self._get_diversity_score(a)
         div_b = self._get_diversity_score(b)
-        diversity_score = max(div_a, div_b)
+        diversity_score = min(div_a, div_b)
+        
+        if diversity_score == 0.0:
+            return (float('inf'))
 
         if self._centers_match(a, b):
             key0 = -1.0 if bounds.upper <= self._tau else float(bounds.lower)
