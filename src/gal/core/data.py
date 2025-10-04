@@ -87,7 +87,8 @@ class Dataset:
         measures: Sequence[str] | None = None,
         name: str | None = None,
         float_dtype=np.float32,
-        max_rows: int | None = 100_000,
+        max_rows: int | None = None,
+        drop_duplicate_measure_vectors: bool = False,
     ) -> None:
         self.dataset_path = Path(dataset_path)
         self.transactions_path = Path(transactions_path) if transactions_path else None
@@ -99,7 +100,10 @@ class Dataset:
         self.float_dtype = float_dtype
         self.measures = list(measures) if measures else []
         self.all_measures: list[str] | None = None
-        self.max_rows = max_rows
+        if max_rows is not None and int(max_rows) <= 0:
+            raise ValueError("max_rows must be positive when provided")
+        self.max_rows = int(max_rows) if max_rows is not None else None
+        self.drop_duplicate_measure_vectors = bool(drop_duplicate_measure_vectors)
 
         # filled by load()
         self.df: pd.DataFrame | None = None
@@ -112,10 +116,14 @@ class Dataset:
         self._n_rules: int | None = None
         self._loaded = False
 
+        # basic load diagnostics
+        self.rows_read: int | None = None
+        self.duplicates_dropped: int | None = None
+
     # -------------------------------------------------------------- load
     def load(self) -> "Dataset":
         """
-        Read the rule CSV, drop duplicate measure-vectors (keep first),
+        Read the rule CSV, optionally drop duplicate measure-vectors,
         and propagate that selection everywhere (points, helper maps,
         rule-item matrix).
         """
@@ -142,17 +150,22 @@ class Dataset:
             dtype=dtype_map,
             engine="pyarrow" if use_pyarrow else "c",
         )
-        if not use_pyarrow and self.max_rows is not None:
+        if self.max_rows is not None:
             read_csv_kw["nrows"] = self.max_rows
 
         self.df = pd.read_csv(**read_csv_kw)
 
-        # ---------- keep only unique measure-vectors -----------------
-        keep_mask = ~self.df.duplicated(subset=self.measures, keep="first")
-        keep_mask_np = keep_mask.to_numpy()  # save before reset_index
-        n_loaded_rules = keep_mask_np.size  # number of rows read from CSV
-
-        self.df = self.df.loc[keep_mask].reset_index(drop=True)
+        # ---------- optionally drop duplicate measure-vectors --------
+        n_loaded_rules = len(self.df)
+        keep_mask_np: np.ndarray | None = None
+        duplicates_dropped = 0
+        if self.drop_duplicate_measure_vectors and self.measures:
+            keep_mask = ~self.df.duplicated(subset=self.measures, keep="first")
+            keep_mask_np = keep_mask.to_numpy()
+            duplicates_dropped = int(n_loaded_rules - int(keep_mask_np.sum()))
+            self.df = self.df.loc[keep_mask].reset_index(drop=True)
+        else:
+            self.df = self.df.reset_index(drop=True)
 
         # ---------- rebuild helpers on filtered rules ----------------
         self.points = self.df[self.measures].to_numpy(
@@ -164,6 +177,8 @@ class Dataset:
             self._hash2rows[_hash_measures(v)].append(i)
 
         self._n_rules = len(self.df)
+        self.rows_read = n_loaded_rules
+        self.duplicates_dropped = duplicates_dropped
 
         # ---------- optional transactions CSV ------------------------
         if self.transactions_path:
@@ -199,8 +214,11 @@ class Dataset:
             # ---------- apply *same* mask to rows --------------------
             # first align lengths: take only the rules we actually read
             M_subset = M_full[:n_loaded_rules]
-            # then drop the duplicate-measure rows
-            self.item_rule_map = M_subset[keep_mask_np]
+            if keep_mask_np is not None:
+                # then drop the duplicate-measure rows
+                self.item_rule_map = M_subset[keep_mask_np]
+            else:
+                self.item_rule_map = M_subset
             self.items = items.astype(int, copy=False)
 
         self._loaded = True
@@ -231,7 +249,8 @@ class Dataset:
 
     @_needs_load
     def vector_to_rule(self, vec: np.ndarray) -> Rule:
-        rows = self._hash2rows.get(_hash_measures(vec))
+        vec_np = np.asarray(vec, dtype=self.float_dtype).reshape(-1)
+        rows = self._hash2rows.get(_hash_measures(vec_np))
         if not rows:
             raise KeyError("Vector not found in dataset")
         return self.get_rule_dict(rows[0])

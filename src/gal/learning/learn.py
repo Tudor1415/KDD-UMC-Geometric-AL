@@ -25,6 +25,7 @@ from __future__ import annotations
 from typing import Any, Callable, Optional, Tuple
 from pathlib import Path
 import time
+import logging
 
 from gal.centers import _chebyshev_radius
 import numpy as np
@@ -90,6 +91,13 @@ def learning_loop(
         if not (np.isfinite(radius) and radius > 0):
             break
         tau = min(radius * float(tau_multiplier), float(tau_cap))
+        if log_level <= logging.DEBUG and (it % log_every == 0):
+            logging.getLogger(__name__).debug(
+                "Iter %d: starting search (tau=%g radius=%g)",
+                it,
+                tau,
+                float(radius),
+            )
         i, j, dist, stats = engine.search_pair(
             tree,
             X,

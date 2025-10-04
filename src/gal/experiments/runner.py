@@ -51,14 +51,70 @@ def run_all(cfg: ALConfig) -> Path:
 
     last_dir: Path | None = None
     for entry in dataset_entries:
+        entry_name = str(entry.get("name", "<unnamed>"))
+        log.debug("Preparing dataset entry '%s'", entry_name)
+
         ds, X = _load_dataset(entry)
+        rows_read = ds.rows_read if getattr(ds, "rows_read", None) is not None else X.shape[0]
+        duplicates_dropped = (
+            ds.duplicates_dropped if getattr(ds, "duplicates_dropped", None) is not None else 0
+        )
+        log.debug(
+            "Dataset '%s' loaded from %s → %d×%d (read=%d dropped_dupes=%d max_rows=%s drop_dupes=%s) measures=%s",
+            ds.name,
+            ds.dataset_path,
+            X.shape[0],
+            X.shape[1],
+            rows_read,
+            duplicates_dropped,
+            ds.max_rows,
+            ds.drop_duplicate_measure_vectors,
+            ds.measures,
+        )
+
+        original_points = X.shape[0]
+        max_points = int(cfg.get("global", "max_points", default=0) or 0)
         X = _maybe_downsample(cfg, X, rng)
+        if X.shape[0] != original_points:
+            log.debug(
+                "Downsampled '%s' from %d to %d points (max_points=%d)",
+                ds.name,
+                original_points,
+                X.shape[0],
+                max_points,
+            )
+        else:
+            log.debug("Using all %d points for '%s' (max_points=%d)", X.shape[0], ds.name, max_points)
+
+        base_dim = X.shape[1]
         X_aug, space, A0, b0 = _prepare_space(cfg, X, log)
+        log.debug(
+            "Capacity space ready for '%s': base_dim=%d augmented_dim=%d constraints=%d",
+            ds.name,
+            base_dim,
+            X_aug.shape[1],
+            A0.shape[0],
+        )
 
         center_fn, center_name = _choose_center(cfg)
+        center_repr = getattr(center_fn, "__name__", center_fn.__class__.__name__)
+        log.debug("Center function '%s' selected (%s)", center_name, center_repr)
+
         tree, tree_family, tree_method = _build_tree(cfg, X_aug)
+        log.debug(
+            "Tree built (%s:%s): samples=%d features=%d leaf_size=%d",
+            tree_family,
+            tree_method,
+            tree.n_samples,
+            tree.n_features,
+            tree.leaf_size,
+        )
+
         search_strategy = _strategy_name(cfg)
+        log.debug("Search strategy set to '%s'", search_strategy)
+
         oracle = _build_oracle(cfg, ds)
+        log.debug("Oracle '%s' initialised for dataset '%s'", oracle.name, ds.name)
 
         exp_dir = _prepare_experiment_dir(
             cfg,
@@ -71,10 +127,26 @@ def run_all(cfg: ALConfig) -> Path:
             rng,
             out_root,
         )
+        log.debug("Experiment directory created: %s", exp_dir)
 
         engine = _build_engine(search_strategy, X_aug)
-        params = _run_params(cfg)
+        log.debug(
+            "Search engine ready: bounder=%s strategy_impl=%s",
+            engine.bounder.__class__.__name__,
+            engine.strategy.__class__.__name__,
+        )
 
+        params = _run_params(cfg)
+        log.debug(
+            "Run parameters: n_iter=%d tau_cap=%g tau_multiplier=%g collect_events=%s log_every=%d",
+            params.n_iter,
+            params.tau_cap,
+            params.tau_multiplier,
+            params.collect_events,
+            params.log_every,
+        )
+
+        log.debug("Starting learning loop for '%s'", ds.name)
         learning_loop(
             tree=tree,
             X=X_aug,
@@ -93,6 +165,7 @@ def run_all(cfg: ALConfig) -> Path:
             search_strategy=search_strategy,
             engine=engine,
         )
+        log.debug("Learning loop completed for '%s'", ds.name)
 
         last_dir = exp_dir
 
@@ -137,12 +210,28 @@ def _collect_dataset_entries(cfg: ALConfig) -> List[Dict[str, Any]]:
 
 def _load_dataset(entry: Dict[str, Any]) -> Tuple[Dataset, np.ndarray]:
     paths = entry.get("paths", {}) or {}
+    max_rows_raw = entry.get("max_rows", None)
+    max_rows = None
+    if max_rows_raw not in (None, ""):
+        max_rows = int(max_rows_raw)
+
+    drop_dupes_raw = entry.get("drop_duplicate_measures")
+    if drop_dupes_raw is None:
+        drop_dupes_raw = entry.get("drop_duplicate_measure_vectors")
+    drop_dupes = False
+    if isinstance(drop_dupes_raw, str):
+        drop_dupes = drop_dupes_raw.strip().lower() in {"1", "true", "yes", "on"}
+    elif drop_dupes_raw is not None:
+        drop_dupes = bool(drop_dupes_raw)
+
     ds = Dataset(
         dataset_path=paths.get("dataset_path") or paths.get("mnr_rules"),
         transactions_path=paths.get("transactions_path") or paths.get("transactions"),
         item_rule_map_path=paths.get("item_rule_map_path") or paths.get("item_rule_map"),
         measures=entry.get("measures"),
         name=str(entry.get("name")),
+        max_rows=max_rows,
+        drop_duplicate_measure_vectors=drop_dupes,
     ).load()
     return ds, np.ascontiguousarray(ds.points, dtype=float)
 

@@ -6,7 +6,7 @@ global:
   max_points: 0          # set >0 to downsample rows uniformly
 
 runtime:
-  NUMEXPR_MAX_THREADS: 1
+  NUMEXPR_MAX_THREADS: 18
 
 logging:
   level: DEBUG
@@ -17,8 +17,8 @@ experiment:
   additivity_k: 2
   center_name: chebyshev
   active_learning_budget: 10
-  tau_max: 1.0e-5
-  tau_radius_multiplier: 0.5
+  tau_max: 1.0
+  tau_radius_multiplier: 2
 
 trees:
   ball:
@@ -37,7 +37,8 @@ datasets:
   - name: mushroom
     paths:
       dataset_path: DATA/mined_rules/mushroom_mnr.csv
+    max_rows: 100        # optional cap
+    drop_duplicate_measures: true
     measures:
       - support
       - confidence
-      - lift
