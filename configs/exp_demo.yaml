@@ -22,7 +22,7 @@ experiment:
 
 trees:
   ball:
-    method: two_pivot
+    method: disjoint_greedy
     config:
       leaf_size: 25
 
@@ -37,7 +37,6 @@ datasets:
   - name: mushroom
     paths:
       dataset_path: DATA/mined_rules/mushroom_mnr.csv
-    max_rows: 10000        # optional cap
     drop_duplicate_measures: true
     measures:
       - cosine

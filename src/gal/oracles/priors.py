@@ -15,7 +15,10 @@ import time
 from abc import ABC, abstractmethod
 from typing import Callable, Dict, Iterable, List, Sequence
 
-import cupy as cp
+try:  # CuPy is optional; fall back to CPU implementations when missing
+    import cupy as cp  # type: ignore
+except ImportError:  # pragma: no cover - environment without GPU support
+    cp = None  # type: ignore
 import numpy as np
 import pandas as pd
 import torch
@@ -192,13 +195,14 @@ class IndependentLogLinear(Prior):
             )  # log(1e-9)
 
         # ------- back-end selection (CuPy → Torch → NumPy) -------------
-        try:
-            log_fe = self.log_n + cp.asarray(X, dtype=cp.float32) @ cp.asarray(
-                log_p_subset
-            )
-            return cp.asnumpy(cp.exp(log_fe))
-        except Exception:
-            pass
+        if cp is not None:
+            try:
+                log_fe = self.log_n + cp.asarray(X, dtype=cp.float32) @ cp.asarray(
+                    log_p_subset
+                )
+                return cp.asnumpy(cp.exp(log_fe))
+            except Exception:
+                pass
 
         if torch.cuda.is_available():
             try:

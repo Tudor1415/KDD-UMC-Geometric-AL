@@ -1,32 +1,8 @@
-"""
-Analyze ranking performance per iteration for an AL run and export CSV stats.
+"""Simple ranking analyzer for AL runs.
 
-This script measures, at each iteration, how well the model center's
-ranking matches the oracle's ranking. The procedure per iteration is:
-  1) Load the center (weights) for that iteration.
-  2) Rank all rules by dot-product between rule vectors and center weights.
-  3) Rank all rules by the oracle (from run_dir/oracle.pkl or config.json).
-  4) For a list of K values, compare the model’s top‑K versus the oracle’s
-     top‑K using AP@K and Recall@K. Additionally computes AP and Recall at top 1%.
-
-Inputs
-------
- - run_dir: Folder with a single AL run (contains iterations.csv and centers).
- - rules:   Path to the dataset rule CSV (e.g., mined_rules/mushroom_mnr.csv).
- - topk:    Space-separated list of K values.
- - center:  Optional centre method for what‑if analysis. If provided, the
-            analyzer reconstructs centers from constraints (ignoring stored
-            centers). If omitted, stored per‑iteration centers must exist
-            (iteration_XXX/center_model.npz or .npy).
-
-Output
-------
-Saves a CSV (default <run_dir>/ranking_stats.csv) with one row per iteration:
-  iteration, top{K}_ap, top{K}_recall (for each requested K), top1pct_ap, top1pct_recall,
-  centered_inscribed_radius (radius of the largest Euclidean ball centered at the model
-  that fits in the iteration’s feasible polyhedron), and max_inscribed_ball_radius
-  (Chebyshev radius: the radius of the maximum‑volume inscribed ball of the feasible
-  polyhedron at that iteration). Radii are written in scientific notation.
+This script loads stored centers for each iteration, scores the dataset using
+those centers, and compares the rankings against the oracle used during the
+experiment. Metrics (average precision, recall, NDCG) rely on scikit-learn.
 """
 
 from __future__ import annotations
@@ -34,446 +10,347 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import pickle
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Mapping, Sequence
 
 import numpy as np
-import h5py
+from sklearn.metrics import average_precision_score, ndcg_score, recall_score
 
-from gal.core.data import Dataset
-from gal.oracles.oracles import Oracle  # non-linear oracle support
-from gal.centers.poly_centers import (
-    chebyshev_center,
-    analytical_center,
-    minkowski_center,
-    volumetric_center,
-    mse_center,
-)
-
-
-# ------------------------------- helpers -------------------------------------
-
-
-def _read_iterations_csv(path: Path) -> List[Tuple[int, str]]:
-    rows: List[Tuple[int, str]] = []
-    with path.open("r", encoding="utf-8") as f:
-        header = f.readline().strip().split(",")
-        try:
-            it_idx = header.index("iteration_id")
-            qp_idx = header.index("query_path")
-        except ValueError as exc:
-            raise RuntimeError(
-                f"iterations.csv must contain 'iteration_id' and 'query_path' columns. Got: {header}"
-            ) from exc
-
-        for line in f:
-            parts = line.strip().split(",")
-            if len(parts) <= max(it_idx, qp_idx):
-                continue
-            try:
-                it = int(parts[it_idx])
-            except Exception:
-                continue
-            qp = parts[qp_idx]
-            rows.append((it, qp))
-    return rows
-
-
-def _unique_iterations(path: Path) -> List[int]:
-    pairs = _read_iterations_csv(path)
-    its = sorted({it for it, _ in pairs})
-    return its
-
-
-def _load_center_for_iteration(
-    run_dir: Path, it: int, *, n_iters: int | None = None, method: str = "chebyshev"
-) -> np.ndarray | None:
-    """Return center vector for iteration it if stored on disk, else None.
-
-    Only loads on-disk artifacts; does not reconstruct from constraints.
-    Expected files per iteration:
-      - iteration_XXX/center_model.npz (with key 'center'), or
-      - iteration_XXX/center_model.npy
-    """
-    it_dir = run_dir / f"iteration_{it:03d}"
-    npz = it_dir / "center_model.npz"
-    if npz.is_file():
-        try:
-            with np.load(npz) as z:
-                c = z.get("center")
-                if c is not None:
-                    return np.asarray(c, dtype=float)
-        except Exception:
-            pass
-    npy = it_dir / "center_model.npy"
-    if npy.is_file():
-        try:
-            return np.asarray(np.load(npy), dtype=float)
-        except Exception:
-            pass
-
-    # No reconstruction fallback
-    return None
-
-
-def _load_final_constraints(run_dir: Path) -> tuple[np.ndarray, np.ndarray] | tuple[None, None]:
-    """Load the final version space constraints (A, b) if available.
-
-    Returns (A, b) or (None, None) if the file is missing/unreadable.
-    """
-    fvs = run_dir / "final_version_space.h5"
-    if not fvs.exists():
-        return None, None
-    try:
-        with h5py.File(fvs, "r") as h5file:
-            A = np.asarray(h5file["A"][...], dtype=float)
-            b = np.asarray(h5file["b"][...], dtype=float).reshape(-1)
-        return A, b
-    except Exception:
-        return None, None
-
-
-def _constraints_prefix_for_iteration(
-    A: np.ndarray, b: np.ndarray, it: int, n_iters: int
-) -> tuple[np.ndarray, np.ndarray] | tuple[None, None]:
-    """Return constraints up to and including iteration `it`.
-
-    Interpretation: final A stacks base constraints first, then one row per iteration.
-    For iteration id `it` (0-based), we take rows [: base + it + 1].
-    """
-    if A is None or b is None or A.size == 0 or b.size == 0:
-        return None, None
-    base = max(0, A.shape[0] - int(n_iters))
-    end = int(min(A.shape[0], base + int(it) + 1))
-    if end <= 0:
-        return None, None
-    return A[:end], b[:end]
-
-
-def _centered_inscribed_radius(A: np.ndarray, b: np.ndarray, c: np.ndarray) -> float:
-    """Radius of the largest Euclidean ball centered at c contained in {x | A x ≤ b}.
-
-    r(c) = min_i (b_i − a_i^T c) / ||a_i||_2, clamped at 0 if c is infeasible.
-    """
-    if A is None or b is None:
-        return float("nan")
-    if A.ndim != 2 or b.ndim != 1 or A.shape[0] != b.shape[0] or A.shape[1] == 0:
-        return float("nan")
-    d = A.shape[1]
-    c = np.asarray(c, dtype=float).reshape(-1)
-    if c.size < d:
-        # pad with zeros if shorter
-        c = np.pad(c, (0, d - c.size), mode="constant")
-    elif c.size > d:
-        # truncate extra dims if longer
-        c = c[:d]
-    slack = b - A @ c
-    norms = np.linalg.norm(A, axis=1)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        vals = np.where(norms > 0, slack / norms, np.inf)
-    # clamp to [0, +inf] since negative means c is outside the polyhedron
-    r = float(np.min(vals)) if vals.size else float("nan")
-    return max(0.0, r) if np.isfinite(r) else float("nan")
-
-
-def _load_oracle_scores(run_dir: Path, ds: Dataset, Xrules: np.ndarray, n_measures: int) -> np.ndarray:
-    """Load oracle from the run directory and score rules.
-
-    Order of attempts:
-      1) oracle.pkl contains a pickled Oracle object → use set_dataset + score_dataset
-      2) oracle.pkl contains a dict with 'weights' → linear dot-product
-      3) config.json contains 'oracle_weights' → linear dot-product
-    """
-    # 1) Try a pickled Oracle object
-    pkl = run_dir / "oracle.pkl"
-    if pkl.exists():
-        try:
-            with pkl.open("rb") as f:
-                obj = pickle.load(f)
-            if isinstance(obj, Oracle) or (
-                hasattr(obj, "set_dataset") and hasattr(obj, "score_dataset")
-            ):
-                try:
-                    obj.set_dataset(ds)  # type: ignore[attr-defined]
-                except Exception:
-                    pass
-                scores = obj.score_dataset(ds)  # type: ignore[attr-defined]
-                return np.asarray(scores, dtype=float).reshape(-1)
-            if isinstance(obj, dict) and "weights" in obj:
-                w = np.asarray(obj["weights"], dtype=float)[:n_measures]
-                return Xrules @ w
-        except Exception:
-            # fall through
-            pass
-
-    # 2) Fallback to config.json with linear weights
-    cfg = run_dir / "config.json"
-    if cfg.exists():
-        try:
-            with cfg.open("r", encoding="utf-8") as f:
-                conf = json.load(f)
-            if isinstance(conf, dict) and "oracle_weights" in conf:
-                w = np.asarray(conf["oracle_weights"], dtype=float)[:n_measures]
-                return Xrules @ w
-        except Exception:
-            pass
-
-    raise SystemExit(
-        "Cannot load oracle. Provide 'oracle.pkl' (Oracle object or weights) or "
-        "'config.json' with 'oracle_weights'. For non-linear oracles that need "
-        "transactions, pass --transactions so Dataset can initialize them."
-    )
-
-
-def _ap_at_k(pred_topk: Sequence[int], rel_set: set[int]) -> float:
-    """Average Precision at K for a predicted list against a set of relevant ids.
-
-    AP@K = (sum_{i=1..K} P@i * rel_i) / min(K, |rel_set|).
-    For our usage, |rel_set| == K, but we implement the general form.
-    """
-    if not pred_topk:
-        return float("nan")
-    hits = 0
-    acc = 0.0
-    denom = max(1, min(len(pred_topk), len(rel_set)))
-    for i, idx in enumerate(pred_topk, start=1):
-        if idx in rel_set:
-            hits += 1
-            acc += hits / i
-    return float(acc / denom)
-
-
-def _recall_at_k(pred_topk: Sequence[int], rel_set: set[int]) -> float:
-    if not pred_topk:
-        return float("nan")
-    K = max(1, min(len(pred_topk), len(rel_set)))
-    hits = sum(1 for idx in pred_topk[:K] if idx in rel_set)
-    return hits / float(K)
-
-
-# ------------------------------- driver --------------------------------------
+from gal.core.data import Dataset, augment_with_minimums
+from gal.experiments.config import ALConfig, dataset_entry_from_cfg
+from gal.oracles.oracles import MDLOracle, ObjectiveMeasureOracle, Oracle, SumOracle, SurpriseOracle
 
 
 @dataclass
 class Inputs:
     run_dir: Path
-    rules_csv: Path
-    transactions_csv: Path | None
+    config_path: Path
+    rules_override: Path | None
+    transactions_override: Path | None
     topk: List[int]
     out_csv: Path
-    center_method: str | None = None
-
-
-def _normalize_center_method(name: str) -> str:
-    key = str(name).strip().lower().replace("-", "_")
-    if key in {"analytic", "analytical", "analytic_center", "analytical_center", "analyticcenter", "analyticalcenter", "barrier"}:
-        return "analytical"
-    if key in {"chebyshev", "chebyshev_center", "chebyshevcenter", "inscribed", "largest_ball"}:
-        return "chebyshev"
-    if key in {"minkowski", "minkowski_center", "minkowskicenter"}:
-        return "minkowski"
-    if key in {"volumetric", "volumetric_center", "volumetriccenter", "john", "john_ellipsoid"}:
-        return "volumetric"
-    if key in {"mse"}:
-        return "mse"
-    return key
-
-
-def compute_ranking(inp: Inputs) -> Path:
-    run_dir = inp.run_dir
-    it_csv = run_dir / "iterations.csv"
-    if not it_csv.is_file():
-        raise SystemExit(f"Missing iterations.csv in {run_dir}")
-
-    # --------------------------- load dataset
-    ds = Dataset(
-        dataset_path=inp.rules_csv,
-        transactions_path=inp.transactions_csv,
-        max_rows=None,  # rank all rules
-    ).load()
-    Xrules = ds.points.astype(float, copy=False)
-    n_measures = Xrules.shape[1]
-
-    # --------------------------- oracle ranking (once)
-    oracle_scores = _load_oracle_scores(run_dir, ds, Xrules, n_measures)
-    oracle_order = np.argsort(-oracle_scores)
-
-    rows: List[Dict[str, float | int | str]] = []
-    its = _unique_iterations(it_csv)
-    n_iters = len(its)
-    Rmax = len(Xrules)
-
-    # Load final constraints once (if available) to compute centered radius per iteration
-    A_full, B_full = _load_final_constraints(run_dir)
-
-    for it in its:
-        row: Dict[str, float | int] = {"iteration": int(it)}
-
-        # If --center provided: reconstruct; else load stored
-        if inp.center_method:
-            method = _normalize_center_method(inp.center_method)
-            if A_full is None or B_full is None:
-                raise SystemExit(
-                    "Cannot reconstruct centers: final_version_space.h5 is missing or invalid. "
-                    "Ensure the run contains 'A' and 'b' datasets."
-                )
-            Ai, Bi = _constraints_prefix_for_iteration(A_full, B_full, it, n_iters)
-            if Ai is None or Bi is None:
-                raise SystemExit("Cannot reconstruct center: invalid constraints sizing for iteration prefix")
-            try:
-                if method == "chebyshev":
-                    c, _ = chebyshev_center(Ai, Bi)
-                    center = np.asarray(c, dtype=float)
-                elif method == "analytical":
-                    center = np.asarray(analytical_center(Ai, Bi), dtype=float)
-                elif method == "minkowski":
-                    c, _ = minkowski_center(Ai, Bi)
-                    center = np.asarray(c, dtype=float)
-                elif method == "volumetric":
-                    c, _ = volumetric_center(Ai, Bi)
-                    center = np.asarray(c, dtype=float)
-                elif method == "mse":
-                    c = mse_center(Ai, Bi, X=np.empty((0, Ai.shape[1])), y=np.array([]))
-                    center = np.asarray(c, dtype=float) if c is not None else None
-                else:
-                    raise SystemExit(f"Unknown center method: {inp.center_method}")
-            except Exception as e:
-                raise SystemExit(f"Failed to reconstruct center for iteration {it} with method '{inp.center_method}': {e}")
-            if center is None:
-                raise SystemExit(f"Center reconstruction returned None for method '{inp.center_method}' at iteration {it}")
-        else:
-            center = _load_center_for_iteration(run_dir, it, n_iters=n_iters, method="disk")
-            if center is None:
-                it_dir = run_dir / f"iteration_{it:03d}"
-                npz = it_dir / "center_model.npz"
-                npy = it_dir / "center_model.npy"
-                raise SystemExit(
-                    f"Missing center weights for iteration {it} in {it_dir}. "
-                    f"Expected {npz} (key 'center') or {npy}. "
-                    f"Either pass --center to reconstruct for what-if analysis, or re-run the experiment to persist centers."
-                )
-
-        w = center[:n_measures].astype(float, copy=False)
-        pred_scores = Xrules @ w
-        pred_order = np.argsort(-pred_scores)
-
-        # Regular top-K APs
-        for k in inp.topk:
-            K = int(min(k, Rmax))
-            if K <= 0:
-                row[f"top{k}_ap"] = float("nan")
-                row[f"top{k}_recall"] = float("nan")
-                continue
-
-            pred_topk = pred_order[:K].tolist()
-            true_topk_set = set(map(int, oracle_order[:K]))
-            ap = _ap_at_k(pred_topk, true_topk_set)
-            row[f"top{k}_ap"] = float(ap)
-            # Recall@K: fraction of oracle top-K retrieved by model top-K
-            row[f"top{k}_recall"] = float(_recall_at_k(pred_topk, true_topk_set))
-
-        # Top 1% AP and Recall
-        K1 = max(1, int(np.ceil(Rmax * 0.01)))
-        pred_top1 = pred_order[:K1].tolist()
-        true_top1 = set(map(int, oracle_order[:K1]))
-        row["top1pct_ap"] = float(_ap_at_k(pred_top1, true_top1))
-        row["top1pct_recall"] = float(_recall_at_k(pred_top1, true_top1))
-
-        # Compute radii for this iteration (scientific notation)
-        if A_full is not None and B_full is not None:
-            Ai, Bi = _constraints_prefix_for_iteration(A_full, B_full, it, n_iters)
-        else:
-            Ai, Bi = None, None
-        # Centered ball radius at current model center
-        rc = _centered_inscribed_radius(Ai, Bi, center) if (Ai is not None and Bi is not None) else float("nan")
-        row["centered_inscribed_radius"] = (f"{rc:.6e}" if np.isfinite(rc) else "nan")
-        # Maximum-volume inscribed ball radius (Chebyshev radius)
-        if Ai is not None and Bi is not None:
-            try:
-                _, r_cheb = chebyshev_center(Ai, Bi)
-                rstar = float(r_cheb)
-            except Exception:
-                rstar = float("nan")
-        else:
-            rstar = float("nan")
-        row["max_inscribed_ball_radius"] = (f"{rstar:.6e}" if np.isfinite(rstar) else "nan")
-
-        rows.append(row)
-
-    # --------------------------- write CSV
-    keys: List[str] = ["iteration"]
-    for k in inp.topk:
-        keys.append(f"top{k}_ap")
-        keys.append(f"top{k}_recall")
-    keys.extend(["top1pct_ap", "top1pct_recall", "centered_inscribed_radius", "max_inscribed_ball_radius"])
-
-    inp.out_csv.parent.mkdir(parents=True, exist_ok=True)
-    with inp.out_csv.open("w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=keys)
-        w.writeheader()
-        for r in rows:
-            w.writerow({k: r.get(k, float("nan")) for k in keys})
-
-    return inp.out_csv
 
 
 def parse_args() -> Inputs:
-    ap = argparse.ArgumentParser(
-        description="Analyze ranking performance per iteration and export CSV stats"
+    parser = argparse.ArgumentParser(description="Analyze ranking quality for an AL run")
+    parser.add_argument("run_dir", type=Path, help="Run directory containing iteration_* folders")
+    parser.add_argument("--config", type=Path, required=True, help="YAML experiment config used for the run")
+    parser.add_argument("--rules", type=Path, default=None, help="Override rules CSV (defaults to config entry)")
+    parser.add_argument(
+        "--transactions",
+        type=Path,
+        default=None,
+        help="Override transactions CSV (defaults to config entry)",
     )
-    ap.add_argument(
-        "run_dir",
-        type=str,
-        help="Path to a single run directory (contains iterations.csv and centers)",
-    )
-    ap.add_argument(
-        "--rules",
-        type=str,
-        required=True,
-        help="Path to the dataset rules CSV (e.g., mined_rules/<ds>_mnr.csv)",
-    )
-    ap.add_argument(
+    parser.add_argument(
         "--topk",
         type=int,
         nargs="*",
         default=[5, 10, 20, 50],
-        help="List of K values for top-K metrics",
+        help="List of K values for metrics",
     )
-    ap.add_argument(
-        "--transactions",
-        type=str,
-        default=None,
-        help="Optional transactions CSV to initialize non-linear oracles (sep=';')",
-    )
-    ap.add_argument(
-        "--center",
-        type=str,
-        default=None,
-        help="Optional: reconstruct centers with this method (analytical|chebyshev|minkowski|volumetric|mse). If omitted, use stored centers.",
-    )
-    ap.add_argument(
-        "--out",
-        type=str,
-        default=None,
-        help="Output CSV path (default: <run_dir>/ranking_stats.csv)",
-    )
+    parser.add_argument("--out", type=Path, default=None, help="Output CSV path (default: <run_dir>/ranking_stats.csv)")
+    args = parser.parse_args()
 
-    args = ap.parse_args()
-    run_dir = Path(args.run_dir)
+    run_dir = args.run_dir
     if not run_dir.is_dir():
-        raise SystemExit(f"Not a directory: {run_dir}")
-    out_csv = Path(args.out) if args.out else (run_dir / "ranking_stats.csv")
+        raise SystemExit(f"Run directory not found: {run_dir}")
+
+    out_csv = args.out if args.out is not None else (run_dir / "ranking_stats.csv")
 
     return Inputs(
         run_dir=run_dir,
-        rules_csv=Path(args.rules),
-        transactions_csv=(Path(args.transactions) if args.transactions else None),
+        config_path=args.config,
+        rules_override=args.rules,
+        transactions_override=args.transactions,
         topk=list(args.topk),
         out_csv=out_csv,
-        center_method=args.center,
     )
+
+
+def _load_run_metadata(run_dir: Path) -> Dict[str, Any]:
+    meta_path = run_dir / "config.json"
+    if not meta_path.exists():
+        return {}
+    try:
+        with meta_path.open("r", encoding="utf-8") as handle:
+            data = json.load(handle)
+        return data if isinstance(data, Mapping) else {}
+    except Exception:
+        return {}
+
+
+def _dataset_entries(cfg: ALConfig) -> List[Dict[str, Any]]:
+    raw = cfg.get("datasets", default=None)
+    if raw is None:
+        return [dataset_entry_from_cfg(cfg)]
+    if not isinstance(raw, Iterable):
+        raise ValueError("'datasets' in config must be an iterable")
+    return [dataset_entry_from_cfg(cfg, item) for item in raw]
+
+
+def _select_entry(entries: List[Dict[str, Any]], dataset_name: str | None) -> Dict[str, Any]:
+    if not entries:
+        raise ValueError("No datasets defined in config")
+    if not dataset_name:
+        return entries[0]
+    for entry in entries:
+        if str(entry.get("name", "")).strip() == str(dataset_name):
+            return entry
+    raise ValueError(
+        f"Dataset '{dataset_name}' not found in config. Available: {[e.get('name') for e in entries]}"
+    )
+
+
+def _resolve_path(base: Path, override: Path | None, value: Any) -> Path | None:
+    if override is not None:
+        return override
+    if not value:
+        return None
+
+    raw = Path(str(value))
+    candidates: List[Path] = []
+    if raw.is_absolute():
+        candidates.append(raw)
+    else:
+        candidates.append((base / raw).resolve())
+        candidates.append((Path.cwd() / raw).resolve())
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    return candidates[0] if candidates else raw
+
+
+def _coerce_bool(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        norm = value.strip().lower()
+        if not norm:
+            return False
+        return norm in {"1", "true", "yes", "on"}
+    return bool(value)
+
+
+def _load_dataset(inp: Inputs, cfg: ALConfig) -> tuple[Dataset, np.ndarray, int]:
+    entries = _dataset_entries(cfg)
+    metadata = _load_run_metadata(inp.run_dir)
+    entry = _select_entry(entries, metadata.get("dataset_name"))
+
+    base_dir = inp.config_path.parent
+    paths = entry.get("paths", {}) or {}
+
+    dataset_path = _resolve_path(base_dir, inp.rules_override, paths.get("dataset_path") or paths.get("mnr_rules"))
+    if dataset_path is None:
+        raise SystemExit("Dataset path not specified in config or CLI")
+
+    transactions_path = _resolve_path(
+        base_dir,
+        inp.transactions_override,
+        paths.get("transactions_path") or paths.get("transactions"),
+    )
+    item_rule_map_path = _resolve_path(
+        base_dir,
+        None,
+        paths.get("item_rule_map_path") or paths.get("item_rule_map"),
+    )
+
+    drop_dupes = _coerce_bool(
+        entry.get("drop_duplicate_measures") or entry.get("drop_duplicate_measure_vectors")
+    )
+    measures = entry.get("measures")
+    max_rows = entry.get("max_rows")
+    if max_rows is not None and str(max_rows).strip():
+        max_rows = int(max_rows)
+        if max_rows <= 0:
+            max_rows = None
+
+    ds = Dataset(
+        dataset_path=dataset_path,
+        transactions_path=transactions_path,
+        item_rule_map_path=item_rule_map_path,
+        measures=measures,
+        name=str(entry.get("name") or dataset_path.stem),
+        max_rows=max_rows,
+        drop_duplicate_measure_vectors=drop_dupes,
+    ).load()
+
+    add_k = cfg.get("experiment", "additivity_k", default=1) or 1
+    add_k = max(1, int(add_k))
+
+    X = np.asarray(ds.points, dtype=float)
+    if add_k > 1:
+        X = np.ascontiguousarray(augment_with_minimums(X, add_k), dtype=float)
+    else:
+        X = np.ascontiguousarray(X, dtype=float)
+
+    return ds, X, add_k
+
+
+def _build_oracle(cfg: ALConfig, ds: Dataset) -> Oracle:
+    otype = str(cfg.get("oracle", "type", default="objective")).lower()
+
+    if otype == "objective":
+        measure = cfg.get("oracle", "measure", default=None)
+        if not measure:
+            if not ds.measures:
+                raise SystemExit("Objective oracle requires at least one measure in dataset")
+            measure = ds.measures[0]
+        oracle = ObjectiveMeasureOracle(str(measure))
+    elif otype == "sum":
+        measures = cfg.get("oracle", "measures", default=None) or ds.measures
+        if not measures:
+            raise SystemExit("Sum oracle requires at least one measure")
+        oracle = SumOracle([str(m) for m in measures])
+    elif otype == "mdl":
+        oracle = MDLOracle(
+            c0=float(cfg.get("oracle", "c0", default=8.0)),
+            c_item=float(cfg.get("oracle", "c_item", default=4.0)),
+        )
+    elif otype == "surprise":
+        prior_type = str(cfg.get("oracle", "prior_type", default="independent"))
+        prior_kwargs = cfg.get("oracle", "prior_kwargs", default={}) or {}
+        if not isinstance(prior_kwargs, dict):
+            raise SystemExit("oracle.prior_kwargs must be a mapping")
+        oracle = SurpriseOracle(prior_type=prior_type, **prior_kwargs)
+    else:
+        raise SystemExit(f"Unsupported oracle type '{otype}'")
+
+    oracle.set_dataset(ds)
+    return oracle
+
+
+def _list_iterations(run_dir: Path) -> List[int]:
+    csv_path = run_dir / "iterations.csv"
+    if not csv_path.exists():
+        raise SystemExit(f"Missing iterations.csv in {run_dir}")
+    iterations: set[int] = set()
+    with csv_path.open("r", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        if "iteration_id" not in reader.fieldnames:
+            raise SystemExit("iterations.csv must contain an 'iteration_id' column")
+        for row in reader:
+            try:
+                iterations.add(int(row["iteration_id"]))
+            except Exception:
+                continue
+    return sorted(iterations)
+
+
+def _load_center(run_dir: Path, iteration: int, expected_dim: int) -> tuple[np.ndarray, float | None, float | None]:
+    it_dir = run_dir / f"iteration_{iteration:03d}"
+    npz_path = it_dir / "center_model.npz"
+    if npz_path.exists():
+        with np.load(npz_path) as data:
+            center = np.asarray(data.get("center"), dtype=float)
+            if center is None:
+                raise SystemExit(f"'center' missing in {npz_path}")
+            radius = data.get("radius")
+            tau = data.get("tau")
+    else:
+        npy_path = it_dir / "center_model.npy"
+        if not npy_path.exists():
+            raise SystemExit(f"Missing center model for iteration {iteration}: {npz_path} or {npy_path}")
+        center = np.asarray(np.load(npy_path), dtype=float)
+        radius = tau = None
+
+    if center.ndim != 1:
+        center = center.reshape(-1)
+
+    if center.size < expected_dim:
+        padded = np.zeros(expected_dim, dtype=float)
+        padded[: center.size] = center
+        center = padded
+    elif center.size > expected_dim:
+        center = center[:expected_dim]
+
+    radius_value = float(radius) if radius is not None else None
+    tau_value = float(tau) if tau is not None else None
+    return center, radius_value, tau_value
+
+
+def _metric_labels(prefix: str, k_list: Sequence[int]) -> List[str]:
+    labels: List[str] = []
+    for k in k_list:
+        labels.append(f"{prefix}{k}_ap")
+        labels.append(f"{prefix}{k}_recall")
+        labels.append(f"{prefix}{k}_ndcg")
+    return labels
+
+
+def _compute_metrics(
+    pred_scores: np.ndarray,
+    oracle_scores: np.ndarray,
+    k: int,
+) -> tuple[float, float, float]:
+    n = pred_scores.shape[0]
+    if n == 0:
+        return float("nan"), float("nan"), float("nan")
+
+    K = max(1, min(k, n))
+    oracle_order = np.argsort(-oracle_scores)
+    pred_order = np.argsort(-pred_scores)
+
+    y_true = np.zeros(n, dtype=int)
+    y_true[oracle_order[:K]] = 1
+
+    ap = average_precision_score(y_true, pred_scores)
+
+    y_pred = np.zeros(n, dtype=int)
+    y_pred[pred_order[:K]] = 1
+    recall = recall_score(y_true, y_pred, zero_division=0)
+
+    ndcg = float(ndcg_score([y_true], [pred_scores], k=K))
+    return float(ap), float(recall), ndcg
+
+
+def compute_ranking(inp: Inputs) -> Path:
+    cfg = ALConfig.load(inp.config_path)
+    ds, X, _ = _load_dataset(inp, cfg)
+    oracle = _build_oracle(cfg, ds)
+    oracle_scores = np.asarray(oracle.score_dataset(ds), dtype=float)
+    iterations = _list_iterations(inp.run_dir)
+
+    rows: List[Dict[str, Any]] = []
+    topk_unique = sorted({k for k in inp.topk if k > 0})
+    topk_labels = _metric_labels("top", topk_unique)
+    top1pct_labels = ["top1pct_ap", "top1pct_recall", "top1pct_ndcg"]
+
+    for it in iterations:
+        center, radius, tau = _load_center(inp.run_dir, it, X.shape[1])
+        pred_scores = X @ center
+
+        row: Dict[str, Any] = {"iteration": it}
+        for k in topk_unique:
+            ap, recall, ndcg = _compute_metrics(pred_scores, oracle_scores, k)
+            row[f"top{k}_ap"] = ap
+            row[f"top{k}_recall"] = recall
+            row[f"top{k}_ndcg"] = ndcg
+
+        n = X.shape[0]
+        k1 = max(1, int(np.ceil(0.01 * n)))
+        ap1, rec1, ndcg1 = _compute_metrics(pred_scores, oracle_scores, k1)
+        row["top1pct_ap"] = ap1
+        row["top1pct_recall"] = rec1
+        row["top1pct_ndcg"] = ndcg1
+
+        row["radius"] = radius if radius is not None else ""
+        row["tau"] = tau if tau is not None else ""
+        rows.append(row)
+
+    headers = ["iteration", *topk_labels, *top1pct_labels, "radius", "tau"]
+
+    inp.out_csv.parent.mkdir(parents=True, exist_ok=True)
+    with inp.out_csv.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=headers)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({key: row.get(key, "") for key in headers})
+
+    return inp.out_csv
 
 
 def main() -> None:  # pragma: no cover
