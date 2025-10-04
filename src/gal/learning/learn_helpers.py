@@ -39,7 +39,7 @@ def _init_streaming_outputs(exp_dir: Path) -> tuple[csv.writer, Any, Path]:
 def _ensure_search_engine(engine: Optional[Search], search_strategy: str, X: np.ndarray) -> Search:
     if engine is not None:
         return engine
-    strat = get_strategy(search_strategy, queries=X)
+    strat = get_strategy(search_strategy)
     return Search(strategy=strat)
 
 
@@ -150,4 +150,3 @@ def _finalize_version_space_npz(exp_dir: Path, A: np.ndarray, b: np.ndarray) -> 
         A=np.asarray(A, dtype=float),
         b=np.asarray(b, dtype=float).reshape(-1, 1),
     )
-

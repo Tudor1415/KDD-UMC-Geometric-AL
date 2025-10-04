@@ -85,6 +85,7 @@ def learning_loop(
     radius = _chebyshev_radius(A, b, center_proj)
 
     engine = _ensure_search_engine(engine, search_strategy, X)
+    register_query = getattr(engine.strategy, "register_queries", None)
 
     for it in range(n_iter):
         t_start = time.time()
@@ -128,6 +129,9 @@ def learning_loop(
 
         q_a, q_b = X[int(i)], X[int(j)]
         diff = q_a - q_b
+
+        if callable(register_query):
+            register_query(np.vstack([q_a, q_b]))
 
         y = oracle_compare(q_a, q_b)
 

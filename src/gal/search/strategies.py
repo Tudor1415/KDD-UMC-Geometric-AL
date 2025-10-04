@@ -48,11 +48,26 @@ class LowerBoundVisitStrategy(VisitStrategy[Node]):
         self._tau: float = float('inf')
         self._eps: float = 1e-12
         self._rng: random.Random = rng or random.Random()
+        self._history_dirty = False
 
         # KD-Tree built once for distance queries when diversity is computed.
         self._query_tree: KDTree | None = None
         if self.queries is not None and self.queries.shape[0] > 0:
             self._query_tree = KDTree(self.queries)
+
+    def register_queries(self, queries: np.ndarray) -> None:
+        """Record the latest point queries so diversity penalises revisits."""
+        arr = np.asarray(queries, dtype=float)
+        if arr.ndim == 1:
+            arr = arr.reshape(1, -1)
+        if arr.size == 0:
+            return
+        if self.queries is None or self.queries.size == 0:
+            self.queries = arr.copy()
+        else:
+            self.queries = np.vstack([self.queries, arr])
+        self._history_dirty = True
+        self._diversity_cache.clear()
 
     def _get_diversity_score(self, node: Node) -> float:
         """
@@ -63,8 +78,19 @@ class LowerBoundVisitStrategy(VisitStrategy[Node]):
             if self._query_tree is None:
                 self._diversity_cache[node_id] = 0.0
             else:
-                distance, _ = self._query_tree.query(node.center, k=1)
-                self._diversity_cache[node_id] = float(distance)
+                q_count = int(self.queries.shape[0]) if self.queries is not None else 0
+                k = min(2, max(1, q_count))
+                distances, _ = self._query_tree.query(node.center, k=k)
+                if np.isscalar(distances):
+                    dist_arr = np.array([float(distances)])
+                else:
+                    dist_arr = np.asarray(distances, dtype=float).reshape(-1)
+                positive = dist_arr[dist_arr > self._eps]
+                if positive.size > 0:
+                    choice = float(np.min(positive))
+                else:
+                    choice = float(np.max(dist_arr))
+                self._diversity_cache[node_id] = choice
         return self._diversity_cache[node_id]
 
     def setup(
@@ -79,17 +105,19 @@ class LowerBoundVisitStrategy(VisitStrategy[Node]):
         """
         Pre-computes diversity scores for all nodes in the tree.
         """
-        if self.queries is None and data is not None:
-            self.queries = np.asarray(data, dtype=float)
-            if self.queries.shape[0] > 0:
+        self._diversity_cache.clear()
+        if self.queries is not None and self.queries.shape[0] > 0:
+            if self._history_dirty or self._query_tree is None:
                 self._query_tree = KDTree(self.queries)
-            else:
-                self._query_tree = None
-        elif self.queries is not None and self._query_tree is None and self.queries.shape[0] > 0:
-            self._query_tree = KDTree(self.queries)
-        elif self.queries is None:
+                self._history_dirty = False
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug(
+                        "Rebuilt query KD-tree with %d points",
+                        int(self.queries.shape[0]),
+                    )
+        else:
             self._query_tree = None
-
+            
         if wc is not None:
             self._query = np.asarray(wc, dtype=float)
         else:
@@ -126,12 +154,12 @@ class LowerBoundVisitStrategy(VisitStrategy[Node]):
 
         if self._centers_match(a, b):
             key0 = -1.0 if bounds.upper <= self._tau else float(bounds.lower)
-            return (float(key0), float(bounds.upper), float(diversity_score), float(self._rng.random()))
+            return (float(key0), float(bounds.upper), -float(diversity_score), float(self._rng.random()))
 
         distance = self._center_distance(a, b)
         key0 = -1.0 if bounds.upper <= self._tau else float(distance)
 
-        return (float(key0), float(bounds.lower), float(bounds.upper), float(diversity_score), float(self._rng.random()))
+        return (float(key0), float(bounds.lower), float(bounds.upper), -float(diversity_score), float(self._rng.random()))
 
 def get_strategy(name: str, **kwargs) -> VisitStrategy[Node]:
     """Factory for visit-ordering strategies.
@@ -145,5 +173,5 @@ def get_strategy(name: str, **kwargs) -> VisitStrategy[Node]:
     """
     key = str(name).strip().lower()
     if key in {"lb", "lower", "lower_bound"}:
-        return LowerBoundVisitStrategy()
+        return LowerBoundVisitStrategy(**kwargs)
     raise ValueError(f"Unknown search strategy: {name}")

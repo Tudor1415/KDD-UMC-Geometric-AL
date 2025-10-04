@@ -313,7 +313,7 @@ def _strategy_name(cfg: ALConfig) -> str:
 
 
 def _build_engine(strategy_name: str, X: np.ndarray) -> Search:
-    return Search(strategy=get_strategy(strategy_name, queries=X))
+    return Search(strategy=get_strategy(strategy_name))
 
 
 # ---------------------------------------------------------------------------
