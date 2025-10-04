@@ -22,7 +22,7 @@ experiment:
 
 trees:
   ball:
-    method: disjoint_greedy
+    method: two_pivot
     config:
       leaf_size: 25
 
@@ -31,7 +31,7 @@ algorithm_parameters:
 
 oracle:
   type: objective
-  measure: confidence
+  measure: cosine
 
 datasets:
   - name: mushroom

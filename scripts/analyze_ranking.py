@@ -315,15 +315,32 @@ def compute_ranking(inp: Inputs) -> Path:
     iterations = _list_iterations(inp.run_dir)
 
     rows: List[Dict[str, Any]] = []
-    topk_unique = sorted({k for k in inp.topk if k > 0})
+    topk_unique = sorted({k for k in inp.topk if k > 0 and k != 1})
     topk_labels = _metric_labels("top", topk_unique)
-    top1pct_labels = ["top1pct_ap", "top1pct_recall", "top1pct_ndcg"]
+    extra_labels = [
+        "top1_ap",
+        "top1_recall",
+        "top1_ndcg",
+        "top1pct_ap",
+        "top1pct_recall",
+        "top1pct_ndcg",
+        "top10pct_ap",
+        "top10pct_recall",
+        "top10pct_ndcg",
+    ]
 
     for it in iterations:
         center, radius, tau = _load_center(inp.run_dir, it, X.shape[1])
         pred_scores = X @ center
 
         row: Dict[str, Any] = {"iteration": it}
+
+        # Explicit top-1 metrics (single best rule)
+        top1_ap, top1_recall, top1_ndcg = _compute_metrics(pred_scores, oracle_scores, 1)
+        row["top1_ap"] = top1_ap
+        row["top1_recall"] = top1_recall
+        row["top1_ndcg"] = top1_ndcg
+
         for k in topk_unique:
             ap, recall, ndcg = _compute_metrics(pred_scores, oracle_scores, k)
             row[f"top{k}_ap"] = ap
@@ -337,11 +354,17 @@ def compute_ranking(inp: Inputs) -> Path:
         row["top1pct_recall"] = rec1
         row["top1pct_ndcg"] = ndcg1
 
+        k10 = max(1, int(np.ceil(0.10 * n)))
+        ap10, rec10, ndcg10 = _compute_metrics(pred_scores, oracle_scores, k10)
+        row["top10pct_ap"] = ap10
+        row["top10pct_recall"] = rec10
+        row["top10pct_ndcg"] = ndcg10
+
         row["radius"] = radius if radius is not None else ""
         row["tau"] = tau if tau is not None else ""
         rows.append(row)
 
-    headers = ["iteration", *topk_labels, *top1pct_labels, "radius", "tau"]
+    headers = ["iteration", *topk_labels, *extra_labels, "radius", "tau"]
 
     inp.out_csv.parent.mkdir(parents=True, exist_ok=True)
     with inp.out_csv.open("w", newline="", encoding="utf-8") as handle:
