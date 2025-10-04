@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Dict, Generic, List, Tuple, TypeVar
 
+import logging
 import random
 import numpy as np
 
@@ -11,6 +12,9 @@ from ..trees.common import Node
 from .bounds import BoundsResult
 
 TNode = TypeVar('TNode')
+
+
+logger = logging.getLogger(__name__)
 
 
 class VisitStrategy(Generic[TNode]):
@@ -58,6 +62,10 @@ class LowerBoundVisitStrategy(VisitStrategy[Node]):
         self._tau = float(tau)
         self._eps = float(eps)
 
+    def _centers_match(self, a: Node, b: Node) -> bool:
+        diff = np.asarray(a.center, dtype=float) - np.asarray(b.center, dtype=float)
+        return bool(np.linalg.norm(diff) <= self._eps)
+    
     def _center_distance(self, a: Node, b: Node) -> float:
         if self._query is None:
             return 0.0
@@ -68,12 +76,28 @@ class LowerBoundVisitStrategy(VisitStrategy[Node]):
         return abs(float(np.dot(diff, self._query))) / max(denom, self._eps)
 
     def priority(self, a: Node, b: Node, bounds: BoundsResult, mass: int) -> Tuple[float, ...]:
+        if self._centers_match(a, b):
+            key0 = -1.0 if bounds.upper <= self._tau else float(bounds.lower)
+            logger.debug(
+                "Matching centres: key=%s lower=%s upper=%s mass=%s",
+                key0,
+                float(bounds.lower),
+                float(bounds.upper),
+                mass,
+            )
+            return (float(key0), float(bounds.lower), float(self._rng.random()))
+
         distance = self._center_distance(a, b)
-        key0 = -1 if bounds.upper <= self._tau else distance
-        
-        if distance < self._tau:
-            print(f"Found a close pair with priority key {float(key0)}, upper bound {float(bounds.upper)}, and mass {mass}.")
-        return (float(key0), float(bounds.lower), float(bounds.upper))
+        key0 = -1.0 if bounds.upper <= self._tau else float(distance)
+        logger.debug(
+            "Computed centre distance=%s key=%s lower=%s upper=%s mass=%s",
+            distance,
+            key0,
+            float(bounds.lower),
+            float(bounds.upper),
+            mass,
+        )
+        return (float(key0), float(bounds.lower), float(self._rng.random()))
 
 
 class DiversityVisitStrategy(VisitStrategy[Node]):
@@ -166,4 +190,3 @@ def get_strategy(name: str, **kwargs) -> VisitStrategy[Node]:
     if key in {"diversity", "div"}:
         return DiversityVisitStrategy(**kwargs)
     raise ValueError(f"Unknown search strategy: {name}")
-

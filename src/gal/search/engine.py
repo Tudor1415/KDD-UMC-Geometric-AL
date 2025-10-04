@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import heapq
+import logging
 from dataclasses import dataclass
 import math
 import time
@@ -14,6 +15,9 @@ import numpy as np
 from ..trees.common import GeometricTree, Node
 from .bounds import BallTreeBounds, BoundContext, BoundsStrategy
 from .strategies import DiversityVisitStrategy, VisitStrategy
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -137,7 +141,6 @@ class Search:
         return_stats: bool = False,
         dominance_prune: bool = True,
         eps: float = 1e-12,
-        ensure_optimal: bool = True,
         time_checkpoints: Optional[Sequence[float]] = None,
         calls_checkpoints: Optional[Sequence[int]] = None,
         collect_events: bool = False,
@@ -344,6 +347,15 @@ class Search:
                 else:
                     pair, dist, evals = self._exact_leaf_eval(a, b, context)
                 stats["objective_evals"] = int(stats["objective_evals"]) + evals
+                logger.debug(
+                    "Leaf evaluation nodes=(%s,%s) mass=%d evals=%d best_dist=%s pair=%s",
+                    id(a),
+                    id(b),
+                    pair_mass,
+                    evals,
+                    dist,
+                    pair,
+                )
                 if pair is not None and dist < min(best_distance, tau):
                     best_pair = pair
                     best_distance = dist
@@ -398,23 +410,6 @@ class Search:
                 else:
                     # Continue traversing to reach all leaves
                     stack.extend(node.children)
-        # Optionally run exhaustive verification to ensure the optimal solution.
-        if ensure_optimal:
-            data_points = context.data
-            unique_indices = leaf_indices
-            for idx_a in range(len(unique_indices) - 1):
-                ia = int(unique_indices[idx_a])
-                pa = data_points[ia]
-                for idx_b in range(idx_a + 1, len(unique_indices)):
-                    ib = int(unique_indices[idx_b])
-                    pb = data_points[ib]
-                    dist = self._objective_value(pa, pb, wc, eps)
-                    stats["objective_evals"] = int(stats["objective_evals"]) + 1
-                    stats["explored_point_pairs"] = int(stats["explored_point_pairs"]) + 1
-                    if dist < min(best_distance, tau):
-                        best_pair = (ia, ib)
-                        best_distance = dist
-                        stats["best_origin"] = "exhaustive"
 
         # Finalize traces
         if time_grid is not None:
@@ -460,7 +455,6 @@ def search_pair(
     return_stats: bool = False,
     dominance_prune: bool = True,
     eps: float = 1e-12,
-    ensure_optimal: bool = True,
     bounder: BoundsStrategy[Node] | None = None,
     strategy: VisitStrategy[Node] | None = None,
     time_checkpoints: Optional[Sequence[float]] = None,
@@ -478,7 +472,6 @@ def search_pair(
         return_stats=return_stats,
         dominance_prune=dominance_prune,
         eps=eps,
-        ensure_optimal=ensure_optimal,
         time_checkpoints=time_checkpoints,
         calls_checkpoints=calls_checkpoints,
         collect_events=collect_events,

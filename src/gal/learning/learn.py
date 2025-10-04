@@ -104,7 +104,6 @@ def learning_loop(
             center_full,
             tau=float(tau),
             return_stats=True,
-            ensure_optimal=True,
             collect_events=collect_events,
         )
 
