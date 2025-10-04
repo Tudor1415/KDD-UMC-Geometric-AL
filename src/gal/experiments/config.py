@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping, Optional
@@ -37,6 +38,20 @@ class ALConfig:
                 return default
             value = value[key]
         return value
+
+
+# ---------------------------------------------------------------------------
+# Runtime tweaks
+# ---------------------------------------------------------------------------
+
+
+def _configure_runtime_from_config(cfg: ALConfig) -> None:
+    """Set NUMEXPR_MAX_THREADS based on the YAML config (if provided)."""
+
+    value = cfg.get("runtime", "NUMEXPR_MAX_THREADS", default=None)
+    if value is not None:
+        os.environ["NUMEXPR_MAX_THREADS"] = str(value)
+
 
 # ---------------------------------------------------------------------------
 # Dataset entry normalisation

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
 
@@ -14,18 +15,24 @@ from gal.search.engine import Search
 from gal.search.strategies import get_strategy
 from gal import trees as bt
 
-from .config import (
-    ALConfig,
-    _configure_runtime_from_config,
-    _rand_uid,
-    _timestamp,
-    dataset_entry_from_cfg,
-)
+from .config import ALConfig, dataset_entry_from_cfg, _configure_runtime_from_config
 from gal.oracles.oracles import ObjectiveMeasureOracle, SumOracle, MDLOracle, Oracle
 from gal.core.constraints import CapacitySpace  # type: ignore[attr-defined]
 from experiments.active.space import _prepare_capacity_space
 from experiments.active.centers import _center_fn
 from src.gal.learning.learn import learning_loop
+
+
+# ---------------------------------------------------------------------------
+# Small utility helpers reused across the experiment runner
+# ---------------------------------------------------------------------------
+
+def _timestamp() -> str:
+    return time.strftime("%Y%m%dT%H%M%S", time.localtime())
+
+
+def _rand_uid(rng) -> str:
+    return "".join(rng.choice(list("abcdef0123456789"), size=8))
 
 
 # ---------------------------------------------------------------------------
