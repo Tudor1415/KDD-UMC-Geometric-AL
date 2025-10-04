@@ -83,10 +83,10 @@ _ALLOWED_PATH_KEYS = {
 }
 
 
-def _resolve_dataset_name(cfg: ALConfig, entry: Dict[str, Any]) -> str:
-    name = str(entry.get("name", cfg.get("experiment", "dataset_name", default="DATA")))
+def _resolve_dataset_name(entry: Dict[str, Any]) -> str:
+    name = str(entry.get("name", "")).strip()
     if not name:
-        raise ValueError("experiment.dataset_name must be provided in the configuration")
+        raise ValueError("Each datasets[] entry must include a non-empty name")
     return name
 
 
@@ -128,9 +128,11 @@ def dataset_entry_from_cfg(cfg: ALConfig, item: Optional[Dict[str, Any]] = None)
 
     if item is not None and not isinstance(item, Mapping):
         raise ValueError("datasets[] entries must be mappings")
-    entry = dict(item or {})
+    if item is None:
+        raise ValueError("At least one datasets[] entry must be provided")
+    entry = dict(item)
 
-    name = _resolve_dataset_name(cfg, entry)
+    name = _resolve_dataset_name(entry)
     paths = _merge_allowed_paths(cfg, entry)
     measures = _resolve_measures(cfg, entry)
     extras = {k: v for k, v in entry.items() if k not in {"name", "paths", "measures"}}

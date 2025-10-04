@@ -1,0 +1,43 @@
+# Example configuration for src.gal.experiments.runner
+
+global:
+  seed: 1729
+  output_root: results/al
+  max_points: 0          # set >0 to downsample rows uniformly
+
+runtime:
+  NUMEXPR_MAX_THREADS: 1
+
+logging:
+  level: INFO
+  log_every: 5
+  search_events: true     # record search_trace.npz per iteration
+
+experiment:
+  additivity_k: 2
+  center_name: chebyshev
+  active_learning_budget: 10
+  tau_max: 1.0e-5
+  tau_radius_multiplier: 0.5
+
+trees:
+  ball:
+    method: two_pivot
+    config:
+      leaf_size: 32
+
+algorithm_parameters:
+  search_strategy: lower_bound
+
+oracle:
+  type: objective
+  measure: confidence
+
+datasets:
+  - name: mushroom
+    paths:
+      dataset_path: path/to/mushroom_rules.csv   # TODO: replace with actual file
+    measures:
+      - support
+      - confidence
+      - lift

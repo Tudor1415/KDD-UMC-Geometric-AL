@@ -1,17 +1,17 @@
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 
 from gal.learning.learn import project_constraint
-from gal.utils.helpers import augment_with_minimums, k_additive_constraints, enumerate_subsets
 
 
 @dataclass
 class CapacitySpace:
+    """k-additive capacity polytope helper."""
+
     subsets: List[Tuple[int, ...]]
     proj_index: Dict[Tuple[int, ...], int]
     n_single: int
@@ -59,4 +59,5 @@ class CapacitySpace:
         return np.asarray(proj_row, dtype=float), float(proj_rhs)
 
 
+__all__ = ["CapacitySpace"]
 

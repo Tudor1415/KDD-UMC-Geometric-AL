@@ -40,6 +40,15 @@ from .learn_helpers import (
 )
 
 
+def project_constraint(h: np.ndarray) -> Tuple[np.ndarray, float]:
+    """Return (row, rhs) for constraint vector expressed in Möbius basis."""
+
+    vec = np.asarray(h, dtype=float).reshape(-1)
+    if vec.size == 0:
+        raise ValueError("Constraint vector must be non-empty")
+    return vec[:-1] - vec[-1], -float(vec[-1])
+
+
 
 def learning_loop(
     *,

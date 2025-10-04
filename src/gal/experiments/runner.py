@@ -8,7 +8,9 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
 
-from gal.core.data import Dataset
+import numpy as np
+
+from gal.core.data import Dataset, augment_with_minimums
 from gal.search.engine import Search
 from gal.search.strategies import get_strategy
 from gal import trees as bt
@@ -16,6 +18,8 @@ from gal import trees as bt
 from .config import ALConfig, dataset_entry_from_cfg, _configure_runtime_from_config
 from gal.oracles.oracles import ObjectiveMeasureOracle, SumOracle, MDLOracle, SurpriseOracle, Oracle
 from gal.centers import _center_fn
+from gal.core.space import CapacitySpace
+from gal.core.constraints import k_additive_constraints, enumerate_subsets
 from src.gal.learning.learn import learning_loop
 
 
@@ -153,9 +157,45 @@ def _maybe_downsample(cfg: ALConfig, X: np.ndarray, rng: np.random.Generator) ->
 
 def _prepare_space(
     cfg: ALConfig, X: np.ndarray, log: logging.Logger
-) -> Tuple[np.ndarray, IdentityCapacitySpace, np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, CapacitySpace, np.ndarray, np.ndarray]:
     add_k = int(cfg.get("experiment", "additivity_k", default=1) or 1)
     return _prepare_capacity_space(X, add_k=add_k, log=log)
+
+
+def _prepare_capacity_space(
+    X: np.ndarray,
+    *,
+    add_k: int,
+    log: logging.Logger,
+) -> Tuple[np.ndarray, CapacitySpace, np.ndarray, np.ndarray]:
+    if add_k < 1:
+        raise ValueError("additivity_k must be at least 1")
+
+    X = np.ascontiguousarray(X, dtype=float)
+    X_aug = augment_with_minimums(X, add_k) if add_k > 1 else X.copy()
+
+    n_features = X.shape[1]
+    subsets = list(enumerate_subsets(n_features, add_k))
+    if not subsets:
+        raise ValueError("Failed to enumerate subsets for capacity space.")
+
+    A0, b0, proj_index = k_additive_constraints(n_features, add_k)
+    space = CapacitySpace(
+        subsets=subsets,
+        proj_index=proj_index,
+        n_single=sum(1 for s in subsets if len(s) == 1),
+        add_k=add_k,
+    )
+
+    log.debug(
+        "Capacity space ready: n=%d add_k=%d subsets=%d constraints=%d",
+        n_features,
+        add_k,
+        len(subsets),
+        A0.shape[0],
+    )
+
+    return X_aug, space, np.asarray(A0, dtype=float), np.asarray(b0, dtype=float)
 
 
 # ---------------------------------------------------------------------------
