@@ -22,194 +22,124 @@ used for live monitoring / plotting.
 
 from __future__ import annotations
 
-from typing import Callable, Tuple, Optional
+from typing import Any, Callable, Optional, Tuple
+from pathlib import Path
+import time
 
+from experiments.active.centers import _chebyshev_radius
 import numpy as np
-from gal.core.data import augment_with_minimums
-from gal.core.constraints import k_additive_constraints
-from gal.trees import GeometricTree, build_ball_tree
-from gal.search import search_pair
-
-try:
-    from gal.plots.viz import visualize_iteration  # type: ignore
-except ImportError:  # pragma: no cover
-    visualize_iteration = None  # type: ignore
-
-from gal.centers.poly_centers import chebyshev_center
-
-# ---------------------------------------------------------------------------
-# typing helpers
-# ---------------------------------------------------------------------------
-Array = np.ndarray
-CenterFn = Callable[[Array, Array], Tuple[Array, float]]  # returns (center, radius)
-OracleFn = Callable[[Array, Array], int]  # ±1
-ReportHook = Optional[Callable[[int, Array, float], None]]
+from gal.search.engine import Search
+from .learn_helpers import (
+    _init_streaming_outputs,
+    _ensure_search_engine,
+    _log_iteration,
+    _export_search_events_npz,
+    _record_query_npz,
+    _save_center_snapshot,
+    _finalize_version_space_npz,
+)
 
 
-# ---------------------------------------------------------------------------
-# utility: radius of largest ball around c inside {x: A x ≤ b}
-# ---------------------------------------------------------------------------
 
-
-def _chebyshev_radius(A: Array, b: Array, c: Array) -> float:
-    """Chebyshev (inscribed) radius of polyhedron *along Euclidean norm*.
-
-    r(c) = min_i  (b_i − a_iᵀ c) / ‖a_i‖₂,   A c ≤ b assumed.
-    Returns **0** if `c` lies outside the polyhedron (negative slack).
-    """
-    slack = b - A @ c  # (m,)
-    norms = np.linalg.norm(A, axis=1)
-    with np.errstate(divide="ignore", invalid="ignore"):
-        vals = np.where(norms > 0, slack / norms, np.inf)
-    return max(0.0, vals.min(initial=np.inf))
-
-
-# ---------------------------------------------------------------------------
-# main learning loop
-# ---------------------------------------------------------------------------
-
-
-def project_constraint(h):
-    return h[:-1] - h[-1], -h[-1]
-
-
-def learn(
-    tree: GeometricTree,
-    data: Array,
-    A0: Array,
-    b0: Array,
-    center_fn: CenterFn,
-    oracle: OracleFn,
+def learning_loop(
     *,
-    n_iter: int = 10,
-    report_hook: ReportHook = None,
-    viz_2D: bool = False,
-) -> Tuple[Array, Array, Array]:
-    """Active learning loop.
+    tree: Any,
+    X: np.ndarray,
+    space: Any,
+    A0: np.ndarray,
+    b0: np.ndarray,
+    center_fn: Callable,
+    n_iter: int,
+    tau_cap: float,
+    tau_multiplier: float,
+    exp_dir: Path,
+    oracle_compare: Callable[[np.ndarray, np.ndarray], int],
+    collect_events: bool,
+    log_every: int,
+    log_level: int,
+    search_strategy: str,
+    engine: Optional[Search] = None,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Active learning loop with on-disk logging and search traces.
 
-    Parameters
-    ----------
-    root        : Ball‑Tree root (see *simple_GeometricTree.py*).
-    A0, b0      : Initial linear constraints so that feasible set is
-                  `{q | A q ≤ b}`.  Shapes `(m0, d)` and `(m0,)`.
-    center_fn   : Callable that, given `(A, b)`, returns a feasible center
-                  (and optionally a radius – any extra information is ignored).
-    oracle      : Function `(a, b) -> {−1, +1}` implementing the true sign.
-    n_iter      : Number of active‑learning rounds.
-    report_hook : Optional callback `(k, center, radius)` executed after each
-                  iteration (including the initial center, k = 0).
-
-    Returns
-    -------
-    center : ndarray  – the final center estimate.
-    A      : ndarray  – all accumulated constraint normals.
-    b      : ndarray  – rhs (always zeros appended after the initial `b0`).
+    Persists per-iteration queries and snapshots as NPZ files under `exp_dir`.
     """
-    # Copy so we do not mutate caller’s arrays
+    # Outputs: iterations.csv and queries/ (NPZ-based, no h5py)
+    csv_writer, it_csv, q_dir = _init_streaming_outputs(exp_dir)
+
+    # Init version space
     A = np.asarray(A0, dtype=float).copy()
     b = np.asarray(b0, dtype=float).copy()
-    data = np.asarray(data, dtype=float)
-    if data.ndim != 2:
-        raise ValueError("data must be a 2D array")
+    center_proj = np.asarray(center_fn(A, b), dtype=float)
+    center_full = space.expand_center(center_proj)
+    radius = _chebyshev_radius(A, b, center_proj)
 
-    # --- iteration 0: compute initial center & radius --------------------
-    center = center_fn(A, b)  # ignore extra outputs
-    complete_center = np.hstack([center, 1 - np.sum(center)])
-    radius = _chebyshev_radius(A, b, center)
+    engine = _ensure_search_engine(engine, search_strategy, X)
 
-    if report_hook is not None:
-        report_hook(0, complete_center, radius, np.empty(0), 0)
-
-    # --- main loop --------------------------------------------------------
-    for it in range(1, n_iter + 1):
-        if viz_2D:
-            if visualize_iteration is None:  # pragma: no cover
-                raise RuntimeError(
-                    "viz_2D=True but gal.plots.viz.visualize_iteration is unavailable"
-                )
-            visualize_iteration(A, b, center, radius, iter_idx=it, show=True)
-        # 1) pick most ambiguous pair wrt current center
-        i_idx, j_idx, score = search_pair(
+    for it in range(n_iter):
+        t_start = time.time()
+        if not (np.isfinite(radius) and radius > 0):
+            break
+        tau = min(radius * float(tau_multiplier), float(tau_cap))
+        i, j, dist, stats = engine.search_pair(
             tree,
-            data,
-            complete_center,
-            tau=radius / 2.0,
+            X,
+            center_full,
+            tau=float(tau),
+            return_stats=True,
+            ensure_optimal=True,
+            collect_events=collect_events,
         )
-        if score > radius:
-            # no more ambiguous pairs - terminate early
+
+        iter_dir = _log_iteration(
+            it,
+            i,
+            j,
+            dist,
+            float(radius),
+            log_level=log_level,
+            log_every=log_every,
+            exp_dir=exp_dir,
+        )
+
+        # Save search events (NPZ)
+        if collect_events:
+            events = list(stats.get("trace", {}).get("events", []))  # type: ignore[arg-type]
+            _export_search_events_npz(iter_dir / "search_trace.npz", events)  # type: ignore[arg-type]
+
+        if i is None or j is None:
             break
 
-        if i_idx is None or j_idx is None:
-            print("No more pairs found, terminating early.")
-            break
+        q_a, q_b = X[int(i)], X[int(j)]
+        diff = q_a - q_b
 
-        # 2) ask the oracle
-        a_pt = data[int(i_idx)]
-        b_pt = data[int(j_idx)]
-        if np.linalg.norm(a_pt - b_pt) == 0:
-            print("Degenerate pair found, skipping.")
-            return center, A, b
+        y = oracle_compare(q_a, q_b)
+        constraint = -float(y) * diff
 
-        # try:
-        y = int(np.sign(oracle(a_pt, b_pt)))
-        # except Exception as e:
-        # print(f"Oracle error: {e}")
-        # return center, A, b
+        proj_row, proj_rhs = space.project(constraint)
+        A = np.vstack([A, proj_row.reshape(1, -1)])
+        b = np.concatenate([b, np.array([proj_rhs], dtype=float)])
 
-        # 3) add linear constraint y·(a‑b)ᵀ q ≥ 0
-        diff = a_pt - b_pt
-        constraint = -y * (a_pt - b_pt)  # shape (d,)
+        center_proj = np.asarray(center_fn(A, b), dtype=float)
+        center_full = space.expand_center(center_proj)
+        radius = _chebyshev_radius(A, b, center_proj)
 
-        if y == 0:
-            report_hook(it, complete_center, radius, diff, y)
-            return center, A, b
+        _record_query_npz(
+            it=it,
+            diff=diff,
+            q_dir=q_dir,
+            csv_writer=csv_writer,
+            y=int(y),
+            i=int(i),
+            j=int(j),
+            t_start=t_start,
+        )
+        _save_center_snapshot(iter_dir, center_full, float(radius), float(tau))
 
-        A_new, b_new = project_constraint(constraint)
-        A = np.vstack([A, A_new])
-        b = np.concatenate([b, [b_new]])
+    # Close CSV stream
+    it_csv.close()
 
-        # 4) recompute center & radius given new polyhedron
-        center = center_fn(A, b)
-        complete_center = np.hstack([center, 1 - np.sum(center)])
-        radius = _chebyshev_radius(A, b, center)
-        if report_hook is not None:
-            report_hook(it, complete_center, radius, diff, y)
+    # Final constraints snapshot (NPZ only)
+    _finalize_version_space_npz(exp_dir, A, b)
 
-    return center, A, b
-
-
-# ---------------------------------------------------------------------------
-# demo ----------------------------------------------------------------------
-# ---------------------------------------------------------------------------
-if __name__ == "__main__":
-    # --- synthetic data & true direction -------------------------------
-    rng = np.random.default_rng(0)
-    n_features = 2
-    add_k = 2
-    N = 10_000_000
-    points = rng.standard_normal((N, n_features))
-    points = augment_with_minimums(points, add_k)
-
-    tree_root = build_ball_tree(points, P=5)
-    q_true = np.array([1.0, -0.5, 1.0])  # hidden separator
-
-    def oracle(a: Array, b: Array) -> int:
-        return 1 if (a - b) @ q_true >= 0 else -1
-
-    # --- initial constraints -------------------------------------------
-    A0, b0, _ = k_additive_constraints(n_features, add_k)
-
-    def reporter(k, c, r, diff):
-        print(f"Iter {k:2d}: center={c},  radius={r:.3g}")
-
-    learn(
-        root=tree_root,
-        A0=A0,
-        b0=b0,
-        center_fn=lambda A, b: chebyshev_center(A, b),
-        oracle=oracle,
-        n_iter=10,
-        report_hook=reporter,
-        viz_2D=True,
-    )
-
+    return A, b
