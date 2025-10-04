@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, Generic, List, Tuple, TypeVar
+from typing import Dict, Generic, Optional, Tuple, TypeVar
 
 import logging
 import random
@@ -32,8 +32,14 @@ class VisitStrategy(Generic[TNode]):
     ) -> None:
         """Prepare the strategy for a new search tree."""
 
-    def priority(self, a: TNode, b: TNode, bounds: BoundsResult, mass: int) -> Tuple[float, ...]:
-        """Return a tuple used to order candidate node pairs."""
+    def priority(
+        self,
+        a: TNode,
+        b: TNode,
+        bounds: BoundsResult,
+        mass: int,
+    ) -> Optional[Tuple[float, ...]]:
+        """Return a tuple used to order candidate node pairs or ``None`` to skip."""
         raise NotImplementedError
 
 class LowerBoundVisitStrategy(VisitStrategy[Node]):
@@ -144,22 +150,39 @@ class LowerBoundVisitStrategy(VisitStrategy[Node]):
             return 0.0
         return abs(float(np.dot(diff, self._query))) / max(denom, self._eps)
 
-    def priority(self, a: Node, b: Node, bounds: BoundsResult, mass: int) -> Tuple[float, ...]:
+    def priority(
+        self,
+        a: Node,
+        b: Node,
+        bounds: BoundsResult,
+        mass: int,
+    ) -> Optional[Tuple[float, ...]]:
         div_a = self._get_diversity_score(a)
         div_b = self._get_diversity_score(b)
         diversity_score = min(div_a, div_b)
         
-        if diversity_score == 0.0:
-            return (float('inf'))
+        if diversity_score <= self._eps:
+            return None
 
         if self._centers_match(a, b):
             key0 = -1.0 if bounds.upper <= self._tau else float(bounds.lower)
-            return (float(key0), float(bounds.upper), -float(diversity_score), float(self._rng.random()))
+            return (
+                float(key0),
+                float(bounds.upper),
+                -float(diversity_score),
+                float(self._rng.random()),
+            )
 
         distance = self._center_distance(a, b)
         key0 = -1.0 if bounds.upper <= self._tau else float(distance)
 
-        return (float(key0), float(bounds.lower), float(bounds.upper), -float(diversity_score), float(self._rng.random()))
+        return (
+            float(key0),
+            float(bounds.lower),
+            float(bounds.upper),
+            -float(diversity_score),
+            float(self._rng.random()),
+        )
 
 def get_strategy(name: str, **kwargs) -> VisitStrategy[Node]:
     """Factory for visit-ordering strategies.

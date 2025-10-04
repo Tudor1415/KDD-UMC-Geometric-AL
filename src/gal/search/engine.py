@@ -26,6 +26,7 @@ class SearchContext:
     wc: np.ndarray
     tau: float
     eps: float
+    seen_pairs: frozenset[tuple[int, int]]
 
 
 class Search:
@@ -39,6 +40,11 @@ class Search:
     ) -> None:
         self.bounder = bounder or BallTreeBounds()
         self.strategy = strategy or LowerBoundVisitStrategy()
+        self._seen_pairs: set[tuple[int, int]] = set()
+
+    def register_seen_pair(self, i: int, j: int) -> None:
+        key = (i, j) if i <= j else (j, i)
+        self._seen_pairs.add(key)
 
     @staticmethod
     def _node_is_leaf(node: Node) -> bool:
@@ -87,7 +93,11 @@ class Search:
         return abs(float(np.dot(diff, wc))) / denom
 
     @staticmethod
-    def _exact_leaf_eval(a: Node, b: Node, context: SearchContext) -> Tuple[Tuple[int, int] | None, float, int]:
+    def _exact_leaf_eval(
+        a: Node,
+        b: Node,
+        context: SearchContext,
+    ) -> Tuple[Tuple[int, int] | None, float, int]:
         Ai = a.indices
         Bi = b.indices
         if Ai is None or Bi is None or Ai.size == 0 or Bi.size == 0:
@@ -101,6 +111,17 @@ class Search:
         denom = np.where(close_mask, 1.0, denom)
         dist = num / denom
         dist = np.where(close_mask, np.inf, dist)
+        seen = context.seen_pairs
+        if seen:
+            # mask seen cross pairs
+            for m in range(Ai.size):
+                ia = int(Ai[m])
+                for n in range(Bi.size):
+                    ib = int(Bi[n])
+                    key = (ia, ib) if ia <= ib else (ib, ia)
+                    if key in seen:
+                        dist[m, n] = np.inf
+
         if not np.isfinite(dist).any():
             return None, float("inf"), int(Ai.size) * int(Bi.size)
         m_idx, n_idx = np.unravel_index(np.argmin(dist), dist.shape)
@@ -116,11 +137,17 @@ class Search:
         best_dist = float("inf")
         evals = 0
         XA = context.data[idx]
+        seen = context.seen_pairs
         for i in range(idx.size - 1):
             pi = XA[i]
             for j in range(i + 1, idx.size):
                 pj = XA[j]
                 evals += 1
+                ia = int(idx[i])
+                ib = int(idx[j])
+                key = (ia, ib) if ia <= ib else (ib, ia)
+                if key in seen:
+                    continue
                 if np.linalg.norm(pi - pj) <= context.eps:
                     continue
                 dist = Search._objective_value(pi, pj, context.wc, context.eps)
@@ -165,7 +192,13 @@ class Search:
             raise ValueError("wc must have length equal to X.shape[1]")
 
         root = tree.root if isinstance(tree, GeometricTree) else tree
-        context = SearchContext(data=data, wc=wc, tau=float(tau), eps=float(eps))
+        context = SearchContext(
+            data=data,
+            wc=wc,
+            tau=float(tau),
+            eps=float(eps),
+            seen_pairs=frozenset(self._seen_pairs),
+        )
 
         leaf_indices = self._gather_leaf_indices(root)
         total_pairs = int(len(leaf_indices) * (len(leaf_indices) - 1) // 2)
@@ -299,7 +332,10 @@ class Search:
             # Only exact evaluations are allowed to improve best_distance to avoid
             # prematurely terminating under a finite tau without a feasible pair.
 
-            score = self._normalize_score(self.strategy.priority(a, b, bounds, pair_mass))
+            raw_score = self.strategy.priority(a, b, bounds, pair_mass)
+            if raw_score is None:
+                return
+            score = self._normalize_score(raw_score)
             # Push with a numeric tie-breaker before Node objects to avoid
             # comparisons between Node instances when tuple prefixes tie.
             heapq.heappush(heap, (score, next(tie), bounds.lower, bounds.upper, a, b))
@@ -444,6 +480,9 @@ class Search:
         if best_pair is None:
             result = (None, None, float("inf"))
         else:
+            i_idx, j_idx = best_pair
+            key = (i_idx, j_idx) if i_idx <= j_idx else (j_idx, i_idx)
+            self._seen_pairs.add(key)
             result = (*best_pair, best_distance)
         return (*result, stats) if return_stats else result
 

@@ -1,8 +1,7 @@
-"""Simple ranking analyzer for AL runs.
+"""Analyze AL run rankings for select top-K summaries.
 
-This script loads stored centers for each iteration, scores the dataset using
-those centers, and compares the rankings against the oracle used during the
-experiment. Metrics (average precision, recall, NDCG) rely on scikit-learn.
+This script scores stored centers against the dataset used in the run and
+computes ranking metrics for three summaries: top10, top1pct, top5pct.
 """
 
 from __future__ import annotations
@@ -12,7 +11,7 @@ import csv
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Sequence
+from typing import Any, Dict, Iterable, List, Mapping
 
 import numpy as np
 from sklearn.metrics import average_precision_score, ndcg_score, recall_score
@@ -28,7 +27,6 @@ class Inputs:
     config_path: Path
     rules_override: Path | None
     transactions_override: Path | None
-    topk: List[int]
     out_csv: Path
 
 
@@ -42,13 +40,6 @@ def parse_args() -> Inputs:
         type=Path,
         default=None,
         help="Override transactions CSV (defaults to config entry)",
-    )
-    parser.add_argument(
-        "--topk",
-        type=int,
-        nargs="*",
-        default=[5, 10, 20, 50],
-        help="List of K values for metrics",
     )
     parser.add_argument("--out", type=Path, default=None, help="Output CSV path (default: <run_dir>/ranking_stats.csv)")
     args = parser.parse_args()
@@ -64,7 +55,6 @@ def parse_args() -> Inputs:
         config_path=args.config,
         rules_override=args.rules,
         transactions_override=args.transactions,
-        topk=list(args.topk),
         out_csv=out_csv,
     )
 
@@ -223,6 +213,7 @@ def _build_oracle(cfg: ALConfig, ds: Dataset) -> Oracle:
     return oracle
 
 
+
 def _list_iterations(run_dir: Path) -> List[int]:
     csv_path = run_dir / "iterations.csv"
     if not csv_path.exists():
@@ -240,7 +231,11 @@ def _list_iterations(run_dir: Path) -> List[int]:
     return sorted(iterations)
 
 
-def _load_center(run_dir: Path, iteration: int, expected_dim: int) -> tuple[np.ndarray, float | None, float | None]:
+def _load_center(
+    run_dir: Path,
+    iteration: int,
+    expected_dim: int | None,
+) -> tuple[np.ndarray, float | None, float | None]:
     it_dir = run_dir / f"iteration_{iteration:03d}"
     npz_path = it_dir / "center_model.npz"
     if npz_path.exists():
@@ -260,25 +255,17 @@ def _load_center(run_dir: Path, iteration: int, expected_dim: int) -> tuple[np.n
     if center.ndim != 1:
         center = center.reshape(-1)
 
-    if center.size < expected_dim:
-        padded = np.zeros(expected_dim, dtype=float)
-        padded[: center.size] = center
-        center = padded
-    elif center.size > expected_dim:
-        center = center[:expected_dim]
+    if expected_dim is not None:
+        if center.size < expected_dim:
+            padded = np.zeros(expected_dim, dtype=float)
+            padded[: center.size] = center
+            center = padded
+        elif center.size > expected_dim:
+            center = center[:expected_dim]
 
     radius_value = float(radius) if radius is not None else None
     tau_value = float(tau) if tau is not None else None
     return center, radius_value, tau_value
-
-
-def _metric_labels(prefix: str, k_list: Sequence[int]) -> List[str]:
-    labels: List[str] = []
-    for k in k_list:
-        labels.append(f"{prefix}{k}_ap")
-        labels.append(f"{prefix}{k}_recall")
-        labels.append(f"{prefix}{k}_ndcg")
-    return labels
 
 
 def _compute_metrics(
@@ -315,56 +302,49 @@ def compute_ranking(inp: Inputs) -> Path:
     iterations = _list_iterations(inp.run_dir)
 
     rows: List[Dict[str, Any]] = []
-    topk_unique = sorted({k for k in inp.topk if k > 0 and k != 1})
-    topk_labels = _metric_labels("top", topk_unique)
-    extra_labels = [
-        "top1_ap",
-        "top1_recall",
-        "top1_ndcg",
-        "top1pct_ap",
-        "top1pct_recall",
-        "top1pct_ndcg",
-        "top10pct_ap",
-        "top10pct_recall",
-        "top10pct_ndcg",
-    ]
 
     for it in iterations:
         center, radius, tau = _load_center(inp.run_dir, it, X.shape[1])
         pred_scores = X @ center
 
         row: Dict[str, Any] = {"iteration": it}
-
-        # Explicit top-1 metrics (single best rule)
-        top1_ap, top1_recall, top1_ndcg = _compute_metrics(pred_scores, oracle_scores, 1)
-        row["top1_ap"] = top1_ap
-        row["top1_recall"] = top1_recall
-        row["top1_ndcg"] = top1_ndcg
-
-        for k in topk_unique:
-            ap, recall, ndcg = _compute_metrics(pred_scores, oracle_scores, k)
-            row[f"top{k}_ap"] = ap
-            row[f"top{k}_recall"] = recall
-            row[f"top{k}_ndcg"] = ndcg
+        top10_ap, top10_rec, top10_ndcg = _compute_metrics(pred_scores, oracle_scores, 10)
+        row["top10_ap"] = top10_ap
+        row["top10_recall"] = top10_rec
+        row["top10_ndcg"] = top10_ndcg
 
         n = X.shape[0]
-        k1 = max(1, int(np.ceil(0.01 * n)))
-        ap1, rec1, ndcg1 = _compute_metrics(pred_scores, oracle_scores, k1)
-        row["top1pct_ap"] = ap1
-        row["top1pct_recall"] = rec1
-        row["top1pct_ndcg"] = ndcg1
 
-        k10 = max(1, int(np.ceil(0.10 * n)))
-        ap10, rec10, ndcg10 = _compute_metrics(pred_scores, oracle_scores, k10)
-        row["top10pct_ap"] = ap10
-        row["top10pct_recall"] = rec10
-        row["top10pct_ndcg"] = ndcg10
+        k1 = max(1, int(np.ceil(0.01 * n)))
+        top1pct_ap, top1pct_rec, top1pct_ndcg = _compute_metrics(pred_scores, oracle_scores, k1)
+        row["top1pct_ap"] = top1pct_ap
+        row["top1pct_recall"] = top1pct_rec
+        row["top1pct_ndcg"] = top1pct_ndcg
+
+        k5 = max(1, int(np.ceil(0.05 * n)))
+        top5pct_ap, top5pct_rec, top5pct_ndcg = _compute_metrics(pred_scores, oracle_scores, k5)
+        row["top5pct_ap"] = top5pct_ap
+        row["top5pct_recall"] = top5pct_rec
+        row["top5pct_ndcg"] = top5pct_ndcg
 
         row["radius"] = radius if radius is not None else ""
         row["tau"] = tau if tau is not None else ""
         rows.append(row)
 
-    headers = ["iteration", *topk_labels, *extra_labels, "radius", "tau"]
+    headers = [
+        "iteration",
+        "top10_ap",
+        "top10_recall",
+        "top10_ndcg",
+        "top1pct_ap",
+        "top1pct_recall",
+        "top1pct_ndcg",
+        "top5pct_ap",
+        "top5pct_recall",
+        "top5pct_ndcg",
+        "radius",
+        "tau",
+    ]
 
     inp.out_csv.parent.mkdir(parents=True, exist_ok=True)
     with inp.out_csv.open("w", newline="", encoding="utf-8") as handle:

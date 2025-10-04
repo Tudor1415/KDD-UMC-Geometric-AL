@@ -86,6 +86,7 @@ def learning_loop(
 
     engine = _ensure_search_engine(engine, search_strategy, X)
     register_query = getattr(engine.strategy, "register_queries", None)
+    register_pair = getattr(engine, "register_seen_pair", None)
 
     for it in range(n_iter):
         t_start = time.time()
@@ -132,6 +133,8 @@ def learning_loop(
 
         if callable(register_query):
             register_query(np.vstack([q_a, q_b]))
+        if callable(register_pair):
+            register_pair(int(i), int(j))
 
         y = oracle_compare(q_a, q_b)
 
