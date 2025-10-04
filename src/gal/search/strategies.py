@@ -77,13 +77,13 @@ class LowerBoundVisitStrategy(VisitStrategy[Node]):
 
     def priority(self, a: Node, b: Node, bounds: BoundsResult, mass: int) -> Tuple[float, ...]:
         if self._centers_match(a, b):
-            key0 = -1.0 if bounds.upper <= self._tau else float(bounds.lower)
+            key0 = -1.0 if bounds.upper <= self._tau else float(bounds.upper)
             return (float(key0), float(bounds.lower), float(self._rng.random()))
 
         distance = self._center_distance(a, b)
         key0 = -1.0 if bounds.upper <= self._tau else float(distance)
 
-        return (float(key0), float(bounds.lower), float(self._rng.random()))
+        return (float(key0), float(bounds.lower), float(bounds.upper), float(self._rng.random()))
 
 
 class DiversityVisitStrategy(VisitStrategy[Node]):
@@ -150,15 +150,32 @@ class DiversityVisitStrategy(VisitStrategy[Node]):
             return 0.0
         return abs(float(np.dot(diff, self._query))) / max(denom, self._eps)
 
+    def _centers_match(self, a: Node, b: Node) -> bool:
+        diff = np.asarray(a.center, dtype=float) - np.asarray(b.center, dtype=float)
+        return bool(np.linalg.norm(diff) <= self._eps)
+    
+    def _center_distance(self, a: Node, b: Node) -> float:
+        if self._query is None:
+            return 0.0
+        diff = np.asarray(a.center, dtype=float) - np.asarray(b.center, dtype=float)
+        denom = float(np.linalg.norm(diff))
+        if denom <= self._eps:
+            return 0.0
+        return abs(float(np.dot(diff, self._query))) / max(denom, self._eps)
+
     def priority(self, a: Node, b: Node, bounds: BoundsResult, mass: int) -> Tuple[float, ...]:
         div_a = self._get_diversity_score(a)
         div_b = self._get_diversity_score(b)
         diversity_score = max(div_a, div_b)
+        
+        if self._centers_match(a, b):
+            key0 = -1.0 if bounds.upper <= self._tau else float(diversity_score)
+            return (float(key0), float(bounds.lower), float(bounds.upper), float(self._rng.random()))
+        
         distance = self._center_distance(a, b)
-        key0 = -1 if bounds.upper <= self._tau else distance
-        return (float(key0), -float(diversity_score), float(bounds.lower), float(bounds.upper))
+        key0 = -1.0 if bounds.upper <= self._tau else float(distance)
 
-
+        return (float(key0), float(diversity_score), float(bounds.lower), float(bounds.upper), float(self._rng.random()))
 
 def get_strategy(name: str, **kwargs) -> VisitStrategy[Node]:
     """Factory for visit-ordering strategies.

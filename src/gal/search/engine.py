@@ -97,8 +97,12 @@ class Search:
         diff = XA[:, None, :] - XB[None, :, :]
         num = np.abs(np.tensordot(diff, context.wc, axes=(2, 0)))
         denom = np.linalg.norm(diff, axis=2)
-        denom = np.maximum(denom, context.eps)
+        close_mask = denom <= context.eps
+        denom = np.where(close_mask, 1.0, denom)
         dist = num / denom
+        dist = np.where(close_mask, np.inf, dist)
+        if not np.isfinite(dist).any():
+            return None, float("inf"), int(Ai.size) * int(Bi.size)
         m_idx, n_idx = np.unravel_index(np.argmin(dist), dist.shape)
         evals = int(Ai.size) * int(Bi.size)
         return (int(Ai[m_idx]), int(Bi[n_idx])), float(dist[m_idx, n_idx]), evals
@@ -117,10 +121,16 @@ class Search:
             for j in range(i + 1, idx.size):
                 pj = XA[j]
                 evals += 1
+                if np.linalg.norm(pi - pj) <= context.eps:
+                    continue
                 dist = Search._objective_value(pi, pj, context.wc, context.eps)
+                if not np.isfinite(dist):
+                    continue
                 if dist < best_dist:
                     best_dist = dist
                     best_pair = (int(idx[i]), int(idx[j]))
+        if best_pair is None:
+            best_dist = float("inf")
         return best_pair, best_dist, evals
 
     @staticmethod
