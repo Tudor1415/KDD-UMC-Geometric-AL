@@ -36,7 +36,7 @@ oracle:
 datasets:
   - name: mushroom
     paths:
-      dataset_path: path/to/mushroom_rules.csv   # TODO: replace with actual file
+      dataset_path: /home/tudor/Downloads/datasets.zip 
     measures:
       - support
       - confidence
