@@ -33,16 +33,14 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
+import pickle
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Sequence, Tuple
 
 import numpy as np
-
-try:
-    import h5py  # noqa: F401
-except Exception:  # pragma: no cover
-    h5py = None
+import h5py
 
 from gal.core.data import Dataset
 from gal.oracles.oracles import Oracle  # non-linear oracle support
@@ -129,11 +127,9 @@ def _load_final_constraints(run_dir: Path) -> tuple[np.ndarray, np.ndarray] | tu
     if not fvs.exists():
         return None, None
     try:
-        import h5py as _h5
-
-        with _h5.File(fvs, "r") as h5:
-            A = np.asarray(h5["A"][...], dtype=float)
-            b = np.asarray(h5["b"][...], dtype=float).reshape(-1)
+        with h5py.File(fvs, "r") as h5file:
+            A = np.asarray(h5file["A"][...], dtype=float)
+            b = np.asarray(h5file["b"][...], dtype=float).reshape(-1)
         return A, b
     except Exception:
         return None, None
@@ -194,8 +190,6 @@ def _load_oracle_scores(run_dir: Path, ds: Dataset, Xrules: np.ndarray, n_measur
     pkl = run_dir / "oracle.pkl"
     if pkl.exists():
         try:
-            import pickle
-
             with pkl.open("rb") as f:
                 obj = pickle.load(f)
             if isinstance(obj, Oracle) or (
@@ -218,8 +212,6 @@ def _load_oracle_scores(run_dir: Path, ds: Dataset, Xrules: np.ndarray, n_measur
     cfg = run_dir / "config.json"
     if cfg.exists():
         try:
-            import json
-
             with cfg.open("r", encoding="utf-8") as f:
                 conf = json.load(f)
             if isinstance(conf, dict) and "oracle_weights" in conf:

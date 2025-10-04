@@ -12,20 +12,15 @@ Each class implements two methods:
 
 import math
 import time
-import torch
+from abc import ABC, abstractmethod
+from typing import Callable, Dict, Iterable, List, Sequence
+
+import cupy as cp
 import numpy as np
 import pandas as pd
-from abc import ABC, abstractmethod
-from typing import Iterable, Dict, Sequence, Callable, List
-
-# external (only for Bayesian-network prior)
-try:
-    from pgmpy.estimators import TreeSearch
-    from pgmpy.models import BayesianNetwork
-    from pgmpy.estimators import BayesianEstimator
-    from pgmpy.estimators import HillClimbSearch, BicScore
-except ImportError:  # pgmpy is optional
-    HillClimbSearch = BicScore = VariableElimination = None
+import torch
+from pgmpy.estimators import BayesianEstimator, BicScore, HillClimbSearch, TreeSearch
+from pgmpy.models import BayesianNetwork
 
 
 # --------------------------------------------------------------------------- #
@@ -198,8 +193,6 @@ class IndependentLogLinear(Prior):
 
         # ------- back-end selection (CuPy → Torch → NumPy) -------------
         try:
-            import cupy as cp
-
             log_fe = self.log_n + cp.asarray(X, dtype=cp.float32) @ cp.asarray(
                 log_p_subset
             )
@@ -207,16 +200,14 @@ class IndependentLogLinear(Prior):
         except Exception:
             pass
 
-        try:
-            import torch
-
-            if torch.cuda.is_available():
+        if torch.cuda.is_available():
+            try:
                 Xg = torch.tensor(X, dtype=torch.float32, device=self.device)
                 pg = torch.tensor(log_p_subset, device=self.device)
                 log_fe = self.log_n + Xg @ pg
                 return torch.exp(log_fe).cpu().numpy()
-        except Exception:
-            pass
+            except Exception:
+                pass
 
         # CPU fallback
         log_fe = self.log_n + X.astype(np.float32, copy=False) @ log_p_subset
@@ -432,14 +423,9 @@ class ChowLiuPrior(Prior):
         )
 
         # --- 2. learn the tree structure (≃ O(d² n) but very small const) -
-        from pgmpy.estimators import TreeSearch
-
         dag = TreeSearch(df).estimate(estimator_type="chow-liu")  # already a DAG
 
         # --- 3. parameter learning on the *full* data --------------------
-        from pgmpy.models import BayesianNetwork
-        from pgmpy.estimators import BayesianEstimator
-
         model = BayesianNetwork(dag.edges())
         model.fit(df, estimator=BayesianEstimator, prior_type="BDeu")
 

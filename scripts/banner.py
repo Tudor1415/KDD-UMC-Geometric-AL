@@ -27,14 +27,7 @@ from typing import Tuple, List
 
 import matplotlib.pyplot as plt
 import numpy as np
-
-try:
-    from adjustText import adjust_text  # type: ignore
-except ImportError:  # pragma: no cover
-
-    def adjust_text(*_args, **_kwargs):  # type: ignore
-        """Fallback noop when *adjustText* is unavailable."""
-        pass
+from adjustText import adjust_text  # type: ignore
 
 from gal.core.data import augment_with_minimums
 from gal.core.constraints import k_additive_constraints

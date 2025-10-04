@@ -59,44 +59,4 @@ class CapacitySpace:
         return np.asarray(proj_row, dtype=float), float(proj_rhs)
 
 
-def _prepare_capacity_space(
-    X: np.ndarray,
-    *,
-    add_k: int,
-    log: Optional[logging.Logger] = None,
-) -> Tuple[np.ndarray, CapacitySpace, np.ndarray, np.ndarray]:
-    X = np.ascontiguousarray(X, dtype=float)
-    if X.ndim != 2:
-        raise ValueError("X must be a 2D array.")
-    n_single = X.shape[1]
-    k_val = int(add_k) if add_k else 1
-    if k_val < 1:
-        k_val = 1
-    if k_val > n_single:
-        k_val = n_single
-    extra_subsets: List[Tuple[int, ...]] = []
-    if k_val > 1:
-        X_aug, extra_subsets = augment_with_minimums(X, k_val, return_index_map=True)
-        X_work = np.ascontiguousarray(X_aug, dtype=float)
-        if log is not None:
-            log.info(
-                "Applied additivity augmentation (k=%d) - shape %s",
-                k_val,
-                X_work.shape,
-            )
-    else:
-        X_work = X.copy()
-    subsets = [(i,) for i in range(n_single)] + list(extra_subsets)
-    if not subsets:
-        raise RuntimeError("Failed to enumerate subsets for capacity space.")
-    if subsets != enumerate_subsets(n_single, k_val):
-        raise RuntimeError("Subset ordering mismatch between augmentation and canonical order.")
-    A0, b0, proj_index = k_additive_constraints(n_single, k_val)
-    space = CapacitySpace(
-        subsets=subsets,
-        proj_index=proj_index,
-        n_single=n_single,
-        add_k=k_val,
-    )
-    return X_work, space, np.asarray(A0, dtype=float), np.asarray(b0, dtype=float)
 

@@ -6,11 +6,7 @@ import importlib
 from typing import Dict, List, Tuple
 
 import numpy as np
-
-try:
-    from sklearn.neighbors import KDTree
-except ImportError:
-    KDTree = None
+from sklearn.neighbors import KDTree
 
 from .common import GeometricTree, Node
 from utils.geometry import enclose_many_balls
@@ -108,18 +104,6 @@ def _greedy_children_kdtree(
     eps: float = EPS,
 ) -> List[Tuple[np.ndarray, np.ndarray, float]]:
     """Find disjoint children using a greedy strategy accelerated by a KDTree."""
-
-    if KDTree is None:
-        return _greedy_children_bruteforce(
-            data,
-            indices,
-            parent_center,
-            parent_radius,
-            max_children,
-            min_child_size,
-            radius_divisor,
-            eps=eps,
-        )
 
     if indices.size < 2 or parent_radius <= 0.0 or max_children <= 0:
         return []
@@ -303,7 +287,6 @@ def build_tree(X: np.ndarray, config: Dict | None = None) -> GeometricTree:
         method="disjoint_greedy",
         config=cfg,
     )
-
 
 
 

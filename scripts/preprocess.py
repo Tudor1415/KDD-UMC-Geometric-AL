@@ -37,13 +37,7 @@ if not hasattr(np, "long"):  # NumPy ≥ 2.0
     np.long = np.int_
 import pandas as pd
 from fast_pareto import is_pareto_front
-
-# ────────────────────────────────────────────────────────────────────────────
-# metric wrapper
-try:
-    from gal.metrics.rule_metrics import compute_metrics
-except ImportError as exc:
-    sys.exit(f"❌  Cannot import compute_metrics from gal.metrics.rule_metrics → {exc}")
+from gal.metrics.rule_metrics import compute_metrics
 
 # ────────────────────────────────────────────────────────────────────────────
 POSSIBLE_EXTS: tuple[str, ...] = ("", ".csv", ".txt", ".data")

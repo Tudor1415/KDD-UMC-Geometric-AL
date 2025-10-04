@@ -48,11 +48,7 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Sequence, Tuple
 
 import numpy as np
-
-try:  # required to read query vectors
-    import h5py  # type: ignore
-except Exception:  # pragma: no cover
-    h5py = None
+import h5py
 
 from gal.core.data import Dataset
 from gal.centers.poly_centers import (
@@ -108,8 +104,6 @@ def _group_by_iteration(pairs: Iterable[Tuple[int, str]]) -> Dict[int, List[str]
 
 
 def _load_query_vectors(h5_path: Path, names: Sequence[str]) -> List[np.ndarray]:
-    if h5py is None:
-        raise RuntimeError("h5py is required to read query_vectors.h5")
     vecs: List[np.ndarray] = []
     with h5py.File(h5_path, "r") as h5:
         for name in names:
@@ -292,10 +286,9 @@ def _load_final_constraints(run_dir: Path) -> tuple[np.ndarray, np.ndarray] | tu
     if not fvs.exists():
         return None, None
     try:
-        import h5py as _h5
-        with _h5.File(fvs, "r") as h5:
-            A = np.asarray(h5["A"][...], dtype=float)
-            b = np.asarray(h5["b"][...], dtype=float).reshape(-1)
+        with h5py.File(fvs, "r") as h5file:
+            A = np.asarray(h5file["A"][...], dtype=float)
+            b = np.asarray(h5file["b"][...], dtype=float).reshape(-1)
         return A, b
     except Exception:
         return None, None
