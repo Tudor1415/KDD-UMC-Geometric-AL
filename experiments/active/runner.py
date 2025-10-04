@@ -6,8 +6,9 @@ import json
 import logging
 import pickle
 import time
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -42,11 +43,12 @@ from .config import (
 from .data import _load_points_for_dataset
 from .space import CapacitySpace, _prepare_capacity_space
 from .centers import _center_fn, _chebyshev_radius
-from .export import _export_tree_h5, _export_search_events_h5
+from .export import _export_tree_h5
 
 
-def run(cfg: ALConfig) -> Path:
-    # Configure logging
+# ------------------------------ setup helpers ------------------------------ #
+
+def _setup_logging(cfg: ALConfig) -> Tuple[logging.Logger, int]:
     level_name = str(cfg.get("logging", "level", default="INFO")).upper()
     log_level = getattr(logging, level_name, logging.INFO)
     logging.basicConfig(
@@ -55,12 +57,14 @@ def run(cfg: ALConfig) -> Path:
         datefmt="%H:%M:%S",
         force=True,
     )
-    log = logging.getLogger(__name__)
+    return logging.getLogger(__name__), log_level
 
-    # Runtime knobs (threads, etc.) before heavy imports/IO (e.g., pandas)
-    _configure_runtime_from_config(cfg)
 
-    rng = np.random.default_rng(int(cfg.get("global", "seed", default=1729)))
+def _setup_rng(cfg: ALConfig) -> np.random.Generator:
+    return np.random.default_rng(int(cfg.get("global", "seed", default=1729)))
+
+
+def _setup_dataset(cfg: ALConfig) -> Tuple[Dataset, np.ndarray, Dict[str, Any], str, str]:
     ds_entry = _dataset_entry_from_cfg(cfg)
     ds_name = str(ds_entry["name"])
     ds_paths = ds_entry.get("paths", {}) or {}
@@ -77,18 +81,18 @@ def run(cfg: ALConfig) -> Path:
         name=ds_name,
     ).load()
     X = np.ascontiguousarray(ds.points, dtype=float)
-    log.info("Loaded dataset '%s' with shape %s", ds.name, getattr(X, 'shape', None))
-    # Optional uniform downsampling
-    max_pts = int(cfg.get("global", "max_points", default=0) or 0)
-    if max_pts and X.shape[0] > max_pts:
-        idx = rng.choice(X.shape[0], size=max_pts, replace=False)
-        X = np.ascontiguousarray(X[idx], dtype=float)
+    return ds, X, ds_entry, ds_name, rules_csv
 
-    # Feature augmentation via additivity_k and constraint initialization
+
+def _setup_space(cfg: ALConfig, X: np.ndarray, log: logging.Logger) -> Tuple[np.ndarray, CapacitySpace, np.ndarray, np.ndarray, Callable, str]:
     add_k_cfg = int(cfg.get("experiment", "additivity_k", default=1) or 1)
-    X, space, A0, b0 = _prepare_capacity_space(X, add_k=add_k_cfg, log=log)
+    X_aug, space, A0, b0 = _prepare_capacity_space(X, add_k=add_k_cfg, log=log)
+    center_name = str(cfg.get("experiment", "center_name", default=cfg.get("global", "center", default="analytic")))
+    center_fn = _center_fn(center_name)
+    return X_aug, space, A0, b0, center_fn, center_name
 
-    # Trees (build exactly one in `run`)
+
+def _setup_trees(cfg: ALConfig, X: np.ndarray, log: logging.Logger) -> Tuple[Any, str, str, Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
     kd_cfg = cfg.get("trees", "kd", "config", default={}) or {}
     bt_cfg = cfg.get("trees", "ball", "config", default={}) or {}
     bt_method = str(cfg.get("trees", "ball", "method", default="")).strip()
@@ -107,7 +111,6 @@ def run(cfg: ALConfig) -> Path:
         if not bt_method and b_raw:
             bt_method = str(b_raw[0]) if isinstance(b_raw, (list, tuple)) else str(b_raw)
 
-    # Determine which single family to build
     kd_flag = cfg.get("trees", "kd", "enabled", default=None)
     bt_flag = cfg.get("trees", "ball", "enabled", default=None)
     if kd_flag is True and bt_flag is True:
@@ -125,15 +128,20 @@ def run(cfg: ALConfig) -> Path:
         tree_method = "kd_tree"
     else:
         if not bt_method:
-            bt_method = "disjoint_greedy"
+            bt_method = "two_pivot"
         log.info("Building ball-tree (method=%s) with config: %s", bt_method, bt_cfg)
         tree = bt.build_tree(X, bt_cfg, method=bt_method)
         tree_method = bt_method
 
-    # Oracle – construct an Oracle object and attach the dataset
+    return tree, tree_family, tree_method, kd_cfg, bt_cfg, (algo or {})
+
+
+def _setup_oracle(cfg: ALConfig, ds: Dataset) -> Oracle:
     otype = str(cfg.get("oracle", "type", default="objective")).strip().lower()
     if otype in {"objective", "objective_measure", "measure"}:
         measure = cfg.get("oracle", "measure", default=None)
+        if not measure:
+            measure = ds.measures[0] if ds.measures else None
         if not measure:
             raise ValueError("Objective oracle requires a measure name.")
         oracle: Oracle = ObjectiveMeasureOracle(str(measure))
@@ -153,19 +161,11 @@ def run(cfg: ALConfig) -> Path:
     else:
         raise ValueError(f"Unsupported oracle type '{otype}'.")
     oracle.set_dataset(ds)
+    return oracle
 
-    # Initial constraints: k-additive capacity polytope
-    A = np.asarray(A0, dtype=float).copy()
-    b = np.asarray(b0, dtype=float).copy()
-    center_name = str(
-        cfg.get("experiment", "center_name", default=cfg.get("global", "center", default="analytic"))
-    )
-    center_fn = _center_fn(center_name)
-    center_proj = np.asarray(center_fn(A, b), dtype=float)
-    center_full = space.expand_center(center_proj)
-    radius = _chebyshev_radius(A, b, center_proj)
 
-    # Tau cap from config (max allowed tau per iteration)
+def _setup_run_params(cfg: ALConfig, algo: Dict[str, Any]) -> Tuple[int, float, float, bool, int, str]:
+    n_iter = int(cfg.get("experiment", "active_learning_budget", default=cfg.get("global", "n_iter", default=25)))
     tau_cap = float(cfg.get("experiment", "tau_max", default=1e-5))
     tau_multiplier_cfg = cfg.get("experiment", "tau_radius_multiplier", default=None)
     if tau_multiplier_cfg is None:
@@ -176,22 +176,38 @@ def run(cfg: ALConfig) -> Path:
         tau_multiplier = 0.5
     if tau_multiplier <= 0:
         tau_multiplier = 0.5
+    collect_events = bool(cfg.get("logging", "search_events", default=False))
+    log_every = int(cfg.get("logging", "log_every", default=10) or 10)
+    search_strategy = str((algo or {}).get("search_strategy", "lower_bound"))
+    return n_iter, tau_cap, tau_multiplier, collect_events, log_every, search_strategy
 
-    # Output directory
+
+def _prepare_output_dir(
+    *,
+    cfg: ALConfig,
+    ds_name: str,
+    ds_entry: Dict[str, Any],
+    rules_csv: str,
+    oracle: Oracle,
+    center_name: str,
+    tree_family: str,
+    tree_method: str,
+    kd_cfg: Dict[str, Any],
+    bt_cfg: Dict[str, Any],
+    algo: Dict[str, Any],
+    rng: np.random.Generator,
+    d: int,
+) -> Path:
     out_root = Path(cfg.get("global", "output_root", default="./results/al"))
     out_root.mkdir(parents=True, exist_ok=True)
     exp_uid = _rand_uid(rng)
-    exp_name = f"{ds_name}_{oracle.name}_{center_name}_{tree_family}-{tree_method}_{_timestamp()}_{exp_uid}"
-    exp_dir = out_root / exp_name
+    exp_dir = out_root / f"{ds_name}_{oracle.name}_{center_name}_{tree_family}-{tree_method}_{_timestamp()}_{exp_uid}"
     exp_dir.mkdir(parents=True, exist_ok=True)
 
-    # Serialize config.json
-    ds_paths = ds_entry.get("paths", {}) or {}
-    dataset_path = rules_csv
     cfg_json = {
         "experiment_uid": exp_uid,
         "dataset_name": ds_name,
-        "dataset_path": dataset_path,
+        "dataset_path": rules_csv,
         "oracle_name": str(oracle.name),
         "center_name": center_name,
         "random_seed": int(cfg.get("global", "seed", default=1729)),
@@ -199,49 +215,238 @@ def run(cfg: ALConfig) -> Path:
         "algorithm_parameters": {
             "leaf_size": int((algo or {}).get("leaf_size", kd_cfg.get("leaf_size", bt_cfg.get("leaf_size", 25)))),
             "search_strategies": [str((algo or {}).get("search_strategy", "lower_bound"))],
-            "tree_build_methods": (
-                {"kdtree": ["kd_tree"]} if tree_family == "kdtree" else {"balltree": [str(tree_method)]}
-            ),
+            "tree_build_methods": ({"kdtree": ["kd_tree"]} if tree_family == "kdtree" else {"balltree": [str(tree_method)]}),
         },
     }
     if ds_entry.get("measures"):
         cfg_json["measures"] = list(ds_entry["measures"])
     (exp_dir / "config.json").write_text(json.dumps(cfg_json, indent=2))
 
-    # Save tree structure once
-    _export_tree_h5(
-        exp_dir / "tree.h5",
-        tree if tree_family == "kdtree" else None,
-        tree if tree_family == "balltree" else None,
-        X.shape[1],
+    return exp_dir
+
+
+@dataclass
+class ExperimentSetup:
+    log: logging.Logger
+    log_level: int
+    rng: np.random.Generator
+    ds: Dataset
+    X: np.ndarray
+    ds_entry: Dict[str, Any]
+    ds_name: str
+    rules_csv: str
+    space: CapacitySpace
+    A0: np.ndarray
+    b0: np.ndarray
+    center_fn: Callable
+    center_name: str
+    tree: Any
+    tree_family: str
+    tree_method: str
+    kd_cfg: Dict[str, Any]
+    bt_cfg: Dict[str, Any]
+    algo: Dict[str, Any]
+    oracle: Oracle
+    n_iter: int
+    tau_cap: float
+    tau_multiplier: float
+    collect_events: bool
+    log_every: int
+    search_strategy: str
+
+
+def setup_experiment(cfg: ALConfig) -> ExperimentSetup:
+    log, log_level = _setup_logging(cfg)
+    _configure_runtime_from_config(cfg)
+    rng = _setup_rng(cfg)
+    ds, X, ds_entry, ds_name, rules_csv = _setup_dataset(cfg)
+    max_pts = int(cfg.get("global", "max_points", default=0) or 0)
+    if max_pts and X.shape[0] > max_pts:
+        idx = rng.choice(X.shape[0], size=max_pts, replace=False)
+        X = np.ascontiguousarray(X[idx], dtype=float)
+    X, space, A0, b0, center_fn, center_name = _setup_space(cfg, X, log)
+    tree, tree_family, tree_method, kd_cfg, bt_cfg, algo = _setup_trees(cfg, X, log)
+    oracle = _setup_oracle(cfg, ds)
+    n_iter, tau_cap, tau_multiplier, collect_events, log_every, search_strategy = _setup_run_params(cfg, algo)
+    return ExperimentSetup(
+        log=log,
+        log_level=log_level,
+        rng=rng,
+        ds=ds,
+        X=X,
+        ds_entry=ds_entry,
+        ds_name=ds_name,
+        rules_csv=rules_csv,
+        space=space,
+        A0=A0,
+        b0=b0,
+        center_fn=center_fn,
+        center_name=center_name,
+        tree=tree,
+        tree_family=tree_family,
+        tree_method=tree_method,
+        kd_cfg=kd_cfg,
+        bt_cfg=bt_cfg,
+        algo=algo,
+        oracle=oracle,
+        n_iter=n_iter,
+        tau_cap=tau_cap,
+        tau_multiplier=tau_multiplier,
+        collect_events=collect_events,
+        log_every=log_every,
+        search_strategy=search_strategy,
     )
 
-    # Prepare global files
-    try:
-        import h5py  # type: ignore
-    except Exception:  # pragma: no cover
-        raise RuntimeError("h5py is required to write HDF5 outputs")
-    qv_path = exp_dir / "query_vectors.h5"
-    qv_h5 = h5py.File(qv_path, "w")
+
+# --------------------------- iterative learning --------------------------- #
+
+# ----------------------- learning loop helpers (NPZ I/O) ---------------------- #
+
+def _init_streaming_outputs(exp_dir: Path) -> tuple[csv.writer, Any, Path]:
+    """Initialize on-disk streaming outputs using NPZ files.
+
+    - iterations.csv with a fixed schema
+    - queries/ directory to store per-iteration query vectors as NPZ
+    Returns (csv_writer, csv_file_handle, queries_dir)
+    """
+    exp_dir.mkdir(parents=True, exist_ok=True)
     it_csv = open(exp_dir / "iterations.csv", "w", newline="", encoding="utf-8")
     csv_writer = csv.writer(it_csv)
-    csv_writer.writerow(["iteration_id", "query_path", "oracle_response", "i", "j", "timestamp_start", "timestamp_end"])  # schema per notes + indices
+    csv_writer.writerow(["iteration_id", "query_path", "oracle_response", "i", "j", "timestamp_start", "timestamp_end"])  # schema
+    q_dir = exp_dir / "queries"
+    q_dir.mkdir(parents=True, exist_ok=True)
+    return csv_writer, it_csv, q_dir
 
-    # Iterations
-    n_iter = int(cfg.get("experiment", "active_learning_budget", default=cfg.get("global", "n_iter", default=25)))
-    search_strategy = str((algo or {}).get("search_strategy", "lower_bound"))
+
+def _ensure_search_engine(engine: Optional[Search], search_strategy: str, X: np.ndarray) -> Search:
+    if engine is not None:
+        return engine
     strat = get_strategy(search_strategy, queries=X)
-    engine = Search(strategy=strat)
-    collect_events = bool(cfg.get("logging", "search_events", default=False))
-    log_every = int(cfg.get("logging", "log_every", default=10) or 10)
-    tau_cap = float(cfg.get("experiment", "tau_max", default=1e-5))
+    return Search(strategy=strat)
+
+
+def _log_iteration(it: int, i: Optional[int], j: Optional[int], dist: Optional[float], radius: float, *, log_level: int, log_every: int, exp_dir: Path) -> None:
+    if it == 0 or (log_level <= logging.DEBUG and (it % log_every == 0)):
+        logging.getLogger(__name__).debug(
+            "Iter %d: i=%s j=%s dist=%s radius=%.4f",
+            it,
+            str(i),
+            str(j),
+            "{:.4f}".format(float(dist)) if dist is not None else "nan",
+            float(radius),
+        )
+    iter_dir = exp_dir / f"iteration_{it:03d}"
+    iter_dir.mkdir(parents=True, exist_ok=True)
+    return iter_dir
+
+
+def _export_search_events_npz(path: Path, events: List[Dict[str, Any]]) -> None:
+    """Export search events to NPZ for portability (no h5py).
+
+    Stores arrays: event_type, node_id, parent_id, timestamp, lower_bound, upper_bound.
+    """
+    if not events:
+        np.savez(
+            path,
+            event_type=np.array([], dtype=object),
+            node_id=np.array([], dtype=np.int64),
+            parent_id=np.array([], dtype=np.int64),
+            timestamp=np.array([], dtype=float),
+            lower_bound=np.array([], dtype=float),
+            upper_bound=np.array([], dtype=float),
+        )
+        return
+    ev_type = np.array([str(e.get("event_type", "")) for e in events], dtype=object)
+    node_id = np.array([int(e.get("node_id", -1)) for e in events], dtype=np.int64)
+    parent_id = np.array([int(e.get("parent_id", -1)) for e in events], dtype=np.int64)
+    timestamp = np.array([float(e.get("timestamp", 0.0)) for e in events], dtype=float)
+    lower = np.array([float(e.get("lower_bound", np.nan)) for e in events], dtype=float)
+    upper = np.array([float(e.get("upper_bound", np.nan)) for e in events], dtype=float)
+    np.savez(
+        path,
+        event_type=ev_type,
+        node_id=node_id,
+        parent_id=parent_id,
+        timestamp=timestamp,
+        lower_bound=lower,
+        upper_bound=upper,
+    )
+
+
+def _record_query_npz(*, it: int, diff: np.ndarray, q_dir: Path, csv_writer: csv.writer, y: int, i: int, j: int, t_start: float) -> None:
+    """Persist the iteration query vector and append a CSV row.
+
+    Writes queries/query_###.npz with key 'vector' and logs row into iterations.csv.
+    """
+    q_path = q_dir / f"query_{it:03d}.npz"
+    np.savez(q_path, vector=np.asarray(diff, dtype=float))
+    t_end = time.time()
+    csv_writer.writerow([
+        it,
+        f"queries/query_{it:03d}.npz:vector",
+        int(y),
+        int(i),
+        int(j),
+        time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(t_start)) + f".{int((t_start%1)*1000):03d}Z",
+        time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(t_end)) + f".{int((t_end%1)*1000):03d}Z",
+    ])
+
+
+def _save_center_snapshot(iter_dir: Path, center_full: np.ndarray, radius: float, tau: float) -> None:
+    np.save(iter_dir / "center_model.npy", center_full)
+    try:
+        np.savez(
+            iter_dir / "center_model.npz",
+            center=np.asarray(center_full, dtype=float),
+            radius=float(radius),
+            tau=float(tau),
+        )
+    except Exception:
+        pass
+
+
+def _finalize_version_space_npz(exp_dir: Path, A: np.ndarray, b: np.ndarray) -> None:
+    np.savez(
+        exp_dir / "final_version_space.npz",
+        A=np.asarray(A, dtype=float),
+        b=np.asarray(b, dtype=float).reshape(-1, 1),
+    )
+
+
+def learning_loop(
+    *,
+    tree: Any,
+    X: np.ndarray,
+    space: CapacitySpace,
+    A0: np.ndarray,
+    b0: np.ndarray,
+    center_fn: Callable,
+    n_iter: int,
+    tau_cap: float,
+    tau_multiplier: float,
+    exp_dir: Path,
+    oracle_compare: Callable[[np.ndarray, np.ndarray], int],
+    collect_events: bool,
+    log_every: int,
+    log_level: int,
+    search_strategy: str,
+    engine: Optional[Search] = None,
+) -> Tuple[np.ndarray, np.ndarray]:
+    # Outputs: iterations.csv and queries/ (NPZ-based, no h5py)
+    csv_writer, it_csv, q_dir = _init_streaming_outputs(exp_dir)
+
+    # Init version space
+    A = np.asarray(A0, dtype=float).copy()
+    b = np.asarray(b0, dtype=float).copy()
+    center_proj = np.asarray(center_fn(A, b), dtype=float)
+    center_full = space.expand_center(center_proj)
+    radius = _chebyshev_radius(A, b, center_proj)
+
+    engine = _ensure_search_engine(engine, search_strategy, X)
 
     for it in range(n_iter):
         t_start = time.time()
-
-        # Use conservative tau; stop early if radius not positive/finite
         if not (np.isfinite(radius) and radius > 0):
-            log.info("Stopping early: non-positive/invalid radius (radius=%s)", str(radius))
             break
         tau = min(radius * float(tau_multiplier), float(tau_cap))
         i, j, dist, stats = engine.search_pair(
@@ -250,84 +455,47 @@ def run(cfg: ALConfig) -> Path:
             center_full,
             tau=float(tau),
             return_stats=True,
-            ensure_optimal=False,
-            collect_bound_gaps=False,
+            ensure_optimal=True,
             collect_events=collect_events,
         )
-        if it == 0 or (log_level <= logging.DEBUG and (it % log_every == 0)):
-            log.debug(
-                "Iter %d: i=%s j=%s dist=%s radius=%.4f",
-                it,
-                str(i),
-                str(j),
-                "{:.4f}".format(float(dist)) if dist is not None else "nan",
-                float(radius),
-            )
-        events = list(stats.get("trace", {}).get("events", [])) if collect_events else []
-        iter_dir = exp_dir / f"iteration_{it:03d}"
-        iter_dir.mkdir(parents=True, exist_ok=True)
-        # Save search events
-        _export_search_events_h5(iter_dir / "search_trace.h5", events)
+
+        iter_dir = _log_iteration(it, i, j, dist, float(radius), log_level=log_level, log_every=log_every, exp_dir=exp_dir)
+
+        # Save search events (NPZ)
+        if collect_events:
+            events = list(stats.get("trace", {}).get("events", []))
+            _export_search_events_npz(iter_dir / "search_trace.npz", events)
 
         if i is None or j is None:
-            # No more informative pairs – stop early
-            log.info("Early stopping at iter %d: no informative pairs found.", it)
             break
-        a = X[int(i)]
-        bpt = X[int(j)]
-        y = oracle.compare_vectors(a, bpt)
-        diff = a - bpt
-        # Save query vector to H5 (/query_k)
-        qds = qv_h5.create_dataset(f"query_{it}", data=np.asarray(diff, dtype=float))
-        t_end = time.time()
-        csv_writer.writerow([
-            it,
-            f"/query_{it}",
-            y,
-            int(i),
-            int(j),
-            time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(t_start)) + f".{int((t_start%1)*1000):03d}Z",
-            time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(t_end)) + f".{int((t_end%1)*1000):03d}Z",
-        ])
-
-        # Append constraint: y*(a-b)^T w >= 0 (projected to reduced coordinates)
+        
+        q_a, q_b = X[int(i)], X[int(j)]
+        diff = q_a - q_b
+        
+        y = oracle_compare(q_a, q_b)
         constraint = -float(y) * diff
+        
         proj_row, proj_rhs = space.project(constraint)
         A = np.vstack([A, proj_row.reshape(1, -1)])
         b = np.concatenate([b, np.array([proj_rhs], dtype=float)])
-
-        # Recompute center and radius, save center snapshot for this iteration
+        
         center_proj = np.asarray(center_fn(A, b), dtype=float)
         center_full = space.expand_center(center_proj)
         radius = _chebyshev_radius(A, b, center_proj)
-        np.save(iter_dir / "center_model.npy", center_full)
-        # Also save tau and radius alongside center in a single NPZ archive
-        try:
-            np.savez(
-                iter_dir / "center_model.npz",
-                center=np.asarray(center_full, dtype=float),
-                radius=float(radius),
-                tau=float(tau),
-            )
-        except Exception:
-            pass
+        
+        _record_query_npz(it=it, diff=diff, q_dir=q_dir, csv_writer=csv_writer, y=int(y), i=int(i), j=int(j), t_start=t_start)
+        _save_center_snapshot(iter_dir, center_full, float(radius), float(tau))
 
-    # Close streaming files
-    qv_h5.close()
+    # Close CSV stream
     it_csv.close()
 
-    # Final version space
-    try:
-        import h5py  # type: ignore
-        with h5py.File(exp_dir / "final_version_space.h5", "w") as h5:
-            h5.create_dataset("A", data=np.asarray(A, dtype=float))
-            h5.create_dataset("b", data=np.asarray(b, dtype=float).reshape(-1, 1))
-    except Exception:
-        # As a fallback, write NPZ
-        np.savez(exp_dir / "final_version_space.npz", A=np.asarray(A, dtype=float), b=np.asarray(b, dtype=float).reshape(-1, 1))
+    # Final constraints snapshot (NPZ only)
+    _finalize_version_space_npz(exp_dir, A, b)
 
-    log.info("Finished run → %s", exp_dir)
-    return exp_dir
+    return A, b
+
+
+## Deprecated single-run entry was removed. Use run_all(), or setup_experiment()+learning_loop().
 
 
 def run_all(cfg: ALConfig) -> Path:
@@ -601,101 +769,29 @@ def _run_single_experiment(
     # Export trees used in this run
     _export_tree_h5(exp_dir / "tree.h5", tree_kd if tree_family == "kdtree" else None, tree_bt if tree_family == "balltree" else None, X.shape[1])
 
-    # Streaming outputs
-    qv_h5 = None
-    try:
-        import h5py  # type: ignore
-        qv_h5 = h5py.File(exp_dir / "query_vectors.h5", "w")
-    except Exception:
-        # Placeholder when h5py is unavailable
-        (exp_dir / "query_vectors.h5").touch()
-    it_f = open(exp_dir / "iterations.csv", "w", newline="", encoding="utf-8")
-    csv_writer = csv.writer(it_f)
-    csv_writer.writerow(["iteration_id", "query_path", "oracle_response", "i", "j", "timestamp_start", "timestamp_end"])  # schema
+    # Choose the concrete tree and delegate to the shared learning loop
+    tree = tree_bt if tree_family.startswith("ball") else tree_kd
+    if tree is None:
+        raise RuntimeError("No tree available for search.")
 
-    # Init version space
-    A = np.asarray(A0, dtype=float).copy()
-    b = np.asarray(b0, dtype=float).copy()
-    center_proj = np.asarray(center_fn(A, b), dtype=float)
-    center_full = space.expand_center(center_proj)
-    radius = _chebyshev_radius(A, b, center_proj)
-
-    for it in range(n_iter):
-        t_start = time.time()
-        tree = tree_bt if tree_family.startswith("ball") else tree_kd
-        if tree is None:
-            raise RuntimeError("No tree available for search.")
-
-        if not (np.isfinite(radius) and radius > 0):
-            break
-        tau = min(radius * float(tau_multiplier), float(tau_cap))
-        i, j, dist, stats = engine.search_pair(
-            tree,
-            X,
-            center_full,
-            tau=float(tau),
-            return_stats=True,
-            ensure_optimal=False,
-            collect_bound_gaps=False,
-            collect_events=collect_events,
-        )
-        events = list(stats.get("trace", {}).get("events", [])) if collect_events else []
-        iter_dir = exp_dir / f"iteration_{it:03d}"
-        iter_dir.mkdir(parents=True, exist_ok=True)
-        _export_search_events_h5(iter_dir / "search_trace.h5", events)
-
-        if i is None or j is None:
-            break
-        a = X[int(i)]; bpt = X[int(j)]
-        y = oracle_fn(a, bpt)
-        diff = a - bpt
-        if qv_h5 is not None:
-            qv_h5.create_dataset(f"query_{it}", data=np.asarray(diff, dtype=float))
-        t_end = time.time()
-        csv_writer.writerow([
-            it,
-            f"/query_{it}",
-            y,
-            int(i),
-            int(j),
-            time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(t_start)) + f".{int((t_start%1)*1000):03d}Z",
-            time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(t_end)) + f".{int((t_end%1)*1000):03d}Z",
-        ])
-
-        constraint = -float(y) * diff
-        proj_row, proj_rhs = space.project(constraint)
-        A = np.vstack([A, proj_row.reshape(1, -1)])
-        b = np.concatenate([b, np.array([proj_rhs], dtype=float)])
-        center_proj = np.asarray(center_fn(A, b), dtype=float)
-        center_full = space.expand_center(center_proj)
-        radius = _chebyshev_radius(A, b, center_proj)
-        np.save(iter_dir / "center_model.npy", center_full)
-        try:
-            np.savez(
-                iter_dir / "center_model.npz",
-                center=np.asarray(center_full, dtype=float),
-                radius=float(radius),
-                tau=float(tau),
-            )
-        except Exception:
-            pass
-
-    if qv_h5 is not None:
-        qv_h5.close()
-    it_f.close()
-
-    try:
-        import importlib
-        _H = h5py if ('h5py' in globals()) else importlib.import_module("h5py")  # type: ignore
-        with _H.File(exp_dir / "final_version_space.h5", "w") as h5:
-            h5.create_dataset("A", data=np.asarray(A, dtype=float))
-            h5.create_dataset("b", data=np.asarray(b, dtype=float).reshape(-1, 1))
-    except Exception:
-        try:
-            import shutil
-            shutil.copyfile(exp_dir / "tree.h5", exp_dir / "final_version_space.h5")
-        except Exception:
-            np.savez(exp_dir / "final_version_space.npz", A=np.asarray(A, dtype=float), b=np.asarray(b, dtype=float).reshape(-1, 1))
+    learning_loop(
+        tree=tree,
+        X=X,
+        space=space,
+        A0=A0,
+        b0=b0,
+        center_fn=center_fn,
+        n_iter=n_iter,
+        tau_cap=tau_cap,
+        tau_multiplier=tau_multiplier,
+        exp_dir=exp_dir,
+        oracle_compare=oracle_fn,
+        collect_events=collect_events,
+        log_every=int(cfg.get("logging", "log_every", default=10) or 10),
+        log_level=getattr(logging, str(cfg.get("logging", "level", default="INFO")).upper(), logging.INFO),
+        search_strategy=str(search_strategy),
+        engine=engine,
+    )
 
 
 def main() -> None:  # pragma: no cover - CLI entry

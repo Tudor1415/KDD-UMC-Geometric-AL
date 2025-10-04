@@ -31,12 +31,9 @@ def test_anytime_traces_have_expected_lengths():
         bounder=KdTreeBounds(),
         time_checkpoints=tgrid,
         calls_checkpoints=cgrid,
-        collect_bound_gaps=True,
     )
     tr = stats["trace"]
     assert len(tr["time_grid"]) == len(tgrid)
     assert len(tr["calls_grid"]) == len(cgrid)
     assert len(tr["time_best"]) == len(tgrid)
     assert len(tr["calls_best"]) == len(cgrid)
-    assert isinstance(tr["bound_gaps"], list)
-

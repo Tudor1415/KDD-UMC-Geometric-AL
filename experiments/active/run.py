@@ -9,9 +9,8 @@ Usage:
 
 from __future__ import annotations
 
-from .runner import main, run, run_all  # re-export for backwards compatibility
+from .runner import main, run_all  # re-export entrypoints
 
 
 if __name__ == "__main__":  # pragma: no cover - CLI entry
     main()
-

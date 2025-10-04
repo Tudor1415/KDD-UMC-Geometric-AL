@@ -140,7 +140,6 @@ class Search:
         ensure_optimal: bool = True,
         time_checkpoints: Optional[Sequence[float]] = None,
         calls_checkpoints: Optional[Sequence[int]] = None,
-        collect_bound_gaps: bool = False,
         collect_events: bool = False,
     ) -> Tuple[Optional[int], Optional[int], float] | Tuple[Optional[int], Optional[int], float, Dict[str, object]]:
         data = np.ascontiguousarray(X, dtype=np.float64)
@@ -201,7 +200,6 @@ class Search:
         calls_idx = 0
         time_best: list[float] = []
         calls_best: list[float] = []
-        bound_gaps: list[float] = []
         # Track heap size statistics (max size up to each calls checkpoint)
         heap_size_max = 0
         calls_heap_max: list[int] = []
@@ -314,9 +312,6 @@ class Search:
         # If tau is infinite, explore all queued pairs; otherwise stop early when possible.
         while heap and (math.isinf(tau) or best_distance > tau + eps):
             _, _, lb, ub, a, b = heapq.heappop(heap)
-            if collect_bound_gaps:
-                gap = float(max(0.0, ub - lb))
-                bound_gaps.append(gap)
             if lb >= min(best_distance, tau):
                 # Popped but immediately pruned by updated incumbent/tau
                 if collect_events:
@@ -436,7 +431,7 @@ class Search:
         stats["best_distance"] = None if best_pair is None else best_distance
         stats["pruned_point_pairs"] = int(stats["pruned_lb_point_pairs"]) + int(stats["pruned_dom_point_pairs"])
         stats["unexplored_point_pairs"] = stats["total_point_pairs"] - stats["pruned_point_pairs"] - stats["explored_point_pairs"]
-        if time_grid is not None or calls_grid is not None or collect_bound_gaps or collect_events:
+        if time_grid is not None or calls_grid is not None or collect_events:
             trace: Dict[str, object] = {}
             if time_grid is not None:
                 trace["time_grid"] = list(map(float, time_grid))
@@ -445,8 +440,6 @@ class Search:
                 trace["calls_grid"] = list(map(int, calls_grid))
                 trace["calls_best"] = list(map(float, calls_best))
                 trace["calls_heap_max"] = list(map(int, calls_heap_max))
-            if collect_bound_gaps:
-                trace["bound_gaps"] = list(map(float, bound_gaps))
             if collect_events and events is not None:
                 trace["events"] = events
             stats["trace"] = trace
@@ -472,7 +465,6 @@ def search_pair(
     strategy: VisitStrategy[Node] | None = None,
     time_checkpoints: Optional[Sequence[float]] = None,
     calls_checkpoints: Optional[Sequence[int]] = None,
-    collect_bound_gaps: bool = False,
     collect_events: bool = False,
 ) -> Tuple[Optional[int], Optional[int], float] | Tuple[Optional[int], Optional[int], float, Dict[str, object]]:
     """Convenience wrapper using the :class:`Search` engine."""
@@ -489,6 +481,5 @@ def search_pair(
         ensure_optimal=ensure_optimal,
         time_checkpoints=time_checkpoints,
         calls_checkpoints=calls_checkpoints,
-        collect_bound_gaps=collect_bound_gaps,
         collect_events=collect_events,
     )
