@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import secrets
 import time
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
@@ -31,8 +32,8 @@ def _timestamp() -> str:
     return time.strftime("%Y%m%dT%H%M%S", time.localtime())
 
 
-def _rand_uid(rng) -> str:
-    return "".join(rng.choice(list("abcdef0123456789"), size=8))
+def _rand_uid(_rng) -> str:
+    return secrets.token_hex(4)
 
 
 # ---------------------------------------------------------------------------

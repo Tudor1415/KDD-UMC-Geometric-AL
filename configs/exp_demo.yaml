@@ -16,7 +16,7 @@ logging:
 experiment:
   additivity_k: 2
   center_name: chebyshev
-  active_learning_budget: 10
+  active_learning_budget: 100
   tau_max: 1.0e-5
   tau_radius_multiplier: 0.5
 
@@ -30,7 +30,7 @@ algorithm_parameters:
   search_strategy: lower_bound
 
 oracle:
-  type: sum
+  type: surprise
 
 datasets:
   - name: mushroom

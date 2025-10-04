@@ -130,14 +130,17 @@ def learning_loop(
         diff = q_a - q_b
 
         y = oracle_compare(q_a, q_b)
-        constraint = -float(y) * diff
 
-        proj_row, proj_rhs = space.project(constraint)
-        A = np.vstack([A, proj_row.reshape(1, -1)])
-        b = np.concatenate([b, np.array([proj_rhs], dtype=float)])
+        if y != 0:
+            constraint = -float(y) * diff
 
-        center_proj = np.asarray(center_fn(A, b), dtype=float)
-        center_full = space.expand_center(center_proj)
+            proj_row, proj_rhs = space.project(constraint)
+            A = np.vstack([A, proj_row.reshape(1, -1)])
+            b = np.concatenate([b, np.array([proj_rhs], dtype=float)])
+
+            center_proj = np.asarray(center_fn(A, b), dtype=float)
+            center_full = space.expand_center(center_proj)
+        
         radius = _chebyshev_radius(A, b, center_proj)
 
         _record_query_npz(
