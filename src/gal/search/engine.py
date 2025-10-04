@@ -14,7 +14,7 @@ import numpy as np
 
 from ..trees.common import GeometricTree, Node
 from .bounds import BallTreeBounds, BoundContext, BoundsStrategy
-from .strategies import DiversityVisitStrategy, VisitStrategy
+from .strategies import VisitStrategy, LowerBoundVisitStrategy
 
 
 logger = logging.getLogger(__name__)
@@ -38,7 +38,7 @@ class Search:
         strategy: VisitStrategy[Node] | None = None,
     ) -> None:
         self.bounder = bounder or BallTreeBounds()
-        self.strategy = strategy or DiversityVisitStrategy()
+        self.strategy = strategy or LowerBoundVisitStrategy()
 
     @staticmethod
     def _node_is_leaf(node: Node) -> bool:
