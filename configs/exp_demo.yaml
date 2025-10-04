@@ -30,7 +30,7 @@ algorithm_parameters:
   search_strategy: lower_bound
 
 oracle:
-  type: surprise
+  type: sum
 
 datasets:
   - name: mushroom

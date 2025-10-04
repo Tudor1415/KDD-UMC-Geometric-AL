@@ -7,6 +7,7 @@ from typing import Dict, Generic, List, Tuple, TypeVar
 import logging
 import random
 import numpy as np
+from scipy.spatial import KDTree
 
 from ..trees.common import Node
 from .bounds import BoundsResult
@@ -48,18 +49,22 @@ class LowerBoundVisitStrategy(VisitStrategy[Node]):
         self._eps: float = 1e-12
         self._rng: random.Random = rng or random.Random()
 
+        # KD-Tree built once for distance queries when diversity is computed.
+        self._query_tree: KDTree | None = None
+        if self.queries is not None and self.queries.shape[0] > 0:
+            self._query_tree = KDTree(self.queries)
+
     def _get_diversity_score(self, node: Node) -> float:
         """
         Retrieves the diversity score for a node, computing it if not cached.
         """
         node_id = id(node)
         if node_id not in self._diversity_cache:
-            if self.queries is None or len(self.queries) == 0:
+            if self._query_tree is None:
                 self._diversity_cache[node_id] = 0.0
             else:
-                self._diversity_cache[node_id] = float(
-                    np.min(np.linalg.norm(self.queries - node.center, axis=1))
-                )
+                distance, _ = self._query_tree.query(node.center, k=1)
+                self._diversity_cache[node_id] = float(distance)
         return self._diversity_cache[node_id]
 
     def setup(
@@ -76,6 +81,14 @@ class LowerBoundVisitStrategy(VisitStrategy[Node]):
         """
         if self.queries is None and data is not None:
             self.queries = np.asarray(data, dtype=float)
+            if self.queries.shape[0] > 0:
+                self._query_tree = KDTree(self.queries)
+            else:
+                self._query_tree = None
+        elif self.queries is not None and self._query_tree is None and self.queries.shape[0] > 0:
+            self._query_tree = KDTree(self.queries)
+        elif self.queries is None:
+            self._query_tree = None
 
         if wc is not None:
             self._query = np.asarray(wc, dtype=float)
@@ -90,19 +103,10 @@ class LowerBoundVisitStrategy(VisitStrategy[Node]):
             self._get_diversity_score(node)  # This will compute and cache the score
             stack.extend(node.children)
 
-    def _center_distance(self, a: Node, b: Node) -> float:
-        if self._query is None:
-            return 0.0
-        diff = np.asarray(a.center, dtype=float) - np.asarray(b.center, dtype=float)
-        denom = float(np.linalg.norm(diff))
-        if denom <= self._eps:
-            return 0.0
-        return abs(float(np.dot(diff, self._query))) / max(denom, self._eps)
-
     def _centers_match(self, a: Node, b: Node) -> bool:
         diff = np.asarray(a.center, dtype=float) - np.asarray(b.center, dtype=float)
         return bool(np.linalg.norm(diff) <= self._eps)
-    
+
     def _center_distance(self, a: Node, b: Node) -> float:
         if self._query is None:
             return 0.0
@@ -116,11 +120,11 @@ class LowerBoundVisitStrategy(VisitStrategy[Node]):
         div_a = self._get_diversity_score(a)
         div_b = self._get_diversity_score(b)
         diversity_score = max(div_a, div_b)
-        
+
         if self._centers_match(a, b):
             key0 = -1.0 if bounds.upper <= self._tau else float(bounds.lower)
             return (float(key0), float(bounds.upper), float(diversity_score), float(self._rng.random()))
-        
+
         distance = self._center_distance(a, b)
         key0 = -1.0 if bounds.upper <= self._tau else float(distance)
 
