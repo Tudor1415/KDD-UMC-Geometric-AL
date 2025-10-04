@@ -17,7 +17,8 @@ It supports:
 
 Inputs
 ------
-- run_dir: Folder with a single AL run (contains iterations.csv and query_vectors.h5).
+- run_dir: Folder with a single AL run (contains iterations.csv plus query vectors,
+  either query_vectors.h5 or per-query files).
 - rules:   Path to the dataset rule CSV (e.g., mined_rules/mushroom_mnr.csv).
 - item_rule: Path to the item–rule matrix (rules×items) as .npy or .npz.
 - txn_matrix (optional): Path to a transaction×item boolean matrix (.npy/.npz).
@@ -30,10 +31,11 @@ Columns include overall metrics and, for each requested k, top-k metrics.
 
 Notes
 -----
-- Query vectors are loaded from run_dir/query_vectors.h5 per the iteration rows
-  in run_dir/iterations.csv and accumulated. If an iteration has multiple
-  rows, they are all included for that iteration and all future cumulative
-  computations.
+- Query vectors are loaded according to the `query_path` column stored in
+  `iterations.csv`. Both the legacy `query_vectors.h5` layout and the newer
+  per-query `.npz`/`.npy` files (e.g. `queries/query_000.npz:vector`) are
+  supported. If an iteration has multiple rows, all referenced queries are
+  accumulated for that iteration and every later cumulative computation.
 - Mapping a query vector to a rule row uses the Dataset helper (vector hash → row).
 - Covers are computed as transactions where ALL rule items are present by default.
   Use --cover any to switch to presence of ANY item.
@@ -45,7 +47,7 @@ import argparse
 import csv
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Sequence, Tuple
+from typing import Dict, Iterable, List, Sequence, Tuple, Optional
 
 import numpy as np
 import h5py
@@ -63,12 +65,13 @@ from gal.centers.poly_centers import (
 # ------------------------------- helpers -------------------------------------
 
 
-def _read_iterations_csv(path: Path) -> List[Tuple[int, str]]:
-    """Return list of (iteration_id, query_path) from iterations.csv.
+def _read_iterations_csv(path: Path) -> List[Dict[str, Optional[int] | str]]:
+    """Load lightweight iteration metadata from iterations.csv.
 
+    Returns a list of dictionaries with keys: iteration, query_path, i, j.
     Supports files where the same iteration_id appears multiple times.
     """
-    rows: List[Tuple[int, str]] = []
+    rows: List[Dict[str, Optional[int] | str]] = []
     with path.open("r", encoding="utf-8") as f:
         header = f.readline().strip().split(",")
         try:
@@ -79,6 +82,20 @@ def _read_iterations_csv(path: Path) -> List[Tuple[int, str]]:
                 f"iterations.csv must contain 'iteration_id' and 'query_path' columns. Got: {header}"
             ) from exc
 
+        i_idx = header.index("i") if "i" in header else None
+        j_idx = header.index("j") if "j" in header else None
+
+        def _parse_optional_int(idx: Optional[int], parts: List[str]) -> Optional[int]:
+            if idx is None or idx >= len(parts):
+                return None
+            token = parts[idx].strip()
+            if not token:
+                return None
+            try:
+                return int(token)
+            except Exception:
+                return None
+
         for line in f:
             parts = line.strip().split(",")
             if len(parts) <= max(it_idx, qp_idx):
@@ -88,7 +105,14 @@ def _read_iterations_csv(path: Path) -> List[Tuple[int, str]]:
             except Exception:
                 continue
             qp = parts[qp_idx]
-            rows.append((it, qp))
+            rows.append(
+                {
+                    "iteration": it,
+                    "query_path": qp,
+                    "i": _parse_optional_int(i_idx, parts),
+                    "j": _parse_optional_int(j_idx, parts),
+                }
+            )
 
     return rows
 
@@ -96,23 +120,115 @@ def _read_iterations_csv(path: Path) -> List[Tuple[int, str]]:
     
 
 
-def _group_by_iteration(pairs: Iterable[Tuple[int, str]]) -> Dict[int, List[str]]:
-    groups: Dict[int, List[str]] = {}
-    for it, qp in pairs:
-        groups.setdefault(it, []).append(qp)
+def _group_by_iteration(entries: Iterable[Dict[str, Optional[int] | str]]) -> Dict[int, List[Dict[str, Optional[int] | str]]]:
+    groups: Dict[int, List[Dict[str, Optional[int] | str]]] = {}
+    for entry in entries:
+        it = int(entry["iteration"])
+        groups.setdefault(it, []).append(entry)
     return dict(sorted(groups.items(), key=lambda kv: kv[0]))
 
 
-def _load_query_vectors(h5_path: Path, names: Sequence[str]) -> List[np.ndarray]:
-    vecs: List[np.ndarray] = []
-    with h5py.File(h5_path, "r") as h5:
-        for name in names:
-            if name not in h5:
-                # tolerate missing; skip silently
-                continue
-            v = np.asarray(h5[name][...], dtype=float)
-            vecs.append(v)
-    return vecs
+class _QueryVectorLoader:
+    """Helper that loads query vectors referenced from iterations.csv.
+
+    Supports two storage layouts:
+
+    1. Legacy `query_vectors.h5` file storing datasets addressed directly by
+       the `query_path` column values.
+    2. Newer per-query files referenced via relative paths such as
+       `queries/query_000.npz:vector`.
+    """
+
+    def __init__(self, run_dir: Path) -> None:
+        self._run_dir = run_dir
+        self._h5_path = run_dir / "query_vectors.h5"
+        self._h5: h5py.File | None = None
+
+    def close(self) -> None:
+        if self._h5 is not None:
+            self._h5.close()
+            self._h5 = None
+
+    def load_many(self, refs: Sequence[str]) -> List[np.ndarray | None]:
+        vecs: List[np.ndarray | None] = []
+        for ref in refs:
+            vecs.append(self._load_single(ref))
+        return vecs
+
+    def _load_single(self, ref: str) -> np.ndarray | None:
+        ref = (ref or "").strip()
+        if not ref:
+            return None
+
+        file_part, dataset = self._split_reference(ref)
+        if file_part is not None:
+            file_path = self._resolve_path(file_part)
+            if file_path is not None and file_path.is_file():
+                return self._load_from_file(file_path, dataset)
+
+        # Fallback to legacy HDF5 layout: treat entire ref as dataset key
+        return self._load_from_h5(ref)
+
+    @staticmethod
+    def _split_reference(ref: str) -> tuple[str | None, str | None]:
+        if ":" in ref:
+            file_part, dataset = ref.split(":", 1)
+            file_part = file_part.strip() or None
+            dataset = dataset.strip() or None
+            return file_part, dataset
+        return ref.strip() or None, None
+
+    def _resolve_path(self, file_part: str) -> Path | None:
+        candidate = Path(file_part)
+        if not candidate.is_absolute():
+            candidate = (self._run_dir / candidate).resolve()
+        return candidate
+
+    def _load_from_file(self, path: Path, dataset: str | None) -> np.ndarray:
+        suffix = path.suffix.lower()
+        if suffix == ".npz":
+            with np.load(path) as data:
+                key = self._select_npz_key(path, data.files, dataset)
+                arr = data[key]
+        elif suffix == ".npy":
+            if dataset is not None:
+                raise SystemExit(
+                    f"Unexpected dataset selector '{dataset}' for NPY query vector: {path}"
+                )
+            arr = np.load(path)
+        else:
+            raise SystemExit(
+                f"Unsupported query vector format '{suffix}' for {path}."
+            )
+        vec = np.asarray(arr, dtype=float).reshape(-1)
+        return vec
+
+    @staticmethod
+    def _select_npz_key(path: Path, keys: Sequence[str], dataset: str | None) -> str:
+        if dataset and dataset in keys:
+            return dataset
+        if dataset and dataset not in keys:
+            raise SystemExit(f"Dataset '{dataset}' not found in {path}")
+        if "vector" in keys:
+            return "vector"
+        if len(keys) == 1:
+            return keys[0]
+        raise SystemExit(
+            f"Ambiguous datasets in {path}: specify which array to load via '<file>:<key>'."
+        )
+
+    def _load_from_h5(self, dataset: str) -> np.ndarray:
+        if not self._h5_path.is_file():
+            raise SystemExit(
+                f"Missing query vectors for run {self._run_dir}. "
+                "Expected per-query files referenced by iterations.csv or query_vectors.h5."
+            )
+        if self._h5 is None:
+            self._h5 = h5py.File(self._h5_path, "r")
+        if dataset not in self._h5:
+            raise SystemExit(f"Dataset '{dataset}' not found in {self._h5_path}")
+        arr = self._h5[dataset][...]
+        return np.asarray(arr, dtype=float).reshape(-1)
 
 
 def _pairwise_cosine_mean(X: np.ndarray) -> float:
@@ -160,8 +276,6 @@ def _cosine_stats(X: np.ndarray) -> Dict[str, float]:
     }
 
 
-
-
 def _jaccard_stats(masks: Sequence[np.ndarray]) -> Dict[str, float]:
     """Return summary stats over all pairwise Jaccard distances.
 
@@ -178,7 +292,10 @@ def _jaccard_stats(masks: Sequence[np.ndarray]) -> Dict[str, float]:
             aj = masks[j]
             union = np.count_nonzero(ai | aj)
             if union == 0:
-                continue
+                raise SystemExit(
+                    "Encountered rule covers with zero union; this indicates invalid or inconsistent rule coverage data."
+                )
+            
             inter = np.count_nonzero(ai & aj)
             vals.append(1.0 - (inter / union))
     if not vals:
@@ -337,11 +454,8 @@ def _load_center_for_iteration(run_dir: Path, it: int, *, n_iters: int | None = 
 def compute_diversity(inp: Inputs) -> Path:
     run_dir = inp.run_dir
     it_csv = run_dir / "iterations.csv"
-    qv_h5 = run_dir / "query_vectors.h5"
     if not it_csv.is_file():
         raise SystemExit(f"Missing iterations.csv in {run_dir}")
-    if not qv_h5.is_file():
-        raise SystemExit(f"Missing query_vectors.h5 in {run_dir}")
 
     # --------------------------- load dataset & matrices
     ds = Dataset(
@@ -382,6 +496,7 @@ def compute_diversity(inp: Inputs) -> Path:
 
     # Cumulative containers for queries up to iteration i
     cum_vecs: List[np.ndarray] = []
+    cum_query_covers: List[np.ndarray] = []
 
     # Precompute covers helper for a rule index → items
     def rule_items(ridx: int) -> List[int]:
@@ -393,118 +508,175 @@ def compute_diversity(inp: Inputs) -> Path:
         r = ds.get_rule_dict(int(ridx))
         return list({*r["antecedent"], *r["consequent"]})  # type: ignore
 
-    for it, qpaths in groups.items():
-        # ------------------- accumulate queries up to this iteration
-        it_vecs = _load_query_vectors(qv_h5, qpaths)
-        # Map to rule items now and extend cumulatives
-        for v in it_vecs:
-            cum_vecs.append(v)
+    n_rules = len(ds)
 
-        row: Dict[str, object] = {
-            "iteration": it,
-            "n_queries": len(it_vecs),
-        }
+    def items_for_index(idx: Optional[int], iteration: int) -> List[int]:
+        if idx is None:
+            return []
+        idx_int = int(idx)
+        if idx_int < 0 or idx_int >= n_rules:
+            raise SystemExit(
+                f"Query references rule index {idx_int} outside valid range 0..{n_rules - 1} at iteration {iteration}."
+            )
+        return rule_items(idx_int)
 
-        # ------------------- cumulative feature-space diversity
-        if len(cum_vecs) >= 2:
-            X = np.vstack([v for v in cum_vecs if v.size >= n_measures])
-            row["cosine_mean"] = _pairwise_cosine_mean(X)
-        else:
-            row["cosine_mean"] = float("nan")
-        # Jaccard statistics are computed only for top‑k rule sets per iteration.
-        row["jaccard_mean"] = float("nan")
+    loader = _QueryVectorLoader(run_dir)
 
-        # ------------------- per-iteration top‑k metrics using model center
-        # Select center: reconstruct if --center was provided; else load stored
-        if inp.center_method:
-            method = _normalize_center_method(inp.center_method)
-            if A_full is None or B_full is None:
+    def compute_covers(item_lists: List[List[int]]) -> List[np.ndarray]:
+        if not item_lists:
+            return []
+        if txn_matrix is not None:
+            return _compute_covers_from_txn_matrix(item_lists, txn_matrix, cover_mode=inp.cover_mode)
+        if txn_df is not None:
+            return _compute_covers_from_transactions_csv(item_lists, txn_df, cover_mode=inp.cover_mode)
+        return []
+
+    try:
+        for it, entries in groups.items():
+            qpaths = [str(entry["query_path"]) for entry in entries]
+            # ------------------- accumulate queries up to this iteration
+            raw_vecs = loader.load_many(qpaths)
+            missing_refs = [qpaths[idx] for idx, vec in enumerate(raw_vecs) if vec is None]
+            if missing_refs:
                 raise SystemExit(
-                    "Cannot reconstruct centers: final_version_space.h5 is missing or invalid. "
-                    "Ensure the run contains 'A' and 'b' datasets."
+                    f"Failed to load query vectors for iteration {it}: {', '.join(missing_refs)}. "
+                    "Ensure iterations.csv points to existing query files or datasets."
                 )
-            Ai, Bi = _constraints_prefix_for_iteration(A_full, B_full, it, n_iters)
-            if Ai is None or Bi is None:
-                raise SystemExit("Cannot reconstruct center: invalid constraints sizing for iteration prefix")
-            try:
-                if method == "chebyshev":
-                    c, _ = chebyshev_center(Ai, Bi)
-                    center = np.asarray(c, dtype=float)
-                elif method == "analytical":
-                    center = np.asarray(analytical_center(Ai, Bi), dtype=float)
-                elif method == "minkowski":
-                    c, _ = minkowski_center(Ai, Bi)
-                    center = np.asarray(c, dtype=float)
-                elif method == "volumetric":
-                    c, _ = volumetric_center(Ai, Bi)
-                    center = np.asarray(c, dtype=float)
-                elif method == "mse":
-                    c = mse_center(Ai, Bi, X=np.empty((0, Ai.shape[1])), y=np.array([]))
-                    center = np.asarray(c, dtype=float) if c is not None else None
-                else:
-                    raise SystemExit(f"Unknown center method: {inp.center_method}")
-            except Exception as e:
-                raise SystemExit(f"Failed to reconstruct center for iteration {it} with method '{inp.center_method}': {e}")
-            if center is None:
-                raise SystemExit(f"Center reconstruction returned None for method '{inp.center_method}' at iteration {it}")
-        else:
-            center = _load_center_for_iteration(run_dir, it, n_iters=n_iters, method="disk")
-            if center is None:
-                it_dir = run_dir / f"iteration_{it:03d}"
-                npz = it_dir / "center_model.npz"
-                npy = it_dir / "center_model.npy"
-                raise SystemExit(
-                    f"Missing center weights for iteration {it} in {it_dir}. "
-                    f"Expected {npz} (key 'center') or {npy}. "
-                    f"Either pass --center to reconstruct for what-if analysis, or re-run the experiment to persist centers."
-                )
+            it_vecs = [np.asarray(vec, dtype=float) for vec in raw_vecs if vec is not None]
+            for v in it_vecs:
+                cum_vecs.append(v)
 
-        if center is not None:
-            w = center[:n_measures].astype(float, copy=False)
-            # Rule feature matrix (n_rules × d)
-            Xrules = ds.points.astype(float, copy=False)
-            scores = Xrules @ w
-            order = np.argsort(-scores)  # descending
-            max_k = max(inp.topk) if inp.topk else 0
-            top_idx = order[:max_k]
+            # Map query pairs to rule item lists for coverage metrics
+            per_rule_items: List[List[int]] = []
+            for entry in entries:
+                per_rule_items.append(items_for_index(entry.get("i"), it))
+                per_rule_items.append(items_for_index(entry.get("j"), it))
 
-            # features for top-K rules
-            Xtop = Xrules[top_idx]
-            # covers for top-K rules (if possible)
-            top_item_lists = [rule_items(int(i)) for i in top_idx]
-            if txn_matrix is not None:
-                top_covers = _compute_covers_from_txn_matrix(top_item_lists, txn_matrix, cover_mode=inp.cover_mode)
-            elif txn_df is not None:
-                top_covers = _compute_covers_from_transactions_csv(top_item_lists, txn_df, cover_mode=inp.cover_mode)
+            if per_rule_items and (txn_matrix is not None or txn_df is not None):
+                per_rule_covers = compute_covers(per_rule_items)
+                if not per_rule_covers or len(per_rule_covers) != len(per_rule_items):
+                    raise SystemExit("Failed to construct per-rule coverage masks for queries")
+                cum_query_covers.extend(per_rule_covers)
+
+            row: Dict[str, object] = {
+                "iteration": it,
+                "n_queries": len(entries),
+            }
+
+            # ------------------- cumulative feature-space diversity
+            if len(cum_vecs) >= 2:
+                X = np.vstack([v for v in cum_vecs if v.size >= n_measures])
+                row["cosine_mean"] = _pairwise_cosine_mean(X)
             else:
-                top_covers = None
+                row["cosine_mean"] = float("nan")
+            # Overall Jaccard statistics (pairwise distances across observed queries)
+            if len(cum_query_covers) >= 2:
+                qstats = _jaccard_stats(cum_query_covers)
+                row["jaccard_mean"] = qstats["mean"]
+            else:
+                row["jaccard_mean"] = float("nan")
 
-            for k in inp.topk:
-                if k >= 2:
-                    cstats = _cosine_stats(Xtop[:k])
-                    row[f"top{k}_cosine_mean"] = cstats["mean"]
-                    row[f"top{k}_cosine_median"] = cstats["median"]
-                    row[f"top{k}_cosine_p95"] = cstats["p95"]
-                else:
-                    row[f"top{k}_cosine_mean"] = float("nan")
-                    row[f"top{k}_cosine_median"] = float("nan")
-                    row[f"top{k}_cosine_p95"] = float("nan")
-                if top_covers is not None:
-                    stats = _jaccard_stats(top_covers[:k])
-                    # Distributional stats for Jaccard distances among all rule pairs
-                    row[f"top{k}_jaccard_median"] = stats["median"]
-                    row[f"top{k}_jaccard_p95"] = stats["p95"]
-                    # Keep mean for reference, but primary focus is on distribution
-                    row[f"top{k}_jaccard_mean"] = stats["mean"]
-                else:
-                    row[f"top{k}_jaccard_median"] = float("nan")
-                    row[f"top{k}_jaccard_p95"] = float("nan")
-                    row[f"top{k}_jaccard_mean"] = float("nan")
-        else:
-            # unreachable: we error above, but keep branch for safety
-            raise SystemExit(f"Missing center for iteration {it}")
+            # ------------------- per-iteration top‑k metrics using model center
+            # Select center: reconstruct if --center was provided; else load stored
+            if inp.center_method:
+                method = _normalize_center_method(inp.center_method)
+                if A_full is None or B_full is None:
+                    raise SystemExit(
+                        "Cannot reconstruct centers: final_version_space.h5 is missing or invalid. "
+                        "Ensure the run contains 'A' and 'b' datasets."
+                    )
+                Ai, Bi = _constraints_prefix_for_iteration(A_full, B_full, it, n_iters)
+                if Ai is None or Bi is None:
+                    raise SystemExit("Cannot reconstruct center: invalid constraints sizing for iteration prefix")
+                try:
+                    if method == "chebyshev":
+                        c, _ = chebyshev_center(Ai, Bi)
+                        center = np.asarray(c, dtype=float)
+                    elif method == "analytical":
+                        center = np.asarray(analytical_center(Ai, Bi), dtype=float)
+                    elif method == "minkowski":
+                        c, _ = minkowski_center(Ai, Bi)
+                        center = np.asarray(c, dtype=float)
+                    elif method == "volumetric":
+                        c, _ = volumetric_center(Ai, Bi)
+                        center = np.asarray(c, dtype=float)
+                    elif method == "mse":
+                        c = mse_center(Ai, Bi, X=np.empty((0, Ai.shape[1])), y=np.array([]))
+                        center = np.asarray(c, dtype=float) if c is not None else None
+                    else:
+                        raise SystemExit(f"Unknown center method: {inp.center_method}")
+                except Exception as e:
+                    raise SystemExit(
+                        f"Failed to reconstruct center for iteration {it} with method '{inp.center_method}': {e}"
+                    )
+                if center is None:
+                    raise SystemExit(
+                        f"Center reconstruction returned None for method '{inp.center_method}' at iteration {it}"
+                    )
+            else:
+                center = _load_center_for_iteration(run_dir, it, n_iters=n_iters, method="disk")
+                if center is None:
+                    it_dir = run_dir / f"iteration_{it:03d}"
+                    npz = it_dir / "center_model.npz"
+                    npy = it_dir / "center_model.npy"
+                    raise SystemExit(
+                        f"Missing center weights for iteration {it} in {it_dir}. "
+                        f"Expected {npz} (key 'center') or {npy}. "
+                        f"Either pass --center to reconstruct for what-if analysis, or re-run the experiment to persist centers."
+                    )
 
-        rows.append(row)
+            if center is not None:
+                w = center[:n_measures].astype(float, copy=False)
+                # Rule feature matrix (n_rules × d)
+                Xrules = ds.points.astype(float, copy=False)
+                scores = Xrules @ w
+                order = np.argsort(-scores)  # descending
+                max_k = max(inp.topk) if inp.topk else 0
+                top_idx = order[:max_k]
+
+                # features for top-K rules
+                Xtop = Xrules[top_idx]
+                # covers for top-K rules (if possible)
+                top_item_lists = [rule_items(int(i)) for i in top_idx]
+                if txn_matrix is not None:
+                    top_covers = _compute_covers_from_txn_matrix(
+                        top_item_lists, txn_matrix, cover_mode=inp.cover_mode
+                    )
+                elif txn_df is not None:
+                    top_covers = _compute_covers_from_transactions_csv(
+                        top_item_lists, txn_df, cover_mode=inp.cover_mode
+                    )
+                else:
+                    top_covers = None
+
+                for k in inp.topk:
+                    if k >= 2:
+                        cstats = _cosine_stats(Xtop[:k])
+                        row[f"top{k}_cosine_mean"] = cstats["mean"]
+                        row[f"top{k}_cosine_median"] = cstats["median"]
+                        row[f"top{k}_cosine_p95"] = cstats["p95"]
+                    else:
+                        row[f"top{k}_cosine_mean"] = float("nan")
+                        row[f"top{k}_cosine_median"] = float("nan")
+                        row[f"top{k}_cosine_p95"] = float("nan")
+                    if top_covers is not None:
+                        stats = _jaccard_stats(top_covers[:k])
+                        # Distributional stats for Jaccard distances among all rule pairs
+                        row[f"top{k}_jaccard_median"] = stats["median"]
+                        row[f"top{k}_jaccard_p95"] = stats["p95"]
+                        # Keep mean for reference, but primary focus is on distribution
+                        row[f"top{k}_jaccard_mean"] = stats["mean"]
+                    else:
+                        row[f"top{k}_jaccard_median"] = float("nan")
+                        row[f"top{k}_jaccard_p95"] = float("nan")
+                        row[f"top{k}_jaccard_mean"] = float("nan")
+            else:
+                # unreachable: we error above, but keep branch for safety
+                raise SystemExit(f"Missing center for iteration {it}")
+
+            rows.append(row)
+    finally:
+        loader.close()
 
     # --------------------------- write CSV
     keys: List[str] = ["iteration", "n_queries", "cosine_mean", "jaccard_mean"]
@@ -528,7 +700,14 @@ def compute_diversity(inp: Inputs) -> Path:
 
 def parse_args() -> Inputs:
     ap = argparse.ArgumentParser(description="Analyze query diversity per iteration and export CSV stats")
-    ap.add_argument("run_dir", type=str, help="Path to a single run directory (contains iterations.csv and query_vectors.h5)")
+    ap.add_argument(
+        "run_dir",
+        type=str,
+        help=(
+            "Path to a single run directory (must contain iterations.csv and either "
+            "query_vectors.h5 or per-query files referenced via iterations.csv)"
+        ),
+    )
     ap.add_argument("--rules", type=str, required=True, help="Path to the dataset rules CSV (e.g., mined_rules/<ds>_mnr.csv)")
     ap.add_argument("--item-rule", type=str, required=True, help="Path to the item–rule matrix (.npy/.npz), rows align with rules CSV")
     ap.add_argument("--txn-matrix", type=str, default=None, help="Optional transaction×item boolean matrix (.npy/.npz) for cover computation")
