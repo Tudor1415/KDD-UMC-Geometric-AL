@@ -1,10 +1,4 @@
-"""
-Thin CLI wrapper for running active-learning experiments based on a YAML config.
-
-This module intentionally reuses the existing implementation in
-`experiments.active.runner` to avoid duplicating logic. It simply loads the
-config and delegates to `run_all`.
-"""
+"""Thin CLI wrapper for running active-learning experiments from a YAML config."""
 
 from __future__ import annotations
 

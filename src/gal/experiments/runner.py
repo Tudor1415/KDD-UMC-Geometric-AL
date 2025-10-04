@@ -8,18 +8,14 @@ import time
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Tuple
 
-import numpy as np
-
 from gal.core.data import Dataset
 from gal.search.engine import Search
 from gal.search.strategies import get_strategy
 from gal import trees as bt
 
 from .config import ALConfig, dataset_entry_from_cfg, _configure_runtime_from_config
-from gal.oracles.oracles import ObjectiveMeasureOracle, SumOracle, MDLOracle, Oracle
-from gal.core.constraints import CapacitySpace  # type: ignore[attr-defined]
-from experiments.active.space import _prepare_capacity_space
-from experiments.active.centers import _center_fn
+from gal.oracles.oracles import ObjectiveMeasureOracle, SumOracle, MDLOracle, SurpriseOracle, Oracle
+from gal.centers import _center_fn
 from src.gal.learning.learn import learning_loop
 
 
@@ -155,7 +151,9 @@ def _maybe_downsample(cfg: ALConfig, X: np.ndarray, rng: np.random.Generator) ->
     return X
 
 
-def _prepare_space(cfg: ALConfig, X: np.ndarray, log: logging.Logger) -> Tuple[np.ndarray, CapacitySpace, np.ndarray, np.ndarray]:
+def _prepare_space(
+    cfg: ALConfig, X: np.ndarray, log: logging.Logger
+) -> Tuple[np.ndarray, IdentityCapacitySpace, np.ndarray, np.ndarray]:
     add_k = int(cfg.get("experiment", "additivity_k", default=1) or 1)
     return _prepare_capacity_space(X, add_k=add_k, log=log)
 
@@ -194,22 +192,51 @@ def _build_engine(strategy_name: str, X: np.ndarray) -> Search:
 
 
 def _build_oracle(cfg: ALConfig, ds: Dataset) -> Oracle:
-    otype = str(cfg.get("oracle", "type", default="objective"))
-    if otype in {"objective", "objective_measure", "measure"}:
-        measure = cfg.get("oracle", "measure", default=None) or (ds.measures[0] if ds.measures else None)
-        oracle: Oracle = ObjectiveMeasureOracle(str(measure))
-    elif otype == "sum":
-        measures = cfg.get("oracle", "measures", default=None) or list(ds.measures)
-        oracle = SumOracle([str(m) for m in measures])
-    elif otype in {"mdl", "mdl_oracle"}:
-        oracle = MDLOracle(
-            c0=float(cfg.get("oracle", "c0", default=8.0)),
-            c_item=float(cfg.get("oracle", "c_item", default=4.0)),
-        )
-    else:
+    builders = {
+        "objective": lambda: _objective_oracle(cfg, ds),
+        "sum": lambda: _sum_oracle(cfg, ds),
+        "surprise": lambda: _surprise_oracle(cfg),
+        "mdl": lambda: _mdl_oracle(cfg),
+    }
+    otype = str(cfg.get("oracle", "type", default="objective")).lower()
+    if otype not in builders:
         raise ValueError(f"Unsupported oracle type '{otype}'.")
+    oracle = builders[otype]()
     oracle.set_dataset(ds)
     return oracle
+
+
+def _objective_oracle(cfg: ALConfig, ds: Dataset) -> Oracle:
+    measure = cfg.get("oracle", "measure", default=None)
+    if not measure:
+        if not ds.measures:
+            raise ValueError("Objective oracle requires at least one measure in dataset.")
+        measure = ds.measures[0]
+    return ObjectiveMeasureOracle(str(measure))
+
+
+def _sum_oracle(cfg: ALConfig, ds: Dataset) -> Oracle:
+    measures = cfg.get("oracle", "measures", default=None)
+    if not measures:
+        measures = list(ds.measures)
+    if not measures:
+        raise ValueError("Sum oracle requires at least one measure.")
+    return SumOracle([str(m) for m in measures])
+
+
+def _mdl_oracle(cfg: ALConfig) -> Oracle:
+    return MDLOracle(
+        c0=float(cfg.get("oracle", "c0", default=8.0)),
+        c_item=float(cfg.get("oracle", "c_item", default=4.0)),
+    )
+
+
+def _surprise_oracle(cfg: ALConfig) -> Oracle:
+    prior_type = str(cfg.get("oracle", "prior_type", default="independent"))
+    prior_kwargs = cfg.get("oracle", "prior_kwargs", default={}) or {}
+    if not isinstance(prior_kwargs, dict):
+        raise ValueError("oracle.prior_kwargs must be a mapping if provided.")
+    return SurpriseOracle(prior_type=prior_type, **prior_kwargs)
 
 
 # ---------------------------------------------------------------------------

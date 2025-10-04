@@ -26,7 +26,7 @@ from typing import Any, Callable, Optional, Tuple
 from pathlib import Path
 import time
 
-from experiments.active.centers import _chebyshev_radius
+from gal.centers import _chebyshev_radius
 import numpy as np
 from gal.search.engine import Search
 from .learn_helpers import (

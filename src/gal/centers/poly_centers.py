@@ -33,6 +33,8 @@ __all__ = [
     "minkowski_center",
     "volumetric_center",
     "mse_center",
+    "_center_fn",
+    "_chebyshev_radius",
 ]
 
 
@@ -189,6 +191,77 @@ def mse_center(
         return None
 
     return C.value.squeeze()
+
+
+# -----------------------------------------------------------------------------
+# 6. Helper utilities used by the experiment runner
+# -----------------------------------------------------------------------------
+
+
+def _center_fn(name: str):
+    key = str(name).strip().lower()
+    if key in {"chebyshev", "chebyshev_center"}:
+        return _chebyshev_center_wrapper
+    if key in {"analytic", "analytical", "analytic_center"}:
+        return _analytic_center_wrapper
+    if key in {"minkowski", "minkowski_center"}:
+        return _minkowski_center_wrapper
+    if key in {"volumetric", "john", "john_center", "volumetric_center"}:
+        return _volumetric_center_wrapper
+    if key in {"zero", "origin"}:
+        return _zero_center_wrapper
+    raise ValueError(
+        f"Unknown center '{name}'. Available: chebyshev, analytic, minkowski, volumetric, zero"
+    )
+
+
+def _chebyshev_center_wrapper(A: np.ndarray, b: np.ndarray) -> np.ndarray:
+    if A.size == 0:
+        dim = A.shape[1] if A.ndim == 2 else 0
+        return np.zeros(dim, dtype=float)
+    center, _ = chebyshev_center(A, b)
+    return np.asarray(center, dtype=float).reshape(-1)
+
+
+def _analytic_center_wrapper(A: np.ndarray, b: np.ndarray) -> np.ndarray:
+    if A.size == 0:
+        dim = A.shape[1] if A.ndim == 2 else 0
+        return np.zeros(dim, dtype=float)
+    center = analytical_center(A, b)
+    return np.asarray(center, dtype=float).reshape(-1)
+
+
+def _zero_center_wrapper(A: np.ndarray, b: np.ndarray) -> np.ndarray:
+    dim = A.shape[1] if A.ndim == 2 else 0
+    return np.zeros(dim, dtype=float)
+
+
+def _minkowski_center_wrapper(A: np.ndarray, b: np.ndarray) -> np.ndarray:
+    if A.size == 0:
+        dim = A.shape[1] if A.ndim == 2 else 0
+        return np.zeros(dim, dtype=float)
+    center, _ = minkowski_center(A, b)
+    return np.asarray(center, dtype=float).reshape(-1)
+
+
+def _volumetric_center_wrapper(A: np.ndarray, b: np.ndarray) -> np.ndarray:
+    if A.size == 0:
+        dim = A.shape[1] if A.ndim == 2 else 0
+        return np.zeros(dim, dtype=float)
+    center, _ = volumetric_center(A, b)
+    return np.asarray(center, dtype=float).reshape(-1)
+
+
+def _chebyshev_radius(A: np.ndarray, b: np.ndarray, center: np.ndarray) -> float:
+    A = np.asarray(A, dtype=float)
+    if A.size == 0:
+        return float("inf")
+    b = np.asarray(b, dtype=float).reshape(-1)
+    center = np.asarray(center, dtype=float).reshape(-1)
+    norms = np.linalg.norm(A, axis=1)
+    norms[norms == 0] = 1.0
+    slacks = (b - A @ center) / norms
+    return float(np.min(slacks))
 
 
 if __name__ == "__main__":
