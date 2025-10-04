@@ -285,7 +285,7 @@ def _surprise_oracle(cfg: ALConfig) -> Oracle:
 
 
 def _output_root(cfg: ALConfig) -> Path:
-    root = Path(cfg.get("global", "output_root", default="./results/al"))
+    root = Path(cfg.get("global", "output_root", default="./results"))
     root.mkdir(parents=True, exist_ok=True)
     return root
 

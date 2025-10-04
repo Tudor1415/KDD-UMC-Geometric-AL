@@ -2,15 +2,15 @@
 
 global:
   seed: 1729
-  output_root: results/al
+  output_root: results
   max_points: 0          # set >0 to downsample rows uniformly
 
 runtime:
   NUMEXPR_MAX_THREADS: 1
 
 logging:
-  level: INFO
-  log_every: 5
+  level: DEBUG
+  log_every: 1
   search_events: true     # record search_trace.npz per iteration
 
 experiment:
@@ -24,7 +24,7 @@ trees:
   ball:
     method: two_pivot
     config:
-      leaf_size: 32
+      leaf_size: 25
 
 algorithm_parameters:
   search_strategy: lower_bound
@@ -36,7 +36,7 @@ oracle:
 datasets:
   - name: mushroom
     paths:
-      dataset_path: /home/tudor/Downloads/datasets.zip 
+      dataset_path: DATA/mined_rules/mushroom_mnr.csv
     measures:
       - support
       - confidence
