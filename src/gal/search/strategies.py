@@ -78,25 +78,11 @@ class LowerBoundVisitStrategy(VisitStrategy[Node]):
     def priority(self, a: Node, b: Node, bounds: BoundsResult, mass: int) -> Tuple[float, ...]:
         if self._centers_match(a, b):
             key0 = -1.0 if bounds.upper <= self._tau else float(bounds.lower)
-            logger.debug(
-                "Matching centres: key=%s lower=%s upper=%s mass=%s",
-                key0,
-                float(bounds.lower),
-                float(bounds.upper),
-                mass,
-            )
             return (float(key0), float(bounds.lower), float(self._rng.random()))
 
         distance = self._center_distance(a, b)
         key0 = -1.0 if bounds.upper <= self._tau else float(distance)
-        logger.debug(
-            "Computed centre distance=%s key=%s lower=%s upper=%s mass=%s",
-            distance,
-            key0,
-            float(bounds.lower),
-            float(bounds.upper),
-            mass,
-        )
+
         return (float(key0), float(bounds.lower), float(self._rng.random()))
 
 

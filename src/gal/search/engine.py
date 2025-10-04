@@ -347,15 +347,7 @@ class Search:
                 else:
                     pair, dist, evals = self._exact_leaf_eval(a, b, context)
                 stats["objective_evals"] = int(stats["objective_evals"]) + evals
-                logger.debug(
-                    "Leaf evaluation nodes=(%s,%s) mass=%d evals=%d best_dist=%s pair=%s",
-                    id(a),
-                    id(b),
-                    pair_mass,
-                    evals,
-                    dist,
-                    pair,
-                )
+
                 if pair is not None and dist < min(best_distance, tau):
                     best_pair = pair
                     best_distance = dist
