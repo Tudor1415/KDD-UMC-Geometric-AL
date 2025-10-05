@@ -165,9 +165,9 @@ def _cosine_stats(X: np.ndarray) -> Dict[str, float]:
     return {
         "mean": float(np.mean(v)),
         "median": float(np.median(v)),
-        # "p95": float(np.percentile(v, 95.0)),
-        # "min": float(np.min(v)),
-        # "max": float(np.max(v)),
+        "p95": float(np.percentile(v, 95.0)),
+        "min": float(np.min(v)),
+        "max": float(np.max(v)),
     }
 
 
@@ -199,9 +199,9 @@ def _jaccard_stats(masks: Sequence[np.ndarray]) -> Dict[str, float]:
     return {
         "mean": float(np.mean(v)),
         "median": float(np.median(v)),
-        # "p95": float(np.percentile(v, 95.0)),
-        # "min": float(np.min(v)),
-        # "max": float(np.max(v)),
+        "p95": float(np.percentile(v, 95.0)),
+        "min": float(np.min(v)),
+        "max": float(np.max(v)),
     }
 
 
@@ -229,7 +229,7 @@ def _rule_items(ds: Dataset, ridx: int) -> List[int]:
         cols = np.flatnonzero(row_m)
         return [int(ds.items[j]) for j in cols]
     rule = ds.get_rule_dict(ridx)
-    return list({*rule["antecedent"], *rule["consequent"]})
+    return list({*rule["antecedent"], *rule["consequent"]})  # type: ignore[arg-type]
 
 
 def _rule_vector(ds: Dataset, ridx: int, n_measures: int) -> np.ndarray:
@@ -396,11 +396,11 @@ def _compute_covers_from_txn_matrix(
 
 def _compute_covers_from_transactions_csv(
     item_lists: Sequence[Sequence[int]],
-    transactions_df,
+    transactions_df,  # pandas DataFrame
     *,
     cover_mode: str = "all",
 ) -> List[np.ndarray]:
-    import pandas as pd
+    import pandas as pd  # local import, not required if not used
 
     assert isinstance(transactions_df, pd.DataFrame)
     cols_all = list(transactions_df.columns)
