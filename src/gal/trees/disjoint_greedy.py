@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import importlib
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 import numpy as np
 from sklearn.neighbors import KDTree
@@ -13,6 +13,90 @@ from utils.geometry import enclose_many_balls
 from utils.meb import meb
 
 EPS = 1e-12
+
+try:
+    import hnswlib  # type: ignore
+except ImportError:  # pragma: no cover - optional dependency
+    hnswlib = None  # type: ignore
+
+
+class _RadiusSearcher:
+    def query_radius(self, point: np.ndarray, radius: float, min_results: int) -> np.ndarray:
+        raise NotImplementedError
+
+
+class _KDTreeRadiusSearcher(_RadiusSearcher):
+    def __init__(self, points: np.ndarray) -> None:
+        self._tree = KDTree(points)
+
+    def query_radius(self, point: np.ndarray, radius: float, min_results: int) -> np.ndarray:  # noqa: ARG002
+        return self._tree.query_radius(point.reshape(1, -1), r=radius)[0]
+
+
+class _HNSWRadiusSearcher(_RadiusSearcher):
+    def __init__(
+        self,
+        points: np.ndarray,
+        params: Dict[str, float | int],
+    ) -> None:
+        if hnswlib is None:
+            raise RuntimeError("hnswlib is required for ann_backend='hnsw'")
+
+        num_points, dim = points.shape
+        index = hnswlib.Index(space="l2", dim=dim)
+        ef_construction = int(params.get("ef_construction", 200))
+        m = int(params.get("M", 16))
+        index.init_index(max_elements=num_points, ef_construction=ef_construction, M=m)
+        index.add_items(points)
+
+        self._index = index
+        self._max_neighbors = int(params.get("max_neighbors", min(max(64, num_points), 8192)))
+        self._initial_neighbors = int(params.get("initial_neighbors", min(256, self._max_neighbors)))
+        ef = int(params.get("ef", min(max(ef_construction, 64), max(ef_construction, self._max_neighbors))))
+        self._index.set_ef(ef)
+
+    def query_radius(self, point: np.ndarray, radius: float, min_results: int) -> np.ndarray:
+        radius_sq = radius * radius
+        k = max(self._initial_neighbors, min_results)
+        k = min(k, self._max_neighbors)
+
+        while True:
+            labels, distances = self._index.knn_query(point.reshape(1, -1), k=k)
+            labels = labels[0]
+            distances = distances[0]
+            valid_mask = (labels != -1) & (distances <= radius_sq)
+            if not np.any(valid_mask):
+                matches = np.empty(0, dtype=np.int64)
+            else:
+                matches = labels[valid_mask].astype(np.int64, copy=False)
+
+            if matches.size >= min_results or k == self._max_neighbors or labels.size < k:
+                return matches
+
+            prev_k = k
+            k = min(self._max_neighbors, k * 2)
+            if k == prev_k:
+                return matches
+
+
+def _make_radius_searcher(
+    points: np.ndarray,
+    backend: str,
+    ann_params: Optional[Dict[str, float | int]] = None,
+) -> _RadiusSearcher:
+    backend_normalized = backend.lower()
+    if backend_normalized == "auto":
+        if hnswlib is not None and points.shape[1] >= 25:
+            backend_normalized = "hnsw"
+        else:
+            backend_normalized = "kdtree"
+    if backend_normalized == "hnsw":
+        if ann_params is None:
+            ann_params = {}
+        return _HNSWRadiusSearcher(points, ann_params)
+    if backend_normalized != "kdtree":
+        raise ValueError(f"Unsupported ann_backend '{backend}'")
+    return _KDTreeRadiusSearcher(points)
 
 
 def _pairwise_distances(points: np.ndarray) -> np.ndarray:
@@ -102,16 +186,20 @@ def _greedy_children_kdtree(
     min_child_size: int,
     radius_divisor: float,
     eps: float = EPS,
+    *,
+    rng: Optional[np.random.Generator] = None,
+    candidate_sample_size: Optional[int] = None,
+    ann_backend: str = "auto",
+    ann_params: Optional[Dict[str, float | int]] = None,
 ) -> List[Tuple[np.ndarray, np.ndarray, float]]:
-    """Find disjoint children using a greedy strategy accelerated by a KDTree."""
+    """Find disjoint children using a greedy strategy with ANN-backed radius queries."""
 
     if indices.size < 2 or parent_radius <= 0.0 or max_children <= 0:
         return []
 
     local_points = data[indices]
 
-    # Build KD-tree once per node; replaces the O(N^2) distance computation.
-    local_kdtree = KDTree(local_points)
+    radius_searcher = _make_radius_searcher(local_points, backend=ann_backend, ann_params=ann_params)
 
     dist_to_center = np.linalg.norm(local_points - parent_center[None, :], axis=1)
     radius_cap = np.minimum(parent_radius / radius_divisor, parent_radius - dist_to_center)
@@ -121,12 +209,26 @@ def _greedy_children_kdtree(
     chosen_centers_indices: List[int] = []
     chosen_radii: List[float] = []
 
+    n_local = local_points.shape[0]
+    draw_rng = rng if rng is not None else np.random.default_rng()
+    all_indices = np.arange(n_local, dtype=np.int64)
+    use_subsample = (
+        candidate_sample_size is not None and candidate_sample_size > 0 and candidate_sample_size < n_local
+    )
+
     while len(chosen) < max_children:
         best_choice = None
         best_gain = -1
         best_radius = 0.0
 
-        for li in range(local_points.shape[0]):
+        if use_subsample:
+            candidate_indices = np.asarray(
+                draw_rng.choice(all_indices, size=candidate_sample_size, replace=False), dtype=np.int64
+            )
+        else:
+            candidate_indices = all_indices
+
+        for li in candidate_indices:
             rmax = radius_cap[li]
             if rmax <= 0.0:
                 continue
@@ -141,9 +243,7 @@ def _greedy_children_kdtree(
             if rmax <= 0.0:
                 continue
 
-            cover_indices_local = local_kdtree.query_radius(
-                candidate_point.reshape(1, -1), r=rmax + eps
-            )[0]
+            cover_indices_local = radius_searcher.query_radius(candidate_point, rmax + eps, min_child_size)
 
             gain = cover_indices_local.size
             if gain < min_child_size:
@@ -186,6 +286,26 @@ def build_tree(X: np.ndarray, config: Dict | None = None) -> GeometricTree:
     max_children = int(cfg["max_children"])
     min_child_size = int(cfg["min_child_size"])
     radius_divisor = float(cfg["radius_divisor"])
+    ann_backend = cfg.get("ann_backend", "auto")
+    ann_params = dict(
+        M=int(cfg.get("ann_M", 16)),
+        ef_construction=int(cfg.get("ann_ef_construction", 200)),
+        ef=int(cfg.get("ann_ef", 200)),
+        max_neighbors=int(cfg.get("ann_max_neighbors", 2048)),
+        initial_neighbors=int(cfg.get("ann_initial_neighbors", 256)),
+    )
+    candidate_sample_size_raw = cfg.get("candidate_sample_size", None)
+    candidate_sample_size = (
+        int(candidate_sample_size_raw)
+        if candidate_sample_size_raw is not None and int(candidate_sample_size_raw) > 0
+        else None
+    )
+    random_seed = cfg.get("random_seed", None)
+    rng: Optional[np.random.Generator]
+    if random_seed is None:
+        rng = None
+    else:
+        rng = np.random.default_rng(random_seed)
     if leaf_size <= 0:
         raise ValueError("leaf_size must be positive")
     if max_children < 2:
@@ -223,6 +343,10 @@ def build_tree(X: np.ndarray, config: Dict | None = None) -> GeometricTree:
             min_child_size=min_child_size,
             radius_divisor=radius_divisor,
             eps=EPS,
+            rng=rng,
+            candidate_sample_size=candidate_sample_size,
+            ann_backend=ann_backend,
+            ann_params=ann_params,
         )
 
         if len(children_specs) < 2:
@@ -287,7 +411,3 @@ def build_tree(X: np.ndarray, config: Dict | None = None) -> GeometricTree:
         method="disjoint_greedy",
         config=cfg,
     )
-
-
-
-

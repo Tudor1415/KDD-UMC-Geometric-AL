@@ -16,13 +16,13 @@ logging:
 experiment:
   additivity_k: 2
   center_name: chebyshev
-  active_learning_budget: 100
+  active_learning_budget: 25
   tau_max: 1.0e-5
   tau_radius_multiplier: 0.5
 
 trees:
   ball:
-    method: two_pivot
+    method: pca_ballstar
     config:
       leaf_size: 25
 
@@ -30,7 +30,8 @@ algorithm_parameters:
   search_strategy: lower_bound
 
 oracle:
-  type: surprise
+  type: objective
+  measure: phi
 
 datasets:
   - name: mushroom

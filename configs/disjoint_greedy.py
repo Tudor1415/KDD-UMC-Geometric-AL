@@ -4,4 +4,12 @@ DEFAULT = dict(
     max_children=5,
     min_child_size=25,
     radius_divisor=2.0,
+    ann_backend="auto",
+    ann_max_neighbors=2048,
+    ann_initial_neighbors=256,
+    ann_ef=200,
+    ann_M=16,
+    ann_ef_construction=200,
+    candidate_sample_size=512,
+    random_seed=None,
 )

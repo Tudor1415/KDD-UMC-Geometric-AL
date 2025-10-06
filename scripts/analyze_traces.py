@@ -4,7 +4,8 @@ Usage:
   python -m scripts.analyze_traces /path/to/run_dir --out stats.csv
 
 Where /path/to/run_dir is a single experiment output folder that contains
-subdirectories named iteration_XXX with search_trace.h5 files inside.
+subdirectories named iteration_XXX with search_trace.h5 or search_trace.npz
+files inside.
 """
 
 from __future__ import annotations
@@ -16,23 +17,27 @@ from typing import Dict, List, Tuple
 import numpy as np
 import h5py
 
-def _read_events(path: Path) -> Dict[str, np.ndarray]:
-    """Read events from a search_trace.h5 file.
+_EVENT_KEYS = ("event_type", "node_id", "parent_id", "timestamp", "lower_bound", "upper_bound")
 
-    Returns empty arrays if h5py is unavailable or the file cannot be opened
-    as HDF5 (e.g., placeholder/touched files), so the analyzer can proceed.
-    """
+
+def _empty_events() -> Dict[str, np.ndarray]:
+    return {k: np.array([]) for k in _EVENT_KEYS}
+
+
+def _read_events_h5(path: Path) -> Dict[str, np.ndarray]:
     if h5py is None:
-        return {k: np.array([]) for k in ("event_type", "node_id", "parent_id", "timestamp", "lower_bound", "upper_bound")}
+        return _empty_events()
     try:
         with h5py.File(path, "r") as h5:
             if "events" not in h5:
-                return {k: np.array([]) for k in ("event_type", "node_id", "parent_id", "timestamp", "lower_bound", "upper_bound")}
+                return _empty_events()
             g = h5["events"]
-            # Ensure arrays are numpy arrays and convert strings
             evt = g["event_type"][...]
-            if evt.dtype.kind in {"S", "U", "O"}:  # decode ASCII bytes if needed
-                evt = np.array([str(x, "ascii") if isinstance(x, (bytes, bytearray)) else str(x) for x in evt])
+            if evt.dtype.kind in {"S", "U", "O"}:
+                evt = np.array([
+                    str(x, "ascii") if isinstance(x, (bytes, bytearray)) else str(x)
+                    for x in evt
+                ])
             else:
                 evt = np.array([str(x) for x in evt])
             return {
@@ -44,7 +49,36 @@ def _read_events(path: Path) -> Dict[str, np.ndarray]:
                 "upper_bound": np.asarray(g["upper_bound"][...], dtype=float),
             }
     except Exception:
-        return {k: np.array([]) for k in ("event_type", "node_id", "parent_id", "timestamp", "lower_bound", "upper_bound")}
+        return _empty_events()
+
+
+def _read_events_npz(path: Path) -> Dict[str, np.ndarray]:
+    try:
+        with np.load(path, allow_pickle=True) as data:
+            events: Dict[str, np.ndarray] = {}
+            for key in _EVENT_KEYS:
+                arr = data.get(key)
+                if arr is None:
+                    events[key] = np.array([])
+                    continue
+                if key == "event_type":
+                    events[key] = np.array([str(x) for x in np.asarray(arr)], dtype=str)
+                elif key in {"node_id", "parent_id"}:
+                    events[key] = np.asarray(arr, dtype=np.int64)
+                else:
+                    events[key] = np.asarray(arr, dtype=float)
+            return events
+    except Exception:
+        return _empty_events()
+
+
+def _read_events(path: Path) -> Dict[str, np.ndarray]:
+    suffix = path.suffix.lower()
+    if suffix == ".h5":
+        return _read_events_h5(path)
+    if suffix == ".npz":
+        return _read_events_npz(path)
+    return _empty_events()
 
 
 def _safe_percentile(x: np.ndarray, q: float, *, nan: float = np.nan) -> float:
@@ -177,7 +211,9 @@ def main() -> None:
     for it_id, it_dir in _find_iteration_dirs(run_dir):
         st_path = it_dir / "search_trace.h5"
         if not st_path.exists():
-            rows.append({"iteration": it_id, "error": "missing search_trace.h5"})
+            st_path = it_dir / "search_trace.npz"
+        if not st_path.exists():
+            rows.append({"iteration": it_id, "error": "missing search_trace"})
             continue
         ev = _read_events(st_path)
         stats = _compute_stats(ev)
