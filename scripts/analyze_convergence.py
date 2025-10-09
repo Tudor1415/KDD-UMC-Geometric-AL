@@ -9,10 +9,13 @@ anchor point a in int(V).
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
+import csv
 import json
 import logging
 import math
-import csv
+import sys
+import threading
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Dict, List, Sequence, Tuple
@@ -23,6 +26,53 @@ from scipy import special, stats
 
 
 logger = logging.getLogger(__name__)
+
+_WORKER_LOG_CONFIGURED = False
+
+
+def _configure_worker_logging(level: int) -> None:
+    """Initialize logging in worker processes exactly once."""
+    global _WORKER_LOG_CONFIGURED
+    if _WORKER_LOG_CONFIGURED:
+        return
+    logging.basicConfig(level=level)
+    _WORKER_LOG_CONFIGURED = True
+
+
+class _ProgressBar:
+    """Minimal text progress bar for CLI output."""
+
+    def __init__(self, total: int, message: str = "Progress") -> None:
+        self.total = max(total, 0)
+        self.message = message
+        self.count = 0
+        self._lock = threading.Lock()
+        self._stream = sys.stderr
+        self._last_len = 0
+        self._done = False
+
+    def update(self, step: int = 1) -> None:
+        if self.total <= 0 or step <= 0:
+            return
+        with self._lock:
+            self.count = min(self.total, self.count + step)
+            pct = (100.0 * self.count / self.total) if self.total else 100.0
+            text = f"{self.message}: {self.count}/{self.total} ({pct:5.1f}%)"
+            padding = max(0, self._last_len - len(text))
+            self._stream.write("\r" + text + " " * padding)
+            self._stream.flush()
+            self._last_len = len(text)
+            if self.count >= self.total and not self._done:
+                self._stream.write("\n")
+                self._stream.flush()
+                self._done = True
+
+    def close(self) -> None:
+        with self._lock:
+            if not self._done and self.total > 0:
+                self._stream.write("\n")
+                self._stream.flush()
+                self._done = True
 
 # ---------------------------------------------------------------------------
 # Data containers
@@ -319,7 +369,7 @@ def _chebyshev_ball(
     A: np.ndarray,
     b: np.ndarray,
     *,
-    solver_sequence: Sequence[str] = ("GUROBI", "CLARABEL", "ECOS", "SCS"),
+    solver_sequence: Sequence[str] = ("CLARABEL", "ECOS", "GUROBI", "SCS"),
 ) -> Tuple[np.ndarray, float, float]:
     m, d = A.shape
     c = cp.Variable(d)
@@ -350,68 +400,104 @@ def _chebyshev_ball(
     return center, radius, vol
 
 
-def _is_unbounded_polyhedron(A: np.ndarray) -> bool:
-    """Return True if {x : A x <= b} is unbounded via a recession-cone witness."""
-    if A.size == 0:
-        return True
-    _, d = A.shape
-    v = cp.Variable(d)
-    s = cp.Variable(d, nonneg=True)
-    constraints = [
-        A @ v <= 0,
-        -s <= v,
-        v <= s,
-        cp.sum(s) == 1,
-    ]
-    problem = cp.Problem(cp.Minimize(0), constraints)
-    for solver in ("GUROBI", "CLARABEL", "ECOS", "SCS"):
+def _support_value(
+    A: np.ndarray,
+    b: np.ndarray,
+    *,
+    u: np.ndarray,
+    solver_sequence: Sequence[str] = ("GUROBI", "CLARABEL", "ECOS", "SCS"),
+) -> Tuple[float, np.ndarray]:
+    """Return support value h_V(u) = max_x u^T x s.t. A x <= b and a maximizer."""
+    if u.ndim != 1:
+        raise ValueError("Direction u must be a 1D array for support computation.")
+    d = A.shape[1]
+    if u.size != d:
+        raise ValueError("Direction dimension mismatch with polytope dimension.")
+    x = cp.Variable(d)
+    constraints = [A @ x <= b]
+    problem = cp.Problem(cp.Maximize(u @ x), constraints)
+    for solver in solver_sequence:
         if solver not in cp.installed_solvers():
             continue
         try:
             problem.solve(solver=solver, verbose=False)
         except cp.error.SolverError:
             continue
-        if problem.status in (cp.OPTIMAL, cp.OPTIMAL_INACCURATE):
-            return True
-        if problem.status in (cp.INFEASIBLE, cp.INFEASIBLE_INACCURATE):
-            return False
-    return False
+        if problem.status in (cp.OPTIMAL, cp.OPTIMAL_INACCURATE) and x.value is not None:
+            point = np.asarray(x.value, dtype=float)
+            value = float(u @ point)
+            return value, point
+        if problem.status in (cp.UNBOUNDED, cp.UNBOUNDED_INACCURATE):
+            return float("inf"), np.full(d, np.nan)
+    logger.error("Support LP failed to solve; last status=%s", problem.status)
+    raise ValueError("Support LP did not converge with available solvers.")
 
 
-def _max_distance_from_anchor(
+def _outradius_via_support(
     A: np.ndarray,
     b: np.ndarray,
     anchor: np.ndarray,
     *,
-    solver_sequence: Sequence[str] = ("GUROBI", "MOSEK", "CLARABEL", "ECOS", "SCS"),
+    n_dirs: int = 4096,
+    seed: int = 123,
+    refine_rounds: int = 2,
 ) -> float:
-    if _is_unbounded_polyhedron(A):
-        return float("inf")
-
+    """Approximate outradius by maximizing support function directions."""
+    if n_dirs <= 0:
+        raise ValueError("n_dirs must be positive for outradius estimation.")
+    rng = np.random.default_rng(seed)
     d = anchor.size
-    x = cp.Variable(d)
-    t = cp.Variable()
-    constraints = [cp.norm(x - anchor, 2) <= t, A @ x <= b, t >= 0]
-    problem = cp.Problem(cp.Maximize(t), constraints)
-    for solver in solver_sequence:
-        if solver not in cp.installed_solvers():
+    U = rng.normal(size=(n_dirs, d))
+    norms = np.linalg.norm(U, axis=1, keepdims=True)
+    mask = norms[:, 0] > 1e-12
+    if not np.any(mask):
+        raise ValueError("Failed to sample valid directions for outradius computation.")
+    U = U[mask] / norms[mask]
+
+    best_r = -math.inf
+    best_u = None
+
+    logger.debug(
+        "Outradius support search: n_dirs=%d refine_rounds=%d seed=%d",
+        U.shape[0],
+        refine_rounds,
+        seed,
+    )
+
+    for _ in range(max(refine_rounds, 1)):
+        for u in U:
+            supp, _ = _support_value(A, b, u=u)
+            if not np.isfinite(supp):
+                return float("inf")
+            r = supp - float(u @ anchor)
+            if r > best_r:
+                best_r = r
+                best_u = u.copy()
+                logger.debug("Outradius support update: r=%.6f", best_r)
+        if best_u is None:
+            break
+        logger.debug("Outradius refinement round complete (best_r=%.6f)", best_r)
+        cap_size = max(64, U.shape[0] // 8)
+        noise = rng.normal(size=(cap_size, d))
+        proj = noise @ best_u
+        noise = noise - proj[:, None] * best_u[None, :]
+        norms = np.linalg.norm(noise, axis=1, keepdims=True)
+        valid = norms[:, 0] > 1e-12
+        if not np.any(valid):
+            U = np.tile(best_u, (1, 1))
             continue
-        try:
-            logger.debug("Outradius SOCP: attempting solver %s", solver)
-            params = {}
-            if solver == "GUROBI":
-                params = {"reoptimize": True, "gurobi_params": {"DualReductions": 0}}
-            problem.solve(solver=solver, verbose=False, **params)
-        except cp.error.SolverError:
-            logger.debug("Solver %s raised SolverError in Outradius SOCP", solver, exc_info=True)
-            continue
-        if problem.status in {cp.OPTIMAL, cp.OPTIMAL_INACCURATE} and t.value is not None:
-            logger.debug("Outradius SOCP solved with %s (status=%s)", solver, problem.status)
-            return float(t.value)
-        if problem.status in {cp.UNBOUNDED, cp.UNBOUNDED_INACCURATE}:
-            return float("inf")
-    logger.error("Outradius SOCP did not converge; last status=%s", problem.status)
-    raise ValueError("Outradius SOCP did not converge with available solvers.")
+        noise = noise[valid] / norms[valid]
+        alpha = 0.1
+        U = np.vstack([best_u[None, :], best_u[None, :] + alpha * noise])
+        norms = np.linalg.norm(U, axis=1, keepdims=True)
+        mask = norms[:, 0] > 1e-12
+        if not np.any(mask):
+            break
+        U = U[mask] / norms[mask]
+
+    result = float(best_r if best_r > 0 else 0.0)
+    logger.debug("Outradius support result=%.6f", result)
+    return result
 
 
 def _min_distance_from_anchor(A: np.ndarray, b: np.ndarray, anchor: np.ndarray) -> float:
@@ -612,6 +698,13 @@ def compute_all_stats(
     num_pairs: int,
     orientation_grid_size: int,
 ) -> ConvergenceStats:
+    logger.debug(
+        "compute_all_stats: m=%d, d=%d, pool_size=%d, epsilon_net_size=%d",
+        A.shape[0],
+        A.shape[1] if A.size else 0,
+        pool_size,
+        epsilon_net_size,
+    )
     cheby_center, cheby_radius, cheby_vol = _chebyshev_ball(A, b)
 
     if anchor is None:
@@ -660,10 +753,17 @@ def compute_all_stats(
         seed=epsilon_seed + 7,
     )
     try:
-        r_max_exact = float(_max_distance_from_anchor(A, b, anchor_vec))
+        r_max_exact = _outradius_via_support(
+            A,
+            b,
+            anchor_vec,
+            n_dirs=max(128, epsilon_net_size),
+            seed=epsilon_seed,
+            refine_rounds=2,
+        )
     except Exception as exc:
         logger.warning(
-            "Outradius SOCP failed; falling back to epsilon-net estimate (%s)",
+            "Outradius support search failed; falling back to epsilon-net estimate (%s)",
             exc,
         )
         r_max_exact = float(r_max_sample) if np.isfinite(r_max_sample) else float("inf")
@@ -673,6 +773,12 @@ def compute_all_stats(
         sph = 0.0 if not np.isfinite(r_max_exact) else float("nan")
     else:
         sph = float(r_min / r_max_exact)
+    logger.debug(
+        "compute_all_stats complete: r_max=%.6f, r_min=%.6f, sphericity=%s",
+        r_max_exact,
+        r_min,
+        sph,
+    )
     return ConvergenceStats(
         rho_hat=rho_hat,
         var_hat=var_hat,
@@ -832,6 +938,52 @@ def _empty_row(iteration: int, error: str) -> Dict[str, object]:
     return fields
 
 
+def _compute_iteration_job(payload: Tuple[object, ...]) -> Dict[str, object]:
+    (
+        iteration,
+        A,
+        b,
+        pool_size,
+        hr_burn_in,
+        hr_thinning,
+        hr_seed,
+        num_directions,
+        epsilon_net_size,
+        epsilon_seed,
+        num_pairs,
+        orientation_grid_size,
+        log_level,
+    ) = payload
+    _configure_worker_logging(int(log_level))
+    logger = logging.getLogger(__name__)
+    logger.debug(
+        "Worker starting iteration %d (constraints=%d)",
+        iteration,
+        A.shape[0],
+    )
+    try:
+        stats = compute_all_stats(
+            A,
+            b,
+            anchor=None,
+            pool_size=pool_size,
+            hr_burn_in=hr_burn_in,
+            hr_thinning=hr_thinning,
+            hr_seed=hr_seed,
+            num_directions=num_directions,
+            epsilon_net_size=epsilon_net_size,
+            epsilon_seed=epsilon_seed,
+            num_pairs=num_pairs,
+            orientation_grid_size=orientation_grid_size,
+        )
+        row = _stats_to_row(int(iteration), stats)
+        logger.debug("Worker finished iteration %d", iteration)
+        return row
+    except Exception as exc:  # pragma: no cover - worker guard
+        logger.exception("Worker failed for iteration %d", iteration)
+        return _empty_row(int(iteration), str(exc))
+
+
 def compute_run_convergence(
     run_dir: Path,
     *,
@@ -845,6 +997,7 @@ def compute_run_convergence(
     epsilon_seed: int,
     num_pairs: int,
     orientation_grid_size: int,
+    jobs: int = 1,
 ) -> Path:
     if not run_dir.is_dir():
         raise FileNotFoundError(f"Run directory {run_dir} does not exist")
@@ -862,32 +1015,79 @@ def compute_run_convergence(
             f"Constraint mismatch: A has {A_full.shape[0]} rows, b has {b_full.shape[0]} entries"
         )
 
-    rows: List[Dict[str, object]] = []
+    effective_jobs = max(1, int(jobs))
+    log_level = logging.getLogger().getEffectiveLevel()
+    logger.debug(
+        "compute_run_convergence: iterations=%d jobs=%d log_level=%s",
+        len(iterations),
+        effective_jobs,
+        logging.getLevelName(log_level),
+    )
+
+    pending_payloads: List[Tuple[object, ...]] = []
+    rows_map: Dict[int, Dict[str, object]] = {}
+
     for iteration in iterations:
         Ai, bi = _constraints_prefix_for_iteration(A_full, b_full, iteration, total_iterations)
         if Ai is None or bi is None:
-            rows.append(_empty_row(iteration, "insufficient constraints"))
+            logger.debug("Iteration %d skipped (insufficient constraints)", iteration)
+            rows_map[iteration] = _empty_row(iteration, "insufficient constraints")
             continue
-        try:
-            stats = compute_all_stats(
-                Ai,
-                bi,
-                anchor=None,
-                pool_size=pool_size,
-                hr_burn_in=hr_burn_in,
-                hr_thinning=hr_thinning,
-                hr_seed=hr_seed + iteration,
-                num_directions=num_directions,
-                epsilon_net_size=epsilon_net_size,
-                epsilon_seed=epsilon_seed + iteration,
-                num_pairs=num_pairs,
-                orientation_grid_size=orientation_grid_size,
-            )
-            row = _stats_to_row(iteration, stats)
-        except Exception as exc:  # pragma: no cover - safeguard for production runs
-            logger.exception("Failed to compute stats for iteration %d", iteration)
-            row = _empty_row(iteration, str(exc))
-        rows.append(row)
+        payload = (
+            iteration,
+            np.asarray(Ai, dtype=float),
+            np.asarray(bi, dtype=float),
+            pool_size,
+            hr_burn_in,
+            hr_thinning,
+            hr_seed + iteration,
+            num_directions,
+            epsilon_net_size,
+            epsilon_seed + iteration,
+            num_pairs,
+            orientation_grid_size,
+            log_level,
+        )
+        pending_payloads.append(payload)
+
+    show_progress = log_level > logging.DEBUG
+    progress = (
+        _ProgressBar(len(pending_payloads), "Computing iterations")
+        if show_progress and pending_payloads
+        else None
+    )
+
+    if effective_jobs == 1:
+        for payload in pending_payloads:
+            iteration = int(payload[0])
+            logger.debug("Processing iteration %d sequentially", iteration)
+            rows_map[iteration] = _compute_iteration_job(payload)
+            if progress is not None:
+                progress.update()
+    else:
+        logger.debug("Launching ProcessPoolExecutor with %d workers", effective_jobs)
+        with concurrent.futures.ProcessPoolExecutor(max_workers=effective_jobs) as executor:
+            future_to_iter = {
+                executor.submit(_compute_iteration_job, payload): int(payload[0])
+                for payload in pending_payloads
+            }
+            for future in concurrent.futures.as_completed(future_to_iter):
+                iteration = future_to_iter[future]
+                try:
+                    rows_map[iteration] = future.result()
+                except Exception as exc:  # pragma: no cover - defensive
+                    logger.exception("Parallel worker crashed for iteration %d", iteration)
+                    rows_map[iteration] = _empty_row(iteration, str(exc))
+                finally:
+                    if progress is not None:
+                        progress.update()
+
+    if progress is not None:
+        progress.close()
+
+    rows: List[Dict[str, object]] = []
+    for iteration in iterations:
+        rows.append(rows_map.get(iteration, _empty_row(iteration, "missing result")))
 
     if output_csv is None:
         output_csv = run_dir / "convergence_stats.csv"
@@ -950,6 +1150,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--epsilon-seed", type=int, default=123, help="RNG seed for epsilon-net and cosine sampling.")
     parser.add_argument("--num-pairs", type=int, default=100000, help="Number of constraint pairs for cosine distance sampling.")
     parser.add_argument("--orientation-grid", type=int, default=181, help="Number of angle grid points for orientation CDF.")
+    parser.add_argument("--jobs", type=int, default=1, help="Parallel worker processes for per-iteration stats (1 disables parallelism).")
     parser.add_argument("--output", type=Path, help="Optional path to JSON file for results.")
     parser.add_argument("--log-level", type=str, default="INFO", help="Logging level (e.g., INFO, DEBUG).")
     return parser
@@ -973,6 +1174,7 @@ def main(args: Sequence[str] | None = None) -> None:
             epsilon_seed=options.epsilon_seed,
             num_pairs=options.num_pairs,
             orientation_grid_size=options.orientation_grid,
+            jobs=options.jobs,
         )
         logging.info("Wrote per-iteration convergence stats to %s", stats_path)
         return
