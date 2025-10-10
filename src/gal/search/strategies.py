@@ -70,9 +70,9 @@ class LowerBoundVisitStrategy(VisitStrategy[Node]):
         self._orientation_mode = False
         if orientation_mode and orientation is not None:
             vec = np.asarray(orientation, dtype=float).reshape(-1)
-            norm1 = np.linalg.norm(vec, ord=1)
-            if norm1 > self._eps:
-                self._orientation = vec / norm1
+            norm2 = np.linalg.norm(vec)
+            if norm2 > self._eps:
+                self._orientation = vec / norm2
                 self._orientation_mode = True
 
     def _centers_match(self, a: Node, b: Node) -> bool:

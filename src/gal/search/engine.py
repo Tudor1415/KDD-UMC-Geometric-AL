@@ -68,9 +68,9 @@ class Search:
             orientation_arr = np.asarray(orientation, dtype=np.float64).reshape(-1)
             if orientation_arr.size != data.shape[1]:
                 raise ValueError("orientation must match feature dimension")
-            norm1 = float(np.linalg.norm(orientation_arr, ord=1))
-            if norm1 > float(eps):
-                orientation_vec = orientation_arr / norm1
+            norm2 = float(np.linalg.norm(orientation_arr))
+            if norm2 > float(eps):
+                orientation_vec = orientation_arr / norm2
                 use_orientation = bool(maximize_orientation)
 
         root = tree.root if isinstance(tree, GeometricTree) else tree
