@@ -72,7 +72,7 @@ def run_orientation_search(
     size_cache: Dict[int, int] = {}
 
     def mass(a: Node, b: Node) -> int:
-        return descendant_size(a, size_cache) * descendant_size(b, size_cache)
+        return descendant_size(a, size_cache) * descendant_size(b, size_cache) / 2
 
     best_pair: Tuple[int, int] | None = None
     best_distance = float("inf")
@@ -107,6 +107,8 @@ def run_orientation_search(
     events: list[Dict[str, float | int | str]] | None = [] if collect_events else None
     pair_ids: Dict[Tuple[int, int], int] = {}
     next_pair_id = 0
+    orientation_accept = float(max(0.0, min(1.0, 1.0 - float(tau))))
+    early_accept = False
 
     def _pair_key(a: Node, b: Node) -> Tuple[int, int]:
         ia, ib = id(a), id(b)
@@ -279,8 +281,19 @@ def run_orientation_search(
                     best_orientation_val = orient_val
                     stats["best_origin"] = "leaf"
                     stats["best_orientation"] = best_orientation_val
+                if orient_val >= orientation_accept:
+                    best_pair = pair
+                    best_distance = dist
+                    best_orientation_val = orient_val
+                    stats["best_origin"] = "leaf"
+                    stats["best_orientation"] = best_orientation_val
+                    early_accept = True
+                    heap.clear()
+                    break
             record_calls_if_needed()
             record_time_if_needed()
+            if early_accept:
+                break
             continue
 
         if a is b and not a_leaf:
@@ -298,7 +311,10 @@ def run_orientation_search(
                 enqueue(a, child, parent_id=parent_pid)
         record_time_if_needed()
 
-    if best_pair is None and not heap:
+        if early_accept:
+            break
+
+    if (not early_accept) and best_pair is None and not heap:
         stack = [root]
         stop_after_found = (not math.isinf(tau))
         done = False
@@ -322,6 +338,10 @@ def run_orientation_search(
                     best_orientation_val = orient_val
                     stats["best_origin"] = "leaf"
                     stats["best_orientation"] = best_orientation_val
+                    if orient_val >= orientation_accept:
+                        done = True
+                        early_accept = True
+                        break
                     if stop_after_found and best_distance <= tau + eps:
                         done = True
                         break
