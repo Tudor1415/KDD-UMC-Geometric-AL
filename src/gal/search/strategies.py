@@ -29,6 +29,8 @@ class VisitStrategy(Generic[TNode]):
         wc: np.ndarray | None = None,
         tau: float = float('inf'),
         eps: float = 1e-12,
+        orientation: np.ndarray | None = None,
+        orientation_mode: bool = False,
     ) -> None:
         """Prepare the strategy for a new search tree."""
 
@@ -55,6 +57,9 @@ class LowerBoundVisitStrategy(VisitStrategy[Node]):
         self._eps: float = 1e-12
         self._rng: random.Random = rng or random.Random()
         self._history_dirty = False
+
+        self._orientation: np.ndarray | None = None
+        self._orientation_mode: bool = False
 
         # KD-Tree built once for distance queries when diversity is computed.
         self._query_tree: KDTree | None = None
@@ -107,6 +112,8 @@ class LowerBoundVisitStrategy(VisitStrategy[Node]):
         wc: np.ndarray | None = None,
         tau: float = float('inf'),
         eps: float = 1e-12,
+        orientation: np.ndarray | None = None,
+        orientation_mode: bool = False,
     ) -> None:
         """
         Pre-computes diversity scores for all nodes in the tree.
@@ -130,6 +137,15 @@ class LowerBoundVisitStrategy(VisitStrategy[Node]):
             self._query = None
         self._tau = float(tau)
         self._eps = float(eps)
+
+        self._orientation = None
+        self._orientation_mode = False
+        if orientation_mode and orientation is not None:
+            vec = np.asarray(orientation, dtype=float).reshape(-1)
+            norm = np.linalg.norm(vec)
+            if norm > self._eps:
+                self._orientation = vec / norm
+                self._orientation_mode = True
 
         stack = [root]
         while stack:
@@ -161,8 +177,24 @@ class LowerBoundVisitStrategy(VisitStrategy[Node]):
         div_b = self._get_diversity_score(b)
         diversity_score = min(div_a, div_b)
         
-        if diversity_score <= self._eps:
+        if (
+            self.queries is not None
+            and self.queries.size > 0
+            and diversity_score <= self._eps
+        ):
             return None
+
+        if self._orientation_mode and self._orientation is not None and bounds.orientation is not None:
+            lb_orient, ub_orient = bounds.orientation
+            orient_upper = max(abs(float(lb_orient)), abs(float(ub_orient)))
+            key0 = -float(orient_upper)
+            return (
+                key0,
+                float(bounds.lower),
+                float(bounds.upper),
+                -float(diversity_score),
+                float(self._rng.random()),
+            )
 
         if self._centers_match(a, b):
             key0 = -1.0 if bounds.upper <= self._tau else float(bounds.lower)

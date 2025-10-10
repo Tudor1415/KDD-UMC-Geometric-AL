@@ -38,6 +38,7 @@ from .learn_helpers import (
     _record_query_npz,
     _save_center_snapshot,
     _finalize_version_space_npz,
+    _farthest_point_socp,
 )
 
 
@@ -69,6 +70,7 @@ def learning_loop(
     log_level: int,
     search_strategy: str,
     engine: Optional[Search] = None,
+    align_orientation: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Active learning loop with on-disk logging and search traces.
 
@@ -124,11 +126,36 @@ def learning_loop(
                 tau,
                 float(radius),
             )
+        orientation_vec: Optional[np.ndarray] = None
+        if align_orientation and np.isfinite(radius) and radius > 0:
+            farthest_proj, _ = _farthest_point_socp(A, b, center_proj)
+            if farthest_proj is not None:
+                try:
+                    farthest_full = space.expand_center(farthest_proj)
+                except ValueError as exc:
+                    logger.warning("Failed to expand farthest point during iteration %d: %s", it, exc)
+                else:
+                    direction = np.asarray(farthest_full, dtype=float) - np.asarray(center_full, dtype=float)
+                    norm = float(np.linalg.norm(direction))
+                    if norm > 1e-12:
+                        orientation_vec = direction / norm
+                    else:
+                        logger.debug(
+                            "Iter %d: farthest-point direction nearly zero; skipping orientation alignment",
+                            it,
+                        )
+            else:
+                logger.debug(
+                    "Iter %d: SOCP farthest-point solver did not return a point; orientation alignment disabled",
+                    it,
+                )
         i, j, dist, stats = engine.search_pair(
             tree,
             X,
             center_full,
             tau=float(tau),
+            orientation=orientation_vec,
+            maximize_orientation=bool(orientation_vec is not None),
             return_stats=True,
             collect_events=collect_events,
         )

@@ -137,7 +137,7 @@ def test_heap_tie_breaker_no_node_comparison():
             return BoundsResult(lower=0.5, upper=0.5)
 
     class ConstantStrategy(VisitStrategy[Node]):
-        def setup(self, root: Node, *, data=None) -> None:  # type: ignore[override]
+        def setup(self, root: Node, **kwargs) -> None:  # type: ignore[override]
             return None
 
         def priority(self, a: Node, b: Node, bounds, mass):  # type: ignore[override]
@@ -164,3 +164,37 @@ def test_heap_tie_breaker_no_node_comparison():
     (bi, bj), bf_dist = brute_force_metric(X, wc)
     assert {i, j} == {bi, bj}
     assert pytest.approx(dist, rel=1e-9, abs=1e-12) == bf_dist
+
+
+def test_search_pair_orientation_alignment():
+    X = np.array([
+        [0.0, 0.0],
+        [0.0, 0.5],
+        [0.3, 0.4],
+    ])
+    wc = np.array([1.0, 0.0])
+    orientation = np.array([0.6, 0.8])  # unit vector along desired direction
+    tree = axis_median.build_tree(X)
+
+    # Baseline search favours the minimal distance pair (indices 0 and 1)
+    i0, j0, dist0 = search_pair(tree, X, wc)
+    assert {i0, j0} == {0, 1}
+    assert dist0 == pytest.approx(0.0, abs=1e-12)
+
+    # Orientation-aware search should pick the pair aligned with the orientation vector
+    tau = 0.7
+    i, j, dist, stats = search_pair(
+        tree,
+        X,
+        wc,
+        tau=tau,
+        orientation=orientation,
+        maximize_orientation=True,
+        return_stats=True,
+    )
+
+    assert {i, j} == {0, 2}
+    assert dist == pytest.approx(0.6, abs=1e-9)
+    assert stats["orientation_mode"] is True
+    expected_orient = abs(float(np.dot(X[2] - X[0], orientation)))
+    assert stats["best_orientation"] == pytest.approx(expected_orient, rel=1e-9)

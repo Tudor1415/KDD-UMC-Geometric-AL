@@ -4,12 +4,21 @@ import csv
 import logging
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
 from gal.search.engine import Search
 from gal.search.strategies import get_strategy
+
+
+_DEFAULT_SOCP_SOLVERS: Tuple[str, ...] = (
+    "GUROBI",
+    "MOSEK",
+    "CLARABEL",
+    "ECOS",
+    "SCS",
+)
 
 
 def _init_streaming_outputs(exp_dir: Path) -> tuple[csv.writer, Any, Path]:
@@ -150,3 +159,81 @@ def _finalize_version_space_npz(exp_dir: Path, A: np.ndarray, b: np.ndarray) -> 
         A=np.asarray(A, dtype=float),
         b=np.asarray(b, dtype=float).reshape(-1, 1),
     )
+
+
+def _farthest_point_socp(
+    A: np.ndarray,
+    b: np.ndarray,
+    center: np.ndarray,
+    *,
+    anchor: np.ndarray | None = None,
+    solver_sequence: Sequence[str] = _DEFAULT_SOCP_SOLVERS,
+) -> tuple[Optional[np.ndarray], Optional[float]]:
+    """Return the farthest feasible point from ``center`` using an SOCP.
+
+    Parameters
+    ----------
+    A, b:
+        Half-space representation of the feasible region ``A x <= b``.
+    center:
+        Interior reference point around which the Euclidean distance is maximised.
+    solver_sequence:
+        Preferred cvxpy solvers tried in order.
+    """
+
+    A_mat = np.asarray(A, dtype=float)
+    if A_mat.size == 0:
+        logging.getLogger(__name__).debug("Skipping farthest-point SOCP: empty constraint set")
+        return None, None
+
+    center_vec = np.asarray(center, dtype=float).reshape(-1)
+    if center_vec.size == 0:
+        raise ValueError("Center must be a non-empty vector")
+    if A_mat.shape[1] != center_vec.size:
+        raise ValueError(
+            "Constraint matrix column count does not match center dimension: "
+            f"{A_mat.shape[1]} vs {center_vec.size}"
+        )
+
+    if anchor is None:
+        anchor_vec = center_vec
+    else:
+        anchor_vec = np.asarray(anchor, dtype=float).reshape(-1)
+        if anchor_vec.size != center_vec.size:
+            raise ValueError(
+                "Anchor length does not match center dimension: "
+                f"{anchor_vec.size} vs {center_vec.size}"
+            )
+
+    try:
+        import cvxpy as cp  # type: ignore
+    except ImportError:
+        logging.getLogger(__name__).warning(
+            "cvxpy not installed; skipping farthest-point SOCP computation"
+        )
+        return None, None
+
+    x = cp.Variable(center_vec.size)
+    radius = cp.Variable(nonneg=True)
+    anchor_vec = np.asarray(anchor_vec, dtype=float).reshape(-1)
+    constraints = [
+        A_mat @ x <= np.asarray(b, dtype=float).reshape(-1),
+        cp.norm(x - center_vec, 2) <= radius,
+        cp.sum(cp.multiply(x - anchor_vec, anchor_vec)) == 0,
+    ]
+    problem = cp.Problem(cp.Maximize(radius), constraints)
+
+    for solver in solver_sequence:
+        if solver not in cp.installed_solvers():
+            continue
+        try:
+            problem.solve(solver=solver, verbose=False)
+        except cp.error.SolverError:
+            continue
+        if problem.status in (cp.OPTIMAL, cp.OPTIMAL_INACCURATE) and x.value is not None:
+            return np.asarray(x.value, dtype=float).reshape(-1), float(radius.value)
+
+    logging.getLogger(__name__).warning(
+        "Farthest-point SOCP failed to converge; status=%s", problem.status
+    )
+    return None, None

@@ -165,6 +165,7 @@ def run_all(cfg: ALConfig) -> Path:
             log_level=params.log_level,
             search_strategy=search_strategy,
             engine=engine,
+            align_orientation=params.align_orientation,
         )
         log.debug("Learning loop completed for '%s'", ds.name)
 
@@ -440,13 +441,23 @@ def _experiment_metadata(
 
 
 class _RunParams:
-    def __init__(self, n_iter: int, tau_cap: float, tau_multiplier: float, collect_events: bool, log_every: int, log_level: int) -> None:
+    def __init__(
+        self,
+        n_iter: int,
+        tau_cap: float,
+        tau_multiplier: float,
+        collect_events: bool,
+        log_every: int,
+        log_level: int,
+        align_orientation: bool,
+    ) -> None:
         self.n_iter = n_iter
         self.tau_cap = tau_cap
         self.tau_multiplier = tau_multiplier
         self.collect_events = collect_events
         self.log_every = log_every
         self.log_level = log_level
+        self.align_orientation = align_orientation
 
 
 def _run_params(cfg: ALConfig) -> _RunParams:
@@ -457,4 +468,13 @@ def _run_params(cfg: ALConfig) -> _RunParams:
     log_every = int(cfg.get("logging", "log_every", default=10) or 10)
     level_name = str(cfg.get("logging", "level", default="INFO")).upper()
     log_level = getattr(logging, level_name, logging.INFO)
-    return _RunParams(n_iter, tau_cap, tau_mult, collect_events, log_every, log_level)
+    align_orientation = bool(cfg.get("experiment", "align_orientation", default=False))
+    return _RunParams(
+        n_iter,
+        tau_cap,
+        tau_mult,
+        collect_events,
+        log_every,
+        log_level,
+        align_orientation,
+    )

@@ -28,12 +28,14 @@ class BoundContext:
     eps: float = 1e-12
     # Optional per-query cache (e.g., projection-intervals per node and center)
     proj_cache: Optional[Dict[int, Tuple[float, float]]] = None
+    orientation: Optional[np.ndarray] = None
 
 
 @dataclass(frozen=True)
 class BoundsResult:
     lower: float
     upper: float
+    orientation: Optional[Tuple[float, float]] = None
 
 
 class BoundsStrategy(Generic[TNode]):
@@ -48,7 +50,10 @@ class BallTreeBounds(BoundsStrategy[Node]):
 
     def __call__(self, a: Node, b: Node, context: BoundContext) -> BoundsResult:
         lower, upper = self._bounds_ball_pair(a, b, context.wc, context.eps)
-        return BoundsResult(lower=lower, upper=upper)
+        orientation_bounds: Optional[Tuple[float, float]] = None
+        if context.orientation is not None:
+            orientation_bounds = self._bounds_orientation(a, b, context.orientation)
+        return BoundsResult(lower=lower, upper=upper, orientation=orientation_bounds)
 
     @staticmethod
     def _bounds_ball_pair(a: Node, b: Node, wc: np.ndarray, eps: float = 1e-12) -> Tuple[float, float]:
@@ -88,8 +93,15 @@ class BallTreeBounds(BoundsStrategy[Node]):
         c2, r2 = b.center, float(b.radius)
         rho = r1 + r2
         d = c2 - c1
-        
-        lower = np.dot(d, orientation) - rho*np.linalg.norm(orientation)
-        upper = np.dot(d, orientation) + rho*np.linalg.norm(orientation)
-        
+        orientation_vec = np.asarray(orientation, dtype=float).reshape(-1)
+        orient_norm = float(np.linalg.norm(orientation_vec))
+        if orient_norm == 0.0:
+            return 0.0, 0.0
+
+        proj = float(np.dot(d, orientation_vec))
+        span = rho * orient_norm
+
+        lower = proj - span
+        upper = proj + span
+
         return lower, upper

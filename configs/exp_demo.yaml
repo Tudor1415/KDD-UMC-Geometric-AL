@@ -22,6 +22,7 @@ experiment:
     thinning: 2
     seed: 1729
   active_learning_budget: 100
+  experiment.align_orientation: true
   tau_max: 1.0e-5
   tau_radius_multiplier: 0.5
 
