@@ -5,9 +5,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import logging
 import warnings
-from dataclasses import asdict
 from pathlib import Path
 from typing import Sequence
 
@@ -18,6 +18,7 @@ from src.gal.analysis.convergence import (
     load_array,
     parse_anchor,
 )
+from src.gal.analysis.convergence.io import clean_for_json, write_orientation_cdf
 
 warnings.filterwarnings("ignore")
 logging.getLogger("gurobipy").setLevel(logging.ERROR)
@@ -44,6 +45,11 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--epsilon-seed", type=int, default=123, help="RNG seed for epsilon-net and cosine sampling.")
     parser.add_argument("--num-pairs", type=int, default=100000, help="Number of constraint pairs for cosine distance sampling.")
     parser.add_argument("--orientation-grid", type=int, default=181, help="Number of angle grid points for orientation CDF.")
+    parser.add_argument(
+        "--orientation-output",
+        type=Path,
+        help="Orientation CDF JSON path (defaults to <output>_* when using direct mode).",
+    )
     parser.add_argument("--jobs", type=int, default=1, help="Parallel worker processes for per-iteration stats (1 disables parallelism).")
     parser.add_argument("--output", type=Path, help="Optional path to JSON file for results.")
     parser.add_argument("--log-level", type=str, default="INFO", help="Logging level (e.g., INFO, DEBUG).")
@@ -99,13 +105,44 @@ def main(args: Sequence[str] | None = None) -> None:
         orientation_grid_size=options.orientation_grid,
     )
 
-    payload = asdict(stats_result)
-    payload["orientation_cdf"] = [asdict(entry) for entry in stats_result.orientation_cdf]
+    orientation_output = options.orientation_output
+    if orientation_output is None:
+        if options.output:
+            orientation_output = options.output.with_name(f"{options.output.stem}_orientation_cdf.json")
+        else:
+            parser.error("Provide --orientation-output or --output when not using --run-dir")
 
-    text = json.dumps(payload, indent=2)
+    orientation_output = orientation_output.expanduser().resolve()
+    orientation_written = write_orientation_cdf(0, orientation_output, stats_result)
+    if orientation_written:
+        logging.info("Wrote orientation CDF to %s", orientation_written)
+
+    cleaned_stats = clean_for_json(
+        {
+            "sphericity": stats_result.sphericity,
+            "median_cosine_distance": stats_result.median_cosine_distance,
+            "expected_theta": stats_result.expected_theta,
+        }
+    )
+
+    theta = cleaned_stats.get("expected_theta")
+    if theta is not None:
+        alpha = (2.0 / math.pi) * theta
+        cleaned_stats["rho_from_theta"] = 1.0 - (theta / math.pi)
+        cleaned_stats["varR_over_V2_from_theta"] = 0.25 * (1.0 - alpha)
+        cleaned_stats["varV_over_V2_from_theta"] = 0.25 * alpha * (1.0 - alpha)
+    else:
+        cleaned_stats["rho_from_theta"] = None
+        cleaned_stats["varR_over_V2_from_theta"] = None
+        cleaned_stats["varV_over_V2_from_theta"] = None
+
+    cleaned_stats["orientation_cdf_path"] = str(orientation_written) if orientation_written else None
+
+    text = json.dumps(cleaned_stats, indent=2)
     if options.output:
+        options.output = options.output.expanduser().resolve()
         options.output.write_text(text)
-        logging.info("Wrote results to %s", options.output)
+        logging.info("Wrote statistics to %s", options.output)
     else:
         print(text)
 

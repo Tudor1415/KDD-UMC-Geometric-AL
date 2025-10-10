@@ -80,3 +80,16 @@ class BallTreeBounds(BoundsStrategy[Node]):
         upper = num / max(denom, eps)
 
         return lower, upper
+    
+    @staticmethod
+    def _bounds_orientation(a: Node, b: Node, orientation: np.ndarray) -> Tuple[float, float]:
+        """Orientation-based bounds on d_wc(f1, f2) for all f1 in Ba and f2 in Bb."""
+        c1, r1 = a.center, float(a.radius)
+        c2, r2 = b.center, float(b.radius)
+        rho = r1 + r2
+        d = c2 - c1
+        
+        lower = np.dot(d, orientation) - rho*np.linalg.norm(orientation)
+        upper = np.dot(d, orientation) + rho*np.linalg.norm(orientation)
+        
+        return lower, upper

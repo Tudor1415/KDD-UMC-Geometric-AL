@@ -17,7 +17,6 @@ from .io import (
     read_iterations_csv,
     relativize_path,
     stats_to_row,
-    write_center_vector,
     write_orientation_cdf,
 )
 from .logging_utils import configure_worker_logging
@@ -29,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 def _compute_iteration_job(
     payload: Tuple[object, ...]
-) -> Tuple[Dict[str, object], str | None, str | None, str | None]:
+) -> Tuple[Dict[str, object], str | None]:
     (
         iteration,
         A,
@@ -44,8 +43,7 @@ def _compute_iteration_job(
         num_pairs,
         orientation_grid_size,
         orientation_output,
-        john_center_output,
-        cheby_center_output,
+        collect_orientation,
         log_level,
     ) = payload
     configure_worker_logging(int(log_level))
@@ -69,35 +67,19 @@ def _compute_iteration_job(
             epsilon_seed=epsilon_seed,
             num_pairs=num_pairs,
             orientation_grid_size=orientation_grid_size,
+            collect_orientation=bool(collect_orientation),
         )
         orientation_path = write_orientation_cdf(
             int(iteration),
             Path(orientation_output) if orientation_output else None,
             stats,
         )
-        john_path = write_center_vector(
-            int(iteration),
-            Path(john_center_output) if john_center_output else None,
-            stats.john_center,
-            "john_center",
-        )
-        cheby_path = write_center_vector(
-            int(iteration),
-            Path(cheby_center_output) if cheby_center_output else None,
-            stats.cheby_center,
-            "chebyshev_center",
-        )
         row = stats_to_row(int(iteration), stats)
         logger.debug("Worker finished iteration %d", iteration)
-        return (
-            row,
-            str(orientation_path) if orientation_path else None,
-            str(john_path) if john_path else None,
-            str(cheby_path) if cheby_path else None,
-        )
+        return row, str(orientation_path) if orientation_path else None
     except Exception as exc:  # pragma: no cover - worker guard
         logger.exception("Worker failed for iteration %d", iteration)
-        return empty_row(int(iteration), str(exc)), None, None, None
+        return empty_row(int(iteration), str(exc)), None
 
 
 def compute_run_convergence(
@@ -123,17 +105,16 @@ def compute_run_convergence(
 
     output_csv = output_csv.expanduser().resolve()
     base_dir = output_csv.parent
-    orientation_dir = base_dir / f"{output_csv.stem}_orientation_cdf"
-    john_center_dir = base_dir / f"{output_csv.stem}_john_center"
-    cheby_center_dir = base_dir / f"{output_csv.stem}_chebyshev_center"
+    orientation_file = base_dir / f"{output_csv.stem}_orientation_cdf.json"
 
     iterations_csv = run_dir / "iterations.csv"
     if not iterations_csv.is_file():
         raise FileNotFoundError(f"Missing iterations.csv in {run_dir}")
 
     iterations = read_iterations_csv(iterations_csv)
-    total_iterations = max(iterations) + 1
-    index_width = max(4, len(str(max(iterations))))
+    last_iteration = max(iterations)
+    total_iterations = last_iteration + 1
+    index_width = max(4, len(str(last_iteration)))
 
     A_full, b_full = load_final_constraints(run_dir)
     if b_full.shape[0] != A_full.shape[0]:
@@ -159,9 +140,8 @@ def compute_run_convergence(
             logger.debug("Iteration %d skipped (insufficient constraints)", iteration)
             rows_map[iteration] = empty_row(iteration, "insufficient constraints")
             continue
-        orientation_path = orientation_dir / f"iteration_{iteration:0{index_width}d}.json"
-        john_center_path = john_center_dir / f"iteration_{iteration:0{index_width}d}.json"
-        cheby_center_path = cheby_center_dir / f"iteration_{iteration:0{index_width}d}.json"
+        is_last = iteration == last_iteration
+        orientation_path = orientation_file if is_last else None
         payload = (
             iteration,
             np.asarray(Ai, dtype=float),
@@ -175,9 +155,8 @@ def compute_run_convergence(
             epsilon_seed + iteration,
             num_pairs,
             orientation_grid_size,
-            str(orientation_path),
-            str(john_center_path),
-            str(cheby_center_path),
+            str(orientation_path) if orientation_path else None,
+            is_last,
             log_level,
         )
         pending_payloads.append(payload)
@@ -193,10 +172,8 @@ def compute_run_convergence(
         for payload in pending_payloads:
             iteration = int(payload[0])
             logger.debug("Processing iteration %d sequentially", iteration)
-            row, orient_path, john_path, cheby_path = _compute_iteration_job(payload)
+            row, orient_path = _compute_iteration_job(payload)
             row["orientation_cdf_path"] = relativize_path(orient_path, base_dir)
-            row["john_center_path"] = relativize_path(john_path, base_dir)
-            row["cheby_center_path"] = relativize_path(cheby_path, base_dir)
             rows_map[iteration] = row
             if progress is not None:
                 progress.update()
@@ -210,10 +187,8 @@ def compute_run_convergence(
             for future in concurrent.futures.as_completed(future_to_iter):
                 iteration = future_to_iter[future]
                 try:
-                    row, orient_path, john_path, cheby_path = future.result()
+                    row, orient_path = future.result()
                     row["orientation_cdf_path"] = relativize_path(orient_path, base_dir)
-                    row["john_center_path"] = relativize_path(john_path, base_dir)
-                    row["cheby_center_path"] = relativize_path(cheby_path, base_dir)
                     rows_map[iteration] = row
                 except Exception as exc:  # pragma: no cover - defensive
                     logger.exception("Parallel worker crashed for iteration %d", iteration)
@@ -231,25 +206,13 @@ def compute_run_convergence(
 
     fieldnames = [
         "iteration",
-        "rho_hat",
-        "var_hat",
-        "lambda_hat",
-        "john_vol",
-        "cheby_ball_vol",
-        "cheby_radius",
-        "r_max_from_a",
-        "r_min_from_a",
         "sphericity",
-        "ks_stat",
-        "ks_p_value",
         "median_cosine_distance",
         "expected_theta",
         "rho_from_theta",
         "varR_over_V2_from_theta",
         "varV_over_V2_from_theta",
         "orientation_cdf_path",
-        "john_center_path",
-        "cheby_center_path",
         "error",
     ]
 

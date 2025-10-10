@@ -7,7 +7,7 @@ import json
 import math
 from dataclasses import asdict
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 
@@ -126,11 +126,15 @@ def clean_for_json(value):
 
 
 def stats_to_row(iteration: int, stats: ConvergenceStats) -> Dict[str, object]:
-    payload = asdict(stats)
-    payload.pop("orientation_cdf", None)
-    payload = clean_for_json(payload)
+    cleaned = clean_for_json(
+        {
+            "sphericity": stats.sphericity,
+            "median_cosine_distance": stats.median_cosine_distance,
+            "expected_theta": stats.expected_theta,
+        }
+    )
 
-    theta = payload.get("expected_theta")
+    theta = cleaned.get("expected_theta")
     if theta is not None:
         alpha = (2.0 / math.pi) * theta
         rho_from_theta = 1.0 - (theta / math.pi)
@@ -143,53 +147,28 @@ def stats_to_row(iteration: int, stats: ConvergenceStats) -> Dict[str, object]:
 
     row: Dict[str, object] = {
         "iteration": iteration,
-        "rho_hat": payload.get("rho_hat"),
-        "var_hat": payload.get("var_hat"),
-        "lambda_hat": payload.get("lambda_hat"),
-        "john_vol": payload.get("john_vol"),
-        "cheby_ball_vol": payload.get("cheby_ball_vol"),
-        "cheby_radius": payload.get("cheby_radius"),
-        "r_max_from_a": payload.get("r_max_from_a"),
-        "r_min_from_a": payload.get("r_min_from_a"),
-        "sphericity": payload.get("sphericity"),
-        "ks_stat": payload.get("ks_stat"),
-        "ks_p_value": payload.get("ks_p_value"),
-        "median_cosine_distance": payload.get("median_cosine_distance"),
-        "expected_theta": payload.get("expected_theta"),
+        "sphericity": cleaned.get("sphericity"),
+        "median_cosine_distance": cleaned.get("median_cosine_distance"),
+        "expected_theta": theta,
         "rho_from_theta": rho_from_theta,
         "varR_over_V2_from_theta": varR_over_V2,
         "varV_over_V2_from_theta": varV_over_V2,
         "orientation_cdf_path": None,
-        "john_center_path": None,
-        "cheby_center_path": None,
+        "error": "",
     }
-
-    row["error"] = ""
     return row
 
 
 def empty_row(iteration: int, error: str) -> Dict[str, object]:
     return {
         "iteration": iteration,
-        "rho_hat": None,
-        "var_hat": None,
-        "lambda_hat": None,
-        "john_vol": None,
-        "cheby_ball_vol": None,
-        "cheby_radius": None,
-        "r_max_from_a": None,
-        "r_min_from_a": None,
         "sphericity": None,
-        "ks_stat": None,
-        "ks_p_value": None,
         "median_cosine_distance": None,
         "expected_theta": None,
         "rho_from_theta": None,
         "varR_over_V2_from_theta": None,
         "varV_over_V2_from_theta": None,
         "orientation_cdf_path": None,
-        "john_center_path": None,
-        "cheby_center_path": None,
         "error": error,
     }
 
@@ -228,38 +207,6 @@ def write_orientation_cdf(
     return output_path
 
 
-def write_center_vector(
-    iteration: int,
-    output_path: Path | None,
-    values: Sequence[float] | None,
-    key: str,
-) -> Path | None:
-    if output_path is None or values is None:
-        return None
-
-    payload = {
-        "iteration": iteration,
-        key: clean_for_json(list(values)),
-    }
-
-    try:
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        with output_path.open("w", encoding="utf-8") as handle:
-            json.dump(payload, handle, separators=(",", ":"))
-    except OSError as exc:  # pragma: no cover - filesystem failures
-        import logging
-
-        logging.getLogger(__name__).warning(
-            "Failed to write %s for iteration %d: %s",
-            key,
-            iteration,
-            exc,
-        )
-        return None
-
-    return output_path
-
-
 def relativize_path(path_str: str | None, base_dir: Path) -> str | None:
     if not path_str:
         return None
@@ -280,6 +227,5 @@ __all__ = [
     "read_iterations_csv",
     "relativize_path",
     "stats_to_row",
-    "write_center_vector",
     "write_orientation_cdf",
 ]
