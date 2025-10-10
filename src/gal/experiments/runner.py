@@ -7,7 +7,7 @@ import logging
 import secrets
 import time
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any, Dict, Iterable, List, Mapping, Tuple
 
 import numpy as np
 
@@ -294,8 +294,21 @@ def _prepare_capacity_space(
 
 
 def _choose_center(cfg: ALConfig) -> Tuple[Any, str]:
-    name = str(cfg.get("experiment", "center_name", default=cfg.get("global", "center", default="analytic")))
-    return _center_fn(name), name
+    name = str(
+        cfg.get(
+            "experiment",
+            "center_name",
+            default=cfg.get("global", "center", default="analytic"),
+        )
+    )
+    raw_params = cfg.get("experiment", "center_params", default=None)
+    if raw_params is None:
+        params: Mapping[str, Any] = {}
+    elif isinstance(raw_params, Mapping):
+        params = raw_params
+    else:
+        raise ValueError("experiment.center_params must be a mapping when provided")
+    return _center_fn(name, **dict(params)), name
 
 
 def _build_tree(cfg: ALConfig, X: np.ndarray) -> Tuple[Any, str, str]:

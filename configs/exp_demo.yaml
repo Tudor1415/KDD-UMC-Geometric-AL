@@ -15,8 +15,13 @@ logging:
 
 experiment:
   additivity_k: 2
-  center_name: chebyshev
-  active_learning_budget: 25
+  center_name: centroid
+  center_params:
+    pool_size: 2048
+    burn_in: 20
+    thinning: 2
+    seed: 1729
+  active_learning_budget: 100
   tau_max: 1.0e-5
   tau_radius_multiplier: 0.5
 
@@ -24,14 +29,13 @@ trees:
   ball:
     method: pca_ballstar
     config:
-      leaf_size: 25
+      leaf_size: 100
 
 algorithm_parameters:
   search_strategy: lower_bound
 
 oracle:
-  type: objective
-  measure: phi
+  type: surprise
 
 datasets:
   - name: mushroom

@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import numpy as np
 import cvxpy as cp
-from typing import Tuple
+from typing import Tuple, Any, Dict
 
 """poly_centers.py
 Utility functions to compute various geometric “centres’’ of a convex polyhedron
@@ -17,7 +19,9 @@ analytical_center(A, b, eps)
 minkowski_center(A, b)
     Minkowski (Helly) centre via Belloni‑Freund robust LP reformulation.
 volumetric_center(A, b)
-    Centre of the maximum‑volume inscribed ellipsoid (John/volumetric centre).
+    Centre of the maximum-volume inscribed ellipsoid (John/volumetric centre).
+hit_and_run_centroid(A, b, ...)
+    Approximate centroid via hit-and-run Monte Carlo sampling.
 max_inscribed_ball_radius(A, b, c)
     Radius of the largest ball with fixed centre c contained in P.
 
@@ -33,6 +37,7 @@ __all__ = [
     "minkowski_center",
     "volumetric_center",
     "mse_center",
+    "hit_and_run_centroid",
     "_center_fn",
     "_chebyshev_radius",
 ]
@@ -198,20 +203,165 @@ def mse_center(
 # -----------------------------------------------------------------------------
 
 
-def _center_fn(name: str):
+def _hit_and_run_samples(
+    A: np.ndarray,
+    b: np.ndarray,
+    anchor: np.ndarray,
+    *,
+    pool_size: int,
+    burn_in: int,
+    thinning: int,
+    seed: int,
+    tol: float = 1e-12,
+) -> np.ndarray:
+    """Draw uniform samples from the bounded polytope via hit-and-run MCMC."""
+
+    rng = np.random.default_rng(seed)
+    x = anchor.astype(float, copy=True)
+    d = x.size
+    samples = []
+    Ax = A @ x
+    steps = 0
+
+    while len(samples) < pool_size:
+        direction = rng.normal(size=d)
+        norm = np.linalg.norm(direction)
+        if norm <= tol:
+            continue
+        direction /= norm
+        Ad = A @ direction
+
+        upper = np.inf
+        lower = -np.inf
+        positive = Ad > tol
+        if np.any(positive):
+            upper = np.min((b[positive] - Ax[positive]) / Ad[positive])
+        negative = Ad < -tol
+        if np.any(negative):
+            lower = np.max((b[negative] - Ax[negative]) / Ad[negative])
+        if not np.isfinite(upper) or not np.isfinite(lower):
+            raise ValueError(
+                "Hit-and-run detected unbounded direction; check that the polytope is bounded."
+            )
+        if upper < lower:
+            # Numerical instability – reject this direction.
+            continue
+        step = rng.uniform(lower, upper)
+        x = x + step * direction
+        Ax = Ax + step * Ad
+        steps += 1
+        if steps <= burn_in:
+            continue
+        if (steps - burn_in) % max(thinning, 1) == 0:
+            samples.append(x.copy())
+    return np.vstack(samples)
+
+
+def hit_and_run_centroid(
+    A: np.ndarray,
+    b: np.ndarray,
+    *,
+    anchor: np.ndarray | None = None,
+    pool_size: int = 4096,
+    burn_in: int | None = None,
+    thinning: int = 1,
+    seed: int | None = None,
+    tol: float = 1e-12,
+) -> np.ndarray:
+    """Approximate the centroid of a bounded polyhedron using hit-and-run samples."""
+
+    A = np.asarray(A, dtype=float)
+    b = np.asarray(b, dtype=float).reshape(-1)
+
+    if A.ndim != 2:
+        raise ValueError("A must be a 2-D array of shape (m, n).")
+    m, n = A.shape
+    if b.shape[0] != m:
+        raise ValueError("b must have length equal to the number of rows of A.")
+
+    if pool_size <= 0:
+        raise ValueError("pool_size must be positive.")
+    if burn_in is None:
+        burn_in = max(pool_size, 10 * n)
+    if burn_in < 0:
+        raise ValueError("burn_in must be non-negative.")
+    if thinning <= 0:
+        raise ValueError("thinning must be positive.")
+
+    if anchor is None:
+        center, radius = chebyshev_center(A, b)
+        if radius <= tol:
+            raise ValueError("Failed to find a strict interior point for hit-and-run sampling.")
+        anchor_vec = np.asarray(center, dtype=float).reshape(-1)
+    else:
+        anchor_vec = np.asarray(anchor, dtype=float).reshape(-1)
+    if anchor_vec.size != n:
+        raise ValueError("anchor dimension must match the number of columns of A.")
+
+    margin = b - A @ anchor_vec
+    if np.any(margin <= tol):
+        raise ValueError("anchor must lie strictly inside the polytope (A @ anchor < b).")
+
+    if seed is None:
+        seed = int(np.random.default_rng().integers(0, 2**63 - 1))
+
+    samples = _hit_and_run_samples(
+        A,
+        b,
+        anchor_vec,
+        pool_size=pool_size,
+        burn_in=burn_in,
+        thinning=thinning,
+        seed=seed,
+        tol=tol,
+    )
+    return np.asarray(np.mean(samples, axis=0), dtype=float)
+
+
+def _ensure_no_params(center: str, options: Dict[str, Any]) -> None:
+    if options:
+        keys = ", ".join(sorted(str(k) for k in options))
+        raise ValueError(
+            f"Center '{center}' does not accept parameters (got: {keys})."
+        )
+
+
+def _validate_hit_and_run_options(options: Dict[str, Any]) -> Dict[str, Any]:
+    allowed = {"anchor", "pool_size", "burn_in", "thinning", "seed", "tol"}
+    invalid = sorted(set(options) - allowed)
+    if invalid:
+        raise ValueError(
+            "Unsupported parameters for hit-and-run centroid: "
+            + ", ".join(str(k) for k in invalid)
+        )
+    return dict(options)
+
+
+def _center_fn(name: str, **options: Any):
     key = str(name).strip().lower()
     if key in {"chebyshev", "chebyshev_center"}:
+        _ensure_no_params("chebyshev", options)
         return _chebyshev_center_wrapper
     if key in {"analytic", "analytical", "analytic_center"}:
+        _ensure_no_params("analytic", options)
         return _analytic_center_wrapper
     if key in {"minkowski", "minkowski_center"}:
+        _ensure_no_params("minkowski", options)
         return _minkowski_center_wrapper
     if key in {"volumetric", "john", "john_center", "volumetric_center"}:
+        _ensure_no_params("volumetric", options)
         return _volumetric_center_wrapper
     if key in {"zero", "origin"}:
+        _ensure_no_params("zero", options)
         return _zero_center_wrapper
+    if key in {"centroid", "hit_and_run", "hit_and_run_centroid"}:
+        params = _validate_hit_and_run_options(options)
+        return lambda A, b: _hit_and_run_centroid_wrapper(A, b, **params)
     raise ValueError(
-        f"Unknown center '{name}'. Available: chebyshev, analytic, minkowski, volumetric, zero"
+        (
+            "Unknown center '{name}'. Available: chebyshev, analytic, "
+            "minkowski, volumetric, centroid, zero"
+        ).format(name=name)
     )
 
 
@@ -250,6 +400,13 @@ def _volumetric_center_wrapper(A: np.ndarray, b: np.ndarray) -> np.ndarray:
         return np.zeros(dim, dtype=float)
     center, _ = volumetric_center(A, b)
     return np.asarray(center, dtype=float).reshape(-1)
+
+
+def _hit_and_run_centroid_wrapper(A: np.ndarray, b: np.ndarray, **kwargs: Any) -> np.ndarray:
+    if A.size == 0:
+        dim = A.shape[1] if A.ndim == 2 else 0
+        return np.zeros(dim, dtype=float)
+    return hit_and_run_centroid(A, b, **kwargs)
 
 
 def _chebyshev_radius(A: np.ndarray, b: np.ndarray, center: np.ndarray) -> float:

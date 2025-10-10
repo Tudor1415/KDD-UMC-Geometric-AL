@@ -7,8 +7,10 @@ computes ranking metrics for three summaries: top10, top1pct, top5pct.
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import csv
 import json
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Mapping
@@ -21,6 +23,9 @@ from gal.experiments.config import ALConfig, dataset_entry_from_cfg
 from gal.oracles.oracles import MDLOracle, ObjectiveMeasureOracle, Oracle, SumOracle, SurpriseOracle
 
 
+logger = logging.getLogger(__name__)
+
+
 @dataclass
 class Inputs:
     run_dir: Path
@@ -28,6 +33,7 @@ class Inputs:
     rules_override: Path | None
     transactions_override: Path | None
     out_csv: Path
+    jobs: int
 
 
 def parse_args() -> Inputs:
@@ -42,6 +48,12 @@ def parse_args() -> Inputs:
         help="Override transactions CSV (defaults to config entry)",
     )
     parser.add_argument("--out", type=Path, default=None, help="Output CSV path (default: <run_dir>/ranking_stats.csv)")
+    parser.add_argument(
+        "--jobs",
+        type=int,
+        default=1,
+        help="Parallel worker threads for per-iteration ranking stats (1 disables parallelism)",
+    )
     args = parser.parse_args()
 
     run_dir = args.run_dir
@@ -56,6 +68,7 @@ def parse_args() -> Inputs:
         rules_override=args.rules,
         transactions_override=args.transactions,
         out_csv=out_csv,
+        jobs=max(1, int(args.jobs)),
     )
 
 
@@ -302,18 +315,27 @@ def compute_ranking(inp: Inputs) -> Path:
     iterations = _list_iterations(inp.run_dir)
 
     rows: List[Dict[str, Any]] = []
+    rows_map: Dict[int, Dict[str, Any]] = {}
 
-    for it in iterations:
-        center, radius, tau = _load_center(inp.run_dir, it, X.shape[1])
+    def process_iteration(it: int) -> Dict[str, Any] | None:
+        try:
+            center, radius, tau = _load_center(inp.run_dir, it, X.shape[1])
+        except SystemExit as exc:
+            exc_code = exc.code
+            message = exc_code if isinstance(exc_code, str) else str(exc)
+            if message and "Missing center model" in message:
+                logger.warning("Skipping iteration %d due to missing center model: %s", it, message)
+                return None
+            raise
+
         pred_scores = X @ center
+        n = X.shape[0]
 
         row: Dict[str, Any] = {"iteration": it}
         top10_ap, top10_rec, top10_ndcg = _compute_metrics(pred_scores, oracle_scores, 10)
         row["top10_ap"] = top10_ap
         row["top10_recall"] = top10_rec
         row["top10_ndcg"] = top10_ndcg
-
-        n = X.shape[0]
 
         k1 = max(1, int(np.ceil(0.01 * n)))
         top1pct_ap, top1pct_rec, top1pct_ndcg = _compute_metrics(pred_scores, oracle_scores, k1)
@@ -329,7 +351,29 @@ def compute_ranking(inp: Inputs) -> Path:
 
         row["radius"] = radius if radius is not None else ""
         row["tau"] = tau if tau is not None else ""
-        rows.append(row)
+        return row
+
+    if inp.jobs == 1:
+        for it in iterations:
+            row = process_iteration(it)
+            if row is not None:
+                rows_map[it] = row
+    else:
+        logger.info("Computing ranking metrics with %d worker threads", inp.jobs)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=inp.jobs) as executor:
+            future_to_iter = {executor.submit(process_iteration, it): it for it in iterations}
+            for future in concurrent.futures.as_completed(future_to_iter):
+                iteration = future_to_iter[future]
+                try:
+                    row = future.result()
+                    if row is not None:
+                        rows_map[iteration] = row
+                except Exception as exc:  # pragma: no cover - defensive
+                    logger.exception("Ranking computation failed for iteration %d", iteration)
+
+    for it in iterations:
+        if it in rows_map:
+            rows.append(rows_map[it])
 
     headers = [
         "iteration",

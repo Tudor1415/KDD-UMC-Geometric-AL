@@ -80,9 +80,33 @@ def learning_loop(
     # Init version space
     A = np.asarray(A0, dtype=float).copy()
     b = np.asarray(b0, dtype=float).copy()
-    center_proj = np.asarray(center_fn(A, b), dtype=float)
-    center_full = space.expand_center(center_proj)
-    radius = _chebyshev_radius(A, b, center_proj)
+
+    logger = logging.getLogger(__name__)
+
+    def _compute_center_state(iter_idx: Optional[int] = None) -> Optional[Tuple[np.ndarray, np.ndarray, float]]:
+        """Return the projected/expanded center and radius or log and abort."""
+
+        try:
+            proj = np.asarray(center_fn(A, b), dtype=float)
+        except ValueError as exc:
+            phase = "initialisation" if iter_idx is None else f"iteration {iter_idx}"
+            logger.error(
+                "Failed to compute center during %s: %s. Stopping learning loop.",
+                phase,
+                exc,
+            )
+            return None
+        full = space.expand_center(proj)
+        radius_val = _chebyshev_radius(A, b, proj)
+        return proj, full, radius_val
+
+    initial_state = _compute_center_state()
+    if initial_state is None:
+        it_csv.close()
+        _finalize_version_space_npz(exp_dir, A, b)
+        return A, b
+
+    center_proj, center_full, radius = initial_state
 
     engine = _ensure_search_engine(engine, search_strategy, X)
     register_query = getattr(engine.strategy, "register_queries", None)
@@ -145,10 +169,23 @@ def learning_loop(
             A = np.vstack([A, proj_row.reshape(1, -1)])
             b = np.concatenate([b, np.array([proj_rhs], dtype=float)])
 
-            center_proj = np.asarray(center_fn(A, b), dtype=float)
-            center_full = space.expand_center(center_proj)
-        
-        radius = _chebyshev_radius(A, b, center_proj)
+            updated_state = _compute_center_state(iter_idx=it)
+            if updated_state is None:
+                _record_query_npz(
+                    it=it,
+                    diff=diff,
+                    q_dir=q_dir,
+                    csv_writer=csv_writer,
+                    y=int(y),
+                    i=int(i),
+                    j=int(j),
+                    t_start=t_start,
+                )
+                break
+
+            center_proj, center_full, radius = updated_state
+        else:
+            radius = _chebyshev_radius(A, b, center_proj)
 
         _record_query_npz(
             it=it,
