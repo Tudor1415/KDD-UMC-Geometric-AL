@@ -7,7 +7,7 @@ import math
 from typing import List, Tuple
 
 import numpy as np
-from scipy import special, stats
+from scipy import special
 
 from src.gal.centers.poly_centers import (
     chebyshev_center as _poly_chebyshev_center,
@@ -55,7 +55,8 @@ def orientation_stats(
     anchor: np.ndarray,
     *,
     grid_size: int,
-) -> Tuple[List[OrientationCDFEntry], float, float]:
+    collect_entries: bool = True,
+) -> List[OrientationCDFEntry]:
     normals = A.astype(float, copy=False)
     norms = np.linalg.norm(normals, axis=1)
     valid = norms > 0
@@ -77,8 +78,11 @@ def orientation_stats(
     projections = projections[mask]
     proj_norms = proj_norms[mask]
     if projections.size == 0:
-        entries = [OrientationCDFEntry(float(t), float("nan"), float("nan")) for t in np.linspace(0, math.pi, grid_size)]
-        return entries, float("nan"), float("nan")
+        entries = [
+            OrientationCDFEntry(float(t), float("nan"), float("nan"))
+            for t in np.linspace(0, math.pi, grid_size)
+        ] if collect_entries else []
+        return entries
 
     vectors = projections / proj_norms[:, None]
     cov = vectors.T @ vectors
@@ -91,12 +95,15 @@ def orientation_stats(
     angles = np.arccos(np.clip(vectors @ u0, -1.0, 1.0))
     s = anchor.size - 1
     if s < 2:
-        grid = np.linspace(0.0, math.pi, grid_size)
-        entries = [
-            OrientationCDFEntry(float(tau), float(np.mean(angles <= tau)), float("nan"))
-            for tau in grid
-        ]
-        return entries, float("nan"), float("nan")
+        if collect_entries:
+            grid = np.linspace(0.0, math.pi, grid_size)
+            entries = [
+                OrientationCDFEntry(float(tau), float(np.mean(angles <= tau)), float("nan"))
+                for tau in grid
+            ]
+        else:
+            entries = []
+        return entries
 
     def _null_cdf(theta: np.ndarray, s: int) -> np.ndarray:
         a = (s - 1) / 2.0
@@ -108,18 +115,14 @@ def orientation_stats(
         F = np.where(th <= np.pi/2, F, 1.0 - F)
         return F
 
-    u = _null_cdf(angles, anchor.size - 1)
-    ks_res = stats.kstest(u, "uniform")
-    ks_stat = float(ks_res.statistic)
-    ks_p_value = float(ks_res.pvalue)
-
-    grid = np.linspace(0.0, math.pi, grid_size)
     entries: List[OrientationCDFEntry] = []
-    for tau in grid:
-        empirical = float(np.mean(angles <= tau))
-        null = float(_null_cdf(np.array([tau]), anchor.size - 1)[0])
-        entries.append(OrientationCDFEntry(float(tau), empirical, null))
-    return entries, ks_stat, ks_p_value
+    if collect_entries:
+        grid = np.linspace(0.0, math.pi, grid_size)
+        for tau in grid:
+            empirical = float(np.mean(angles <= tau))
+            null = float(_null_cdf(np.array([tau]), anchor.size - 1)[0])
+            entries.append(OrientationCDFEntry(float(tau), empirical, null))
+    return entries
 
 
 def median_pairwise_cosine_distance(
@@ -310,21 +313,20 @@ def compute_all_stats(
         seed=hr_seed,
     )
 
+    orientation_score = float("nan")
     if collect_orientation:
         try:
-            orientation_cdf, ks_stat, _ = orientation_stats(
+            orientation_cdf = orientation_stats(
                 A_fd,
                 anchor_y,
                 grid_size=orientation_grid_size,
+                collect_entries=collect_orientation,
             )
-            orientation_score = float(ks_stat)
         except Exception as exc:
             logger.warning("Orientation statistics failed: %s", exc)
             orientation_cdf = []
-            orientation_score = float("nan")
     else:
         orientation_cdf = []
-        orientation_score = float("nan")
     median_cos = median_pairwise_cosine_distance(A_fd, num_pairs=num_pairs, seed=epsilon_seed)
     theta_mean = expected_pairwise_angle(
         samples,

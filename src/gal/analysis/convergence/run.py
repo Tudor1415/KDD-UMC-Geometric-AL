@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import concurrent.futures
 import csv
+import math
 import json
 import logging
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Sequence, Tuple
 
 import numpy as np
 
@@ -25,6 +26,89 @@ from .progress import ProgressBar
 from .statistics import compute_all_stats
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_first_finite(value: object) -> float | None:
+    try:
+        arr = np.asarray(value, dtype=float).reshape(-1)
+    except Exception:
+        return None
+    for item in arr:
+        val = float(item)
+        if math.isfinite(val):
+            return val
+    return None
+
+
+def _load_orientation_scores_from_queries(
+    run_dir: Path,
+    iterations: Sequence[int],
+) -> Dict[int, float]:
+    scores: Dict[int, float] = {int(it): float("nan") for it in iterations}
+    q_dir = run_dir / "queries"
+    if not q_dir.is_dir():
+        logger.debug("Queries directory %s missing; orientation scores default to NaN", q_dir)
+        return scores
+
+    for iteration in iterations:
+        query_path = q_dir / f"query_{int(iteration):03d}.npz"
+        if not query_path.is_file():
+            logger.debug("Query file %s missing; orientation score set to NaN", query_path)
+            continue
+        try:
+            with np.load(query_path) as data:
+                extracted: float | None = None
+                for key in ("orientation_score", "orientation", "score"):
+                    if key in data.files:
+                        extracted = _extract_first_finite(data[key])
+                    if extracted is not None:
+                        break
+                if extracted is not None:
+                    scores[int(iteration)] = extracted
+                else:
+                    logger.debug(
+                        "Orientation score not found in %s; leaving NaN",
+                        query_path,
+                    )
+        except Exception as exc:  # pragma: no cover - defensive I/O guard
+            logger.debug(
+                "Failed to read orientation score from %s: %s",
+                query_path,
+                exc,
+            )
+    return scores
+
+
+def _load_orientation_scores_from_iterations_csv(
+    iterations_csv: Path,
+    iterations: Sequence[int],
+) -> Dict[int, float]:
+    scores: Dict[int, float] = {int(it): float("nan") for it in iterations}
+    if not iterations_csv.is_file():
+        return scores
+
+    with iterations_csv.open("r", encoding="utf-8", newline="") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            token = row.get("iteration_id")
+            if token is None or token == "":
+                continue
+            try:
+                idx = int(token)
+            except ValueError:
+                continue
+            if idx not in scores:
+                continue
+            raw_orient = row.get("orientation_score")
+            if raw_orient in (None, ""):
+                continue
+            try:
+                value = float(raw_orient)
+            except ValueError:
+                continue
+            if math.isfinite(value):
+                scores[idx] = value
+    return scores
 
 
 def _compute_iteration_job(
@@ -115,7 +199,6 @@ def compute_run_convergence(
     iterations = read_iterations_csv(iterations_csv)
     last_iteration = max(iterations)
     total_iterations = last_iteration + 1
-    index_width = max(4, len(str(last_iteration)))
 
     A_full, b_full = load_final_constraints(run_dir)
     if b_full.shape[0] != A_full.shape[0]:
@@ -201,10 +284,6 @@ def compute_run_convergence(
     if progress is not None:
         progress.close()
 
-    rows: List[Dict[str, object]] = []
-    for iteration in iterations:
-        rows.append(rows_map.get(iteration, empty_row(iteration, "missing result")))
-
     config_path = run_dir / "config.json"
     orientation_enabled = False
     if config_path.exists():
@@ -214,9 +293,24 @@ def compute_run_convergence(
         except Exception:
             orientation_enabled = False
 
-    if not orientation_enabled:
-        for row in rows:
+    orientation_map: Dict[int, float] = {}
+    if orientation_enabled:
+        orientation_map = _load_orientation_scores_from_queries(run_dir, iterations)
+        if not any(math.isfinite(val) for val in orientation_map.values()):
+            logger.debug(
+                "Orientation alignment enabled but queries yielded no finite orientation scores",
+            )
+
+    rows: List[Dict[str, object]] = []
+    for iteration in iterations:
+        row = rows_map.get(iteration, empty_row(iteration, "missing result"))
+        print(orientation_enabled)
+        print(orientation_map.get(iteration, float("nan")))
+        if orientation_enabled:
+            row["orientation_score"] = orientation_map.get(iteration, float("nan"))
+        else:
             row.pop("orientation_score", None)
+        rows.append(row)
 
     fieldnames = [
         "iteration",
@@ -241,6 +335,16 @@ def compute_run_convergence(
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         for row in rows:
+            if orientation_enabled:
+                value = row.get("orientation_score")
+                if value is None:
+                    row["orientation_score"] = ""
+                else:
+                    try:
+                        val_float = float(value)
+                        row["orientation_score"] = "" if not math.isfinite(val_float) else val_float
+                    except (TypeError, ValueError):
+                        row["orientation_score"] = ""
             writer.writerow(row)
 
     return output_csv

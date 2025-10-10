@@ -26,6 +26,7 @@ from typing import Any, Callable, Optional, Tuple
 from pathlib import Path
 import time
 import logging
+import math
 
 from gal.centers import _chebyshev_radius
 import numpy as np
@@ -161,6 +162,7 @@ def learning_loop(
             collect_events=collect_events,
             use_gpu=use_gpu,
         )
+        best_orientation = stats.get("best_orientation") if isinstance(stats, dict) else None
 
         iter_dir = _log_iteration(
             it,
@@ -183,6 +185,11 @@ def learning_loop(
 
         q_a, q_b = X[int(i)], X[int(j)]
         diff = q_a - q_b
+
+        best_orientation = stats.get("best_orientation") if isinstance(stats, dict) else None
+        orientation_score: Optional[float]
+        if best_orientation is not None and math.isfinite(float(best_orientation)):
+            orientation_score = float(best_orientation)
 
         if callable(register_query):
             register_query(np.vstack([q_a, q_b]))
@@ -209,6 +216,7 @@ def learning_loop(
                     i=int(i),
                     j=int(j),
                     t_start=t_start,
+                    orientation_score=orientation_score,
                 )
                 break
 
@@ -225,6 +233,7 @@ def learning_loop(
             i=int(i),
             j=int(j),
             t_start=t_start,
+            orientation_score=orientation_score,
         )
         _save_center_snapshot(iter_dir, center_full, float(radius), float(tau))
 
