@@ -14,10 +14,10 @@ logging:
   search_events: true     # record search_trace.npz per iteration
 
 experiment:
-  additivity_k: 1
+  additivity_k: 2
   center_name: chebyshev
   active_learning_budget: 100
-  align_orientation: false
+  align_orientation: true
   tau_max: 1.0e-7
   tau_radius_multiplier: 0.1
   use_gpu: true

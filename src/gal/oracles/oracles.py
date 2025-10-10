@@ -2,13 +2,13 @@
 from __future__ import annotations
 
 import random
-from typing import Dict, Callable
+from collections.abc import Iterable, Sequence
+from typing import Callable, Dict, TypeVar
 from abc import ABC, abstractmethod
 
 import copy
 import numpy as np
 import pandas as pd
-from typing import TypeVar
 from gal.core.data import Dataset, Rule
 from .priors import PRIOR_FACTORY, Prior
 
@@ -119,7 +119,138 @@ class SumOracle(Oracle):
 
 
 # --------------------------------------------------------------------------- #
-# 3. Surprise oracle
+# 3. Choquet oracle (Möbius transform based)
+# --------------------------------------------------------------------------- #
+class ChoquetOracle(Oracle):
+    """Score rules via a discrete Choquet integral encoded by a Möbius vector.
+
+    Parameters
+    ----------
+    subsets : sequence of iterables, optional
+        Ordered list of non-empty subsets of the measure index set. Each subset
+        can be provided either as indices or measure names. The Möbius weight of
+        the *j*-th subset in this list is ``j + 1``. When omitted, singleton
+        subsets are used, in dataset order.
+    name : str, optional
+        Oracle identifier used in logs / tables.
+    """
+
+    def __init__(
+        self,
+        subsets: Sequence[Iterable[int | str]] | None = None,
+        *,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(name or "choquet-oracle")
+        self._raw_subsets = list(subsets) if subsets is not None else None
+        self._subset_indices: list[tuple[int, ...]] = []
+        self._weights: np.ndarray | None = None
+        self._measure_names: list[str] | None = None
+
+    # ------------------------------------------------------------ dataset hook
+    def set_dataset(self, dataset: Dataset) -> None:
+        super().set_dataset(dataset)
+        if not dataset.measures:
+            raise ValueError("ChoquetOracle requires the dataset to expose measures")
+
+        self._measure_names = [str(m) for m in dataset.measures]
+        n_measures = len(self._measure_names)
+        name_to_idx = {name: idx for idx, name in enumerate(self._measure_names)}
+
+        raw = self._raw_subsets
+        if raw is None:
+            subsets = [(i,) for i in range(n_measures)]
+        else:
+            if not isinstance(raw, Sequence):
+                raise TypeError("subsets must be a sequence of iterables")
+            subsets = []
+            for entry in raw:
+                if isinstance(entry, (int, str)):
+                    tokens: Iterable[int | str] = [entry]
+                elif isinstance(entry, Iterable):
+                    tokens = entry
+                else:
+                    raise TypeError(
+                        "Each subset must be an iterable of indices or measure names"
+                    )
+
+                indices: list[int] = []
+                for token in tokens:
+                    if isinstance(token, str):
+                        if token not in name_to_idx:
+                            raise ValueError(
+                                f"Unknown measure name '{token}' in subset specification"
+                            )
+                        indices.append(name_to_idx[token])
+                    elif isinstance(token, (int, np.integer)):
+                        idx = int(token)
+                        if not 0 <= idx < n_measures:
+                            raise ValueError(
+                                f"Measure index {idx} out of range for {n_measures} measures"
+                            )
+                        indices.append(idx)
+                    else:
+                        raise TypeError(
+                            "Subset entries must be integers or measure names"
+                        )
+
+                if not indices:
+                    raise ValueError("Subsets must be non-empty")
+
+                normalized = tuple(sorted(dict.fromkeys(indices)))
+                if not normalized:
+                    raise ValueError("Subsets must contain at least one unique measure")
+                subsets.append(normalized)
+
+        # drop duplicates whilst preserving order
+        seen: set[tuple[int, ...]] = set()
+        ordered: list[tuple[int, ...]] = []
+        for subset in subsets:
+            if subset not in seen:
+                seen.add(subset)
+                ordered.append(subset)
+
+        if not ordered:
+            raise ValueError("At least one subset is required for ChoquetOracle")
+
+        self._subset_indices = ordered
+        self._weights = np.arange(1, len(self._subset_indices) + 1, dtype=float)
+
+    # ------------------------------------------------------------ score single
+    def score(self, rule: Rule) -> float:
+        if self._measure_names is None or self._weights is None:
+            raise RuntimeError("ChoquetOracle dataset not set; call set_dataset() first")
+
+        values = np.array(
+            [float(rule["measures"][name]) for name in self._measure_names],
+            dtype=float,
+        )
+        total = 0.0
+        for weight, subset in zip(self._weights, self._subset_indices):
+            subset_vals = values[list(subset)]
+            total += float(weight) * float(np.min(subset_vals))
+        return float(total)
+
+    # ----------------------------------------------------------- score dataset
+    def score_dataset(self, dataset: Dataset) -> np.ndarray:
+        self._ensure_dataset()
+        if self._measure_names is None or self._weights is None:
+            raise RuntimeError("ChoquetOracle dataset not initialised")
+
+        matrix = dataset.df[self._measure_names].to_numpy(dtype=float, copy=False)
+        totals = np.zeros(matrix.shape[0], dtype=float)
+        for weight, subset in zip(self._weights, self._subset_indices):
+            subset_matrix = matrix[:, subset]
+            if subset_matrix.ndim == 1:
+                minima = subset_matrix
+            else:
+                minima = subset_matrix.min(axis=1)
+            totals += float(weight) * minima
+        return totals
+
+
+# --------------------------------------------------------------------------- #
+# 4. Surprise oracle
 # --------------------------------------------------------------------------- #
 class SurpriseOracle(Oracle):
     """
@@ -237,7 +368,7 @@ class SurpriseOracle(Oracle):
 
 
 # --------------------------------------------------------------------------- #
-# 4. MDL oracle  (using supportX / supportY column names)
+# 5. MDL oracle  (using supportX / supportY column names)
 # --------------------------------------------------------------------------- #
 class MDLOracle(Oracle):
     """
@@ -343,7 +474,7 @@ class MDLOracle(Oracle):
 
 
 # --------------------------------------------------------------------------- #
-# 5. Noisy oracle wrapper
+# 6. Noisy oracle wrapper
 # --------------------------------------------------------------------------- #
 class NoisyOracle(Oracle):
     def __init__(self, base_oracle: Oracle, noise_rate: float = 0.1):
@@ -364,7 +495,7 @@ class NoisyOracle(Oracle):
 
 
 # --------------------------------------------------------------------------- #
-# 6. Biased oracle wrapper
+# 7. Biased oracle wrapper
 # --------------------------------------------------------------------------- #
 class BiasedOracle(Oracle):
     def __init__(self, base_oracle: Oracle, bias_fn: Callable):

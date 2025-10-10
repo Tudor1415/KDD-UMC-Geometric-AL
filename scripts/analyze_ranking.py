@@ -11,16 +11,24 @@ import concurrent.futures
 import csv
 import json
 import logging
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping
+from typing import Any, Dict, List, Mapping
 
 import numpy as np
 from sklearn.metrics import average_precision_score, ndcg_score, recall_score
 
 from gal.core.data import Dataset, augment_with_minimums
 from gal.experiments.config import ALConfig, dataset_entry_from_cfg
-from gal.oracles.oracles import MDLOracle, ObjectiveMeasureOracle, Oracle, SumOracle, SurpriseOracle
+from gal.oracles.oracles import (
+    ChoquetOracle,
+    MDLOracle,
+    ObjectiveMeasureOracle,
+    Oracle,
+    SumOracle,
+    SurpriseOracle,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -219,6 +227,11 @@ def _build_oracle(cfg: ALConfig, ds: Dataset) -> Oracle:
         if not isinstance(prior_kwargs, dict):
             raise SystemExit("oracle.prior_kwargs must be a mapping")
         oracle = SurpriseOracle(prior_type=prior_type, **prior_kwargs)
+    elif otype == "choquet":
+        subsets = cfg.get("oracle", "subsets", default=None)
+        if subsets is not None and not isinstance(subsets, Iterable):
+            raise SystemExit("oracle.subsets must be iterable when provided")
+        oracle = ChoquetOracle(subsets=subsets)
     else:
         raise SystemExit(f"Unsupported oracle type '{otype}'")
 
