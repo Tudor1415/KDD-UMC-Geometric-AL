@@ -391,6 +391,7 @@ def run_orientation_search(
         key = (i_idx, j_idx) if i_idx <= j_idx else (j_idx, i_idx)
         search._seen_pairs.add(key)
         result = (*best_pair, best_distance)
+    
     return (*result, stats) if return_stats else result
 
 

@@ -61,7 +61,7 @@ def exact_leaf_eval(
             orient_unit = orient_vec / orient_norm
             diff_norm = xp.linalg.norm(diff, axis=2, keepdims=True)
             diff_safe = xp.where(diff_norm <= context.eps, diff, diff / diff_norm)
-            raw_scores = xp.tensordot(diff_safe, orient_unit, axes=(2, 0))
+            raw_scores = _tensordot(xp, diff_safe, orient_unit, axes=(2, 0))
             orientation_score = xp.where(
                 close_mask,
                 xp.full_like(raw_scores, float("-inf")),

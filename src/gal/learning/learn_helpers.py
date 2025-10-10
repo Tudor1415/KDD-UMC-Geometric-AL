@@ -5,21 +5,13 @@ import math
 import logging
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
 from gal.search.engine import Search
 from gal.search.strategies import get_strategy
 
-
-_DEFAULT_SOCP_SOLVERS: Tuple[str, ...] = (
-    "GUROBI",
-    "MOSEK",
-    "CLARABEL",
-    "ECOS",
-    "SCS",
-)
 
 
 def _init_streaming_outputs(exp_dir: Path) -> tuple[csv.writer, Any, Path]:
@@ -171,23 +163,14 @@ def _farthest_point_socp(
     b: np.ndarray,
     center: np.ndarray,
     *,
-    solver_sequence: Sequence[str] = _DEFAULT_SOCP_SOLVERS,
+    max_directions: int = 64,
+    atol: float = 1e-9,
 ) -> tuple[Optional[np.ndarray], Optional[float]]:
-    """Return the farthest feasible point from ``center`` using an SOCP.
-
-    Parameters
-    ----------
-    A, b:
-        Half-space representation of the feasible region ``A x <= b``.
-    center:
-        Interior reference point around which the Euclidean distance is maximised.
-    solver_sequence:
-        Preferred cvxpy solvers tried in order.
-    """
+    """Return the farthest feasible point from ``center`` using LP or fail gracefully."""
 
     A_mat = np.asarray(A, dtype=float)
     if A_mat.size == 0:
-        logging.getLogger(__name__).debug("Skipping farthest-point SOCP: empty constraint set")
+        logging.getLogger(__name__).debug("Skipping farthest-point search: empty constraint set")
         return None, None
 
     center_vec = np.asarray(center, dtype=float).reshape(-1)
@@ -200,34 +183,89 @@ def _farthest_point_socp(
         )
 
     try:
-        import cvxpy as cp  # type: ignore
+        from scipy.optimize import linprog
     except ImportError:
         logging.getLogger(__name__).warning(
-            "cvxpy not installed; skipping farthest-point SOCP computation"
+            "scipy not installed; skipping farthest-point computation"
         )
         return None, None
 
-    x = cp.Variable(center_vec.size)
-    radius = cp.Variable(nonneg=True)
-    anchor_vec = center_vec
-    constraints = [
-        A_mat @ x <= np.asarray(b, dtype=float).reshape(-1),
-        cp.norm(x - center_vec, 2) <= radius,
-        cp.sum(cp.multiply(x - anchor_vec, anchor_vec)) == 0,
-    ]
-    problem = cp.Problem(cp.Maximize(radius), constraints)
+    b_vec = np.asarray(b, dtype=float).reshape(-1)
+    dim = center_vec.size
+    if dim == 0:
+        return None, None
 
-    for solver in solver_sequence:
-        if solver not in cp.installed_solvers():
-            continue
-        try:
-            problem.solve(solver=solver, verbose=False)
-        except cp.error.SolverError:
-            continue
-        if problem.status in (cp.OPTIMAL, cp.OPTIMAL_INACCURATE) and x.value is not None:
-            return np.asarray(x.value, dtype=float).reshape(-1), float(radius.value)
+    def _normalize(vec: np.ndarray) -> Optional[np.ndarray]:
+        norm = float(np.linalg.norm(vec))
+        if norm <= atol:
+            return None
+        return vec / norm
 
-    logging.getLogger(__name__).warning(
-        "Farthest-point SOCP failed to converge; status=%s", problem.status
-    )
-    return None, None
+    unbounded_detected = False
+
+    def _lp(direction: np.ndarray) -> Optional[np.ndarray]:
+        nonlocal unbounded_detected
+        res = linprog(
+            -direction,
+            A_ub=A_mat,
+            b_ub=b_vec,
+            bounds=[(None, None)] * dim,
+            method="highs",
+        )
+        if res.status == 3:
+            logging.getLogger(__name__).warning(
+                "Farthest-point search encountered an unbounded LP direction"
+            )
+            unbounded_detected = True
+            return None
+        if not res.success or res.x is None:
+            logging.getLogger(__name__).debug(
+                "Farthest-point LP failed (status=%s message=%s)", res.status, res.message
+            )
+            return None
+        return np.asarray(res.x, dtype=float)
+
+    initial_dirs: List[np.ndarray] = []
+    for idx in range(dim):
+        e = np.zeros(dim, dtype=float)
+        e[idx] = 1.0
+        initial_dirs.append(e)
+        initial_dirs.append(-e)
+    normalized_center = _normalize(center_vec)
+    if normalized_center is not None:
+        initial_dirs.append(normalized_center)
+
+    queue: List[np.ndarray] = initial_dirs
+    seen: List[np.ndarray] = []
+    best_point: Optional[np.ndarray] = None
+    best_dist: float = 0.0
+    processed = 0
+
+    while queue and processed < max_directions:
+        direction = queue.pop(0)
+        unit_dir = _normalize(direction)
+        if unit_dir is None:
+            continue
+        if any(np.allclose(unit_dir, s, atol=1e-8) or np.allclose(unit_dir, -s, atol=1e-8) for s in seen):
+            continue
+        seen.append(unit_dir)
+        candidate = _lp(unit_dir)
+        processed += 1
+        if candidate is None:
+            continue
+        dist = float(np.linalg.norm(candidate - center_vec))
+        if dist <= best_dist + atol:
+            continue
+        best_point = candidate
+        best_dist = dist
+        improvement_dir = _normalize(candidate - center_vec)
+        if improvement_dir is not None:
+            queue.append(improvement_dir)
+
+    if best_point is None or best_dist <= atol:
+        return None, None
+
+    if unbounded_detected:
+        return None, None
+
+    return best_point, best_dist

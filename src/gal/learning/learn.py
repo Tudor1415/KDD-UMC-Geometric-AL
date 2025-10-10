@@ -187,7 +187,7 @@ def learning_loop(
         diff = q_a - q_b
 
         best_orientation = stats.get("best_orientation") if isinstance(stats, dict) else None
-        orientation_score: Optional[float]
+        orientation_score: Optional[float] = None
         if best_orientation is not None and math.isfinite(float(best_orientation)):
             orientation_score = float(best_orientation)
 

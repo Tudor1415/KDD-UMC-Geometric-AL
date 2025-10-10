@@ -43,7 +43,7 @@ class Search:
         tau: float = float("inf"),
         orientation: np.ndarray | None = None,
         maximize_orientation: bool = False,
-        return_stats: bool = False,
+        return_stats: bool = True,
         dominance_prune: bool = True,
         eps: float = 1e-12,
         time_checkpoints: Optional[Sequence[float]] = None,
@@ -75,6 +75,8 @@ class Search:
 
         root = tree.root if isinstance(tree, GeometricTree) else tree
 
+        logger.debug("Starting search with tau=%g, orientation=%s", tau, "enabled" if use_orientation else "disabled")
+        
         if not use_orientation:
             return run_default_search(
                 self,

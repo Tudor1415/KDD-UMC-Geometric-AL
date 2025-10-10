@@ -295,17 +295,20 @@ def compute_run_convergence(
 
     orientation_map: Dict[int, float] = {}
     if orientation_enabled:
-        orientation_map = _load_orientation_scores_from_queries(run_dir, iterations)
+        orientation_map = _load_orientation_scores_from_iterations_csv(iterations_csv, iterations)
         if not any(math.isfinite(val) for val in orientation_map.values()):
             logger.debug(
-                "Orientation alignment enabled but queries yielded no finite orientation scores",
+                "Iterations CSV provides no finite orientation scores; falling back to query files",
             )
+            orientation_map = _load_orientation_scores_from_queries(run_dir, iterations)
+            if not any(math.isfinite(val) for val in orientation_map.values()):
+                logger.debug(
+                    "Orientation alignment enabled but no finite orientation scores were located",
+                )
 
     rows: List[Dict[str, object]] = []
     for iteration in iterations:
         row = rows_map.get(iteration, empty_row(iteration, "missing result"))
-        print(orientation_enabled)
-        print(orientation_map.get(iteration, float("nan")))
         if orientation_enabled:
             row["orientation_score"] = orientation_map.get(iteration, float("nan"))
         else:

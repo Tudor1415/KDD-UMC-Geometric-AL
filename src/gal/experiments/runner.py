@@ -472,7 +472,16 @@ def _run_params(cfg: ALConfig) -> _RunParams:
     log_every = int(cfg.get("logging", "log_every", default=10) or 10)
     level_name = str(cfg.get("logging", "level", default="INFO")).upper()
     log_level = getattr(logging, level_name, logging.INFO)
-    align_orientation = bool(cfg.get("align_orientation", default=False))
+    raw_align_orientation = cfg.get("experiment", "align_orientation", default=None)
+    if raw_align_orientation is None:
+        raw_align_orientation = cfg.get("align_orientation", default=None)
+
+    if isinstance(raw_align_orientation, str):
+        align_orientation = raw_align_orientation.strip().lower() in {"1", "true", "yes", "on"}
+    elif raw_align_orientation is None:
+        align_orientation = False
+    else:
+        align_orientation = bool(raw_align_orientation)
     use_gpu = bool(cfg.get("experiment", "use_gpu", default=False))
     return _RunParams(
         n_iter,
