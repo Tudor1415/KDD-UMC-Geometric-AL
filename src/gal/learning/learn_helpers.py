@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import math
 import logging
 import time
 from pathlib import Path
@@ -37,6 +38,7 @@ def _init_streaming_outputs(exp_dir: Path) -> tuple[csv.writer, Any, Path]:
         "oracle_response",
         "i",
         "j",
+        "orientation_score",
         "timestamp_start",
         "timestamp_end",
     ])  # schema
@@ -120,6 +122,7 @@ def _record_query_npz(
     i: int,
     j: int,
     t_start: float,
+    orientation_score: float | None,
 ) -> None:
     """Persist the iteration query vector and append a CSV row.
 
@@ -128,12 +131,14 @@ def _record_query_npz(
     q_path = q_dir / f"query_{it:03d}.npz"
     np.savez(q_path, vector=np.asarray(diff, dtype=float))
     t_end = time.time()
+    orientation_cell = "" if orientation_score is None or not math.isfinite(orientation_score) else float(orientation_score)
     csv_writer.writerow([
         it,
         f"queries/query_{it:03d}.npz:vector",
         int(y),
         int(i),
         int(j),
+        orientation_cell,
         time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(t_start)) + f".{int((t_start%1)*1000):03d}Z",
         time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(t_end)) + f".{int((t_end%1)*1000):03d}Z",
     ])
