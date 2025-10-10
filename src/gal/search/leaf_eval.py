@@ -54,8 +54,19 @@ def exact_leaf_eval(
     use_orientation = bool(context.orientation_mode and context.orientation is not None)
     if use_orientation:
         orient_vec = context.orientation
-        raw_scores = xp.tensordot(diff, orient_vec, axes=(2, 0))
-        orientation_score = xp.where(close_mask, xp.full_like(raw_scores, float("-inf")), xp.abs(raw_scores))
+        orient_norm = backend.scalar(xp.linalg.norm(orient_vec))
+        if orient_norm <= context.eps:
+            use_orientation = False
+        else:
+            orient_unit = orient_vec / orient_norm
+            diff_norm = xp.linalg.norm(diff, axis=2, keepdims=True)
+            diff_safe = xp.where(diff_norm <= context.eps, diff, diff / diff_norm)
+            raw_scores = xp.tensordot(diff_safe, orient_unit, axes=(2, 0))
+            orientation_score = xp.where(
+                close_mask,
+                xp.full_like(raw_scores, float("-inf")),
+                xp.abs(raw_scores),
+            )
     seen = context.seen_pairs
     if seen:
         for m in range(Ai.size):
@@ -136,7 +147,15 @@ def exact_leaf_self(
             if use_orientation and orient_vec is not None:
                 if dist > context.tau + context.eps:
                     continue
-                orient_val = backend.scalar(xp.abs(xp.dot(diff_vec, orient_vec)))
+                orient_norm = backend.scalar(xp.linalg.norm(orient_vec))
+                if orient_norm <= context.eps:
+                    continue
+                orient_unit = orient_vec / orient_norm
+                diff_norm = backend.scalar(xp.linalg.norm(diff_vec))
+                if diff_norm <= context.eps:
+                    orient_val = 0.0
+                else:
+                    orient_val = backend.scalar(xp.abs(xp.dot(diff_vec / diff_norm, orient_unit)))
                 if orient_val > best_orient + context.eps or (
                     abs(orient_val - best_orient) <= context.eps and dist < best_dist
                 ):

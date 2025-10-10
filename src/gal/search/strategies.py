@@ -92,6 +92,9 @@ class LowerBoundVisitStrategy(VisitStrategy[Node]):
         if self._orientation is None:
             return 0.0
         diff = np.asarray(a.center, dtype=float) - np.asarray(b.center, dtype=float)
+        diff_norm = float(np.linalg.norm(diff))
+        if diff_norm <= self._eps:
+            return 0.0
         return np.dot(diff, self._orientation)
     
     def priority(
@@ -115,8 +118,8 @@ class LowerBoundVisitStrategy(VisitStrategy[Node]):
         distance = self._center_distance(a, b)
         if self._orientation_mode and self._orientation is not None:   
             return (
-                -float(self._center_orientation(a, b)),
                 float(distance),
+                -float(self._center_orientation(a, b)),
                 float(bounds.lower),
                 float(bounds.upper),
                 float(self._rng.random()),

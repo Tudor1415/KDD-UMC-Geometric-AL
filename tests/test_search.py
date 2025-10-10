@@ -196,8 +196,10 @@ def test_search_pair_orientation_alignment():
     assert {i, j} == {0, 2}
     assert dist == pytest.approx(0.6, abs=1e-9)
     assert stats["orientation_mode"] is True
-    orientation_norm1 = orientation / np.linalg.norm(orientation, ord=1)
-    expected_orient = abs(float(np.dot(X[2] - X[0], orientation_norm1)))
+    diff_vec = X[2] - X[0]
+    diff_unit = diff_vec / np.linalg.norm(diff_vec)
+    orient_unit = orientation / np.linalg.norm(orientation)
+    expected_orient = abs(float(np.dot(diff_unit, orient_unit)))
     assert stats["best_orientation"] == pytest.approx(expected_orient, rel=1e-9)
 
 
