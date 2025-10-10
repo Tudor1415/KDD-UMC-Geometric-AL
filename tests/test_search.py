@@ -137,10 +137,10 @@ def test_heap_tie_breaker_no_node_comparison():
             return BoundsResult(lower=0.5, upper=0.5)
 
     class ConstantStrategy(VisitStrategy[Node]):
-        def setup(self, root: Node, **kwargs) -> None:  # type: ignore[override]
+        def setup(self, **kwargs) -> None:  # type: ignore[override]
             return None
 
-        def priority(self, a: Node, b: Node, bounds, mass):  # type: ignore[override]
+        def priority(self, a: Node, b: Node, bounds, *, mass):  # type: ignore[override]
             # Return a constant priority tuple for all pairs
             return (0.0, 0.0, 0.0)
 
@@ -196,5 +196,20 @@ def test_search_pair_orientation_alignment():
     assert {i, j} == {0, 2}
     assert dist == pytest.approx(0.6, abs=1e-9)
     assert stats["orientation_mode"] is True
-    expected_orient = abs(float(np.dot(X[2] - X[0], orientation)))
+    orientation_norm1 = orientation / np.linalg.norm(orientation, ord=1)
+    expected_orient = abs(float(np.dot(X[2] - X[0], orientation_norm1)))
     assert stats["best_orientation"] == pytest.approx(expected_orient, rel=1e-9)
+
+
+def test_search_pair_gpu_mode_fallback():
+    rng = np.random.default_rng(321)
+    X = rng.normal(size=(64, 3))
+    wc = rng.normal(size=3)
+
+    tree = axis_median.build_tree(X)
+
+    cpu_i, cpu_j, cpu_dist = search_pair(tree, X, wc, tau=float("inf"))
+    gpu_i, gpu_j, gpu_dist = search_pair(tree, X, wc, tau=float("inf"), use_gpu=True)
+
+    assert {gpu_i, gpu_j} == {cpu_i, cpu_j}
+    assert pytest.approx(cpu_dist, rel=1e-9, abs=1e-12) == gpu_dist

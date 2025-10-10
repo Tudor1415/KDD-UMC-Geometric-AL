@@ -7,6 +7,8 @@ from typing import Optional
 
 import numpy as np
 
+from ..utils import ArrayBackend
+
 
 @dataclass(frozen=True)
 class SearchContext:
@@ -17,6 +19,7 @@ class SearchContext:
     tau: float
     eps: float
     seen_pairs: frozenset[tuple[int, int]]
+    backend: ArrayBackend
     orientation: Optional[np.ndarray] = None
     orientation_mode: bool = False
 

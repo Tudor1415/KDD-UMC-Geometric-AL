@@ -4,18 +4,30 @@ from __future__ import annotations
 
 from typing import Optional, Tuple
 
+import math
 import numpy as np
 
 from ..trees.common import Node
 from .context import SearchContext
 
 
-def objective_value(p: np.ndarray, q: np.ndarray, wc: np.ndarray, eps: float) -> float:
+def _tensordot(xp, a, b, axes):
+    if xp is np:
+        return np.tensordot(a, b, axes=axes)
+    if isinstance(axes, tuple):
+        axes = ([axes[0]] if isinstance(axes[0], int) else list(axes[0]),
+                 [axes[1]] if isinstance(axes[1], int) else list(axes[1]))
+    return xp.tensordot(a, b, dims=axes)
+
+
+def objective_value(p, q, wc, eps: float, backend) -> float:
+    xp = backend.xp
     diff = p - q
-    denom = float(np.linalg.norm(diff))
+    denom = backend.scalar(xp.linalg.norm(diff))
     if denom <= eps:
         return 0.0
-    return abs(float(np.dot(diff, wc))) / denom
+    num = backend.scalar(xp.abs(xp.dot(diff, wc)))
+    return num / denom
 
 
 def exact_leaf_eval(
@@ -23,25 +35,27 @@ def exact_leaf_eval(
     b: Node,
     context: SearchContext,
 ) -> Tuple[Tuple[int, int] | None, float, int, Optional[float]]:
+    backend = context.backend
+    xp = backend.xp
     Ai = a.indices
     Bi = b.indices
     if Ai is None or Bi is None or Ai.size == 0 or Bi.size == 0:
         return None, float("inf"), 0, None
-    XA = context.data[Ai]
-    XB = context.data[Bi]
+    XA = backend.asarray(context.data[Ai])
+    XB = backend.asarray(context.data[Bi])
     diff = XA[:, None, :] - XB[None, :, :]
-    num = np.abs(np.tensordot(diff, context.wc, axes=(2, 0)))
-    denom = np.linalg.norm(diff, axis=2)
+    num = xp.abs(_tensordot(xp, diff, context.wc, axes=(2, 0)))
+    denom = xp.linalg.norm(diff, axis=2)
     close_mask = denom <= context.eps
-    denom = np.where(close_mask, 1.0, denom)
+    denom = xp.where(close_mask, xp.ones_like(denom), denom)
     dist = num / denom
-    dist = np.where(close_mask, 0.0, dist)
+    dist = xp.where(close_mask, xp.zeros_like(dist), dist)
     orientation_score: Optional[np.ndarray] = None
     use_orientation = bool(context.orientation_mode and context.orientation is not None)
     if use_orientation:
-        orient_vec = np.asarray(context.orientation, dtype=float).reshape(-1)
-        raw_scores = np.tensordot(diff, orient_vec, axes=(2, 0))
-        orientation_score = np.where(close_mask, -np.inf, np.abs(raw_scores))
+        orient_vec = context.orientation
+        raw_scores = xp.tensordot(diff, orient_vec, axes=(2, 0))
+        orientation_score = xp.where(close_mask, xp.full_like(raw_scores, float("-inf")), xp.abs(raw_scores))
     seen = context.seen_pairs
     if seen:
         for m in range(Ai.size):
@@ -50,21 +64,26 @@ def exact_leaf_eval(
                 ib = int(Bi[n])
                 key = (ia, ib) if ia <= ib else (ib, ia)
                 if key in seen:
-                    dist[m, n] = np.inf
+                    dist[m, n] = float("inf")
                     if orientation_score is not None:
-                        orientation_score[m, n] = -np.inf
+                        orientation_score[m, n] = float("-inf")
 
     evals = int(Ai.size) * int(Bi.size)
 
     if use_orientation and orientation_score is not None:
         feasible = dist <= context.tau + context.eps
-        orientation_score = np.where(feasible, orientation_score, -np.inf)
-        if not np.isfinite(orientation_score).any():
+        orientation_score = xp.where(
+            feasible,
+            orientation_score,
+            xp.full_like(orientation_score, float("-inf")),
+        )
+        if not backend.bool_scalar(xp.any(xp.isfinite(orientation_score))):
             return None, float("inf"), evals, None
-        m_idx, n_idx = np.unravel_index(np.argmax(orientation_score), orientation_score.shape)
-        dist_val = float(dist[m_idx, n_idx])
-        orient_val = float(orientation_score[m_idx, n_idx])
-        if not np.isfinite(dist_val) or dist_val > context.tau + context.eps:
+        flat_idx = int(backend.scalar(xp.argmax(orientation_score)))
+        m_idx, n_idx = np.unravel_index(flat_idx, orientation_score.shape)
+        dist_val = backend.scalar(dist[m_idx, n_idx])
+        orient_val = backend.scalar(orientation_score[m_idx, n_idx])
+        if not math.isfinite(dist_val) or dist_val > context.tau + context.eps:
             return None, float("inf"), evals, None
         return (
             (int(Ai[m_idx]), int(Bi[n_idx])),
@@ -73,16 +92,19 @@ def exact_leaf_eval(
             orient_val,
         )
 
-    if not np.isfinite(dist).any():
+    if not backend.bool_scalar(xp.any(xp.isfinite(dist))):
         return None, float("inf"), evals, None
-    m_idx, n_idx = np.unravel_index(np.argmin(dist), dist.shape)
-    return (int(Ai[m_idx]), int(Bi[n_idx])), float(dist[m_idx, n_idx]), evals, None
+    flat_idx = int(backend.scalar(xp.argmin(dist)))
+    m_idx, n_idx = np.unravel_index(flat_idx, dist.shape)
+    return (int(Ai[m_idx]), int(Bi[n_idx])), backend.scalar(dist[m_idx, n_idx]), evals, None
 
 
 def exact_leaf_self(
     node: Node,
     context: SearchContext,
 ) -> Tuple[Tuple[int, int] | None, float, int, Optional[float]]:
+    backend = context.backend
+    xp = backend.xp
     idx = node.indices
     if idx is None or idx.size < 2:
         return None, float("inf"), 0, None
@@ -90,12 +112,10 @@ def exact_leaf_self(
     best_dist = float("inf")
     best_orient = float("-inf")
     evals = 0
-    XA = context.data[idx]
+    XA = backend.asarray(context.data[idx])
     seen = context.seen_pairs
     use_orientation = bool(context.orientation_mode and context.orientation is not None)
-    orient_vec = None
-    if use_orientation:
-        orient_vec = np.asarray(context.orientation, dtype=float).reshape(-1)
+    orient_vec = context.orientation if use_orientation else None
     for i in range(idx.size - 1):
         pi = XA[i]
         for j in range(i + 1, idx.size):
@@ -107,16 +127,16 @@ def exact_leaf_self(
             if key in seen:
                 continue
             diff_vec = pi - pj
-            if np.linalg.norm(diff_vec) <= context.eps:
+            if backend.scalar(xp.linalg.norm(diff_vec)) <= context.eps:
                 dist = 0.0
             else:
-                dist = objective_value(pi, pj, context.wc, context.eps)
-            if not np.isfinite(dist):
+                dist = objective_value(pi, pj, context.wc, context.eps, backend)
+            if not math.isfinite(dist):
                 continue
             if use_orientation and orient_vec is not None:
                 if dist > context.tau + context.eps:
                     continue
-                orient_val = float(abs(np.dot(diff_vec, orient_vec)))
+                orient_val = backend.scalar(xp.abs(xp.dot(diff_vec, orient_vec)))
                 if orient_val > best_orient + context.eps or (
                     abs(orient_val - best_orient) <= context.eps and dist < best_dist
                 ):

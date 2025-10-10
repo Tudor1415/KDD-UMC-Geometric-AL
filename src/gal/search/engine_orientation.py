@@ -16,6 +16,7 @@ from .context import SearchContext
 from .leaf_eval import exact_leaf_eval, exact_leaf_self
 from .priority import normalize_priority
 from .tree_utils import descendant_size, gather_leaf_indices, node_is_leaf, dominates
+from ..utils import ArrayBackend
 
 
 def run_orientation_search(
@@ -26,6 +27,7 @@ def run_orientation_search(
     *,
     tau: float,
     orientation: np.ndarray,
+    backend: ArrayBackend,
     return_stats: bool,
     dominance_prune: bool,
     eps: float,
@@ -35,11 +37,12 @@ def run_orientation_search(
 ) -> Tuple[Optional[int], Optional[int], float] | Tuple[Optional[int], Optional[int], float, Dict[str, object]]:
     context = SearchContext(
         data=data,
-        wc=wc,
+        wc=backend.asarray(wc),
         tau=float(tau),
         eps=float(eps),
         seen_pairs=frozenset(search._seen_pairs),
-        orientation=orientation,
+        backend=backend,
+        orientation=backend.asarray(orientation),
         orientation_mode=True,
     )
 
@@ -84,8 +87,6 @@ def run_orientation_search(
         orientation=orientation,
     )
     search.strategy.setup(
-        root,
-        data=data,
         wc=wc,
         tau=float(tau),
         eps=float(eps),
@@ -193,7 +194,7 @@ def run_orientation_search(
                 _log_event("PRUNED", a, b, float(bounds.lower), float(bounds.upper), parent_id)
             return
 
-        raw_score = search.strategy.priority(a, b, bounds, pair_mass)
+        raw_score = search.strategy.priority(a, b, bounds, mass=pair_mass)
         if raw_score is None:
             return
         score = normalize_priority(raw_score)

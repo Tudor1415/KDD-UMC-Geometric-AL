@@ -166,6 +166,7 @@ def run_all(cfg: ALConfig) -> Path:
             search_strategy=search_strategy,
             engine=engine,
             align_orientation=params.align_orientation,
+            use_gpu=params.use_gpu,
         )
         log.debug("Learning loop completed for '%s'", ds.name)
 
@@ -450,6 +451,7 @@ class _RunParams:
         log_every: int,
         log_level: int,
         align_orientation: bool,
+        use_gpu: bool,
     ) -> None:
         self.n_iter = n_iter
         self.tau_cap = tau_cap
@@ -458,6 +460,7 @@ class _RunParams:
         self.log_every = log_every
         self.log_level = log_level
         self.align_orientation = align_orientation
+        self.use_gpu = use_gpu
 
 
 def _run_params(cfg: ALConfig) -> _RunParams:
@@ -469,6 +472,7 @@ def _run_params(cfg: ALConfig) -> _RunParams:
     level_name = str(cfg.get("logging", "level", default="INFO")).upper()
     log_level = getattr(logging, level_name, logging.INFO)
     align_orientation = bool(cfg.get("experiment", "align_orientation", default=False))
+    use_gpu = bool(cfg.get("experiment", "use_gpu", default=False))
     return _RunParams(
         n_iter,
         tau_cap,
@@ -477,4 +481,5 @@ def _run_params(cfg: ALConfig) -> _RunParams:
         log_every,
         log_level,
         align_orientation,
+        use_gpu,
     )

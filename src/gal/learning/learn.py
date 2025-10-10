@@ -71,6 +71,7 @@ def learning_loop(
     search_strategy: str,
     engine: Optional[Search] = None,
     align_orientation: bool = False,
+    use_gpu: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Active learning loop with on-disk logging and search traces.
 
@@ -158,6 +159,7 @@ def learning_loop(
             maximize_orientation=bool(orientation_vec is not None),
             return_stats=True,
             collect_events=collect_events,
+            use_gpu=use_gpu,
         )
 
         iter_dir = _log_iteration(

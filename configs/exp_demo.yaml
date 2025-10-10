@@ -14,17 +14,13 @@ logging:
   search_events: true     # record search_trace.npz per iteration
 
 experiment:
-  additivity_k: 2
-  center_name: centroid
-  center_params:
-    pool_size: 2048
-    burn_in: 20
-    thinning: 2
-    seed: 1729
-  active_learning_budget: 100
+  additivity_k: 1
+  center_name: chebyshev
+  active_learning_budget: 10
   experiment.align_orientation: true
-  tau_max: 1.0e-5
-  tau_radius_multiplier: 0.5
+  tau_max: 1.0e-10
+  tau_radius_multiplier: 0.1
+  use_gpu: true
 
 trees:
   ball:
@@ -51,5 +47,4 @@ datasets:
       - kruskal
       - added_value
       - certainty
-
 

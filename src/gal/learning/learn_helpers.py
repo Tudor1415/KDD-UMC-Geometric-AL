@@ -166,7 +166,6 @@ def _farthest_point_socp(
     b: np.ndarray,
     center: np.ndarray,
     *,
-    anchor: np.ndarray | None = None,
     solver_sequence: Sequence[str] = _DEFAULT_SOCP_SOLVERS,
 ) -> tuple[Optional[np.ndarray], Optional[float]]:
     """Return the farthest feasible point from ``center`` using an SOCP.
@@ -195,16 +194,6 @@ def _farthest_point_socp(
             f"{A_mat.shape[1]} vs {center_vec.size}"
         )
 
-    if anchor is None:
-        anchor_vec = center_vec
-    else:
-        anchor_vec = np.asarray(anchor, dtype=float).reshape(-1)
-        if anchor_vec.size != center_vec.size:
-            raise ValueError(
-                "Anchor length does not match center dimension: "
-                f"{anchor_vec.size} vs {center_vec.size}"
-            )
-
     try:
         import cvxpy as cp  # type: ignore
     except ImportError:
@@ -215,7 +204,7 @@ def _farthest_point_socp(
 
     x = cp.Variable(center_vec.size)
     radius = cp.Variable(nonneg=True)
-    anchor_vec = np.asarray(anchor_vec, dtype=float).reshape(-1)
+    anchor_vec = center_vec
     constraints = [
         A_mat @ x <= np.asarray(b, dtype=float).reshape(-1),
         cp.norm(x - center_vec, 2) <= radius,

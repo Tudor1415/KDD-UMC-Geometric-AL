@@ -8,6 +8,7 @@ from typing import Dict, Optional, Sequence, Tuple
 import numpy as np
 
 from ..trees.common import GeometricTree, Node
+from ..utils import get_array_backend
 from .bounds import BallTreeBounds, BoundsStrategy
 from .engine_default import run_default_search
 from .engine_orientation import run_orientation_search
@@ -48,6 +49,7 @@ class Search:
         time_checkpoints: Optional[Sequence[float]] = None,
         calls_checkpoints: Optional[Sequence[int]] = None,
         collect_events: bool = False,
+        use_gpu: bool = False,
     ) -> Tuple[Optional[int], Optional[int], float] | Tuple[Optional[int], Optional[int], float, Dict[str, object]]:
         data = np.ascontiguousarray(X, dtype=np.float64)
         wc = np.asarray(wc, dtype=np.float64)
@@ -58,15 +60,17 @@ class Search:
         if wc.size != data.shape[1]:
             raise ValueError("wc must have length equal to X.shape[1]")
 
+        backend = get_array_backend(use_gpu)
+
         orientation_vec: Optional[np.ndarray] = None
         use_orientation = False
         if orientation is not None:
             orientation_arr = np.asarray(orientation, dtype=np.float64).reshape(-1)
             if orientation_arr.size != data.shape[1]:
                 raise ValueError("orientation must match feature dimension")
-            norm = float(np.linalg.norm(orientation_arr))
-            if norm > float(eps):
-                orientation_vec = orientation_arr / norm
+            norm1 = float(np.linalg.norm(orientation_arr, ord=1))
+            if norm1 > float(eps):
+                orientation_vec = orientation_arr / norm1
                 use_orientation = bool(maximize_orientation)
 
         root = tree.root if isinstance(tree, GeometricTree) else tree
@@ -77,6 +81,7 @@ class Search:
                 root,
                 data,
                 wc,
+                backend=backend,
                 tau=float(tau),
                 return_stats=return_stats,
                 dominance_prune=dominance_prune,
@@ -93,6 +98,7 @@ class Search:
             wc,
             tau=float(tau),
             orientation=orientation_vec,
+            backend=backend,
             return_stats=return_stats,
             dominance_prune=dominance_prune,
             eps=float(eps),
@@ -118,6 +124,7 @@ def search_pair(
     time_checkpoints: Optional[Sequence[float]] = None,
     calls_checkpoints: Optional[Sequence[int]] = None,
     collect_events: bool = False,
+    use_gpu: bool = False,
 ) -> Tuple[Optional[int], Optional[int], float] | Tuple[Optional[int], Optional[int], float, Dict[str, object]]:
     """Convenience wrapper using the :class:`Search` engine."""
 
@@ -135,6 +142,7 @@ def search_pair(
         time_checkpoints=time_checkpoints,
         calls_checkpoints=calls_checkpoints,
         collect_events=collect_events,
+        use_gpu=use_gpu,
     )
 
 
