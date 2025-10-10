@@ -104,7 +104,7 @@ class LowerBoundVisitStrategy(VisitStrategy[Node]):
     ) -> Optional[Tuple[float, ...]]:
 
         if self._centers_match(a, b):
-            key0 = -1.0 if bounds.upper <= self._tau else float(bounds.lower)
+            key0 = -1.0 if bounds.upper <= self._tau and not self._orientation_mode else float(bounds.lower)
                 
             return (
                 float(key0),
@@ -114,10 +114,8 @@ class LowerBoundVisitStrategy(VisitStrategy[Node]):
 
         distance = self._center_distance(a, b)
         if self._orientation_mode and self._orientation is not None:   
-            key0 = -1.0 if bounds.upper <= self._tau else float(self._center_orientation(a, b))
-
             return (
-                float(key0),
+                -float(self._center_orientation(a, b)),
                 float(distance),
                 float(bounds.lower),
                 float(bounds.upper),
