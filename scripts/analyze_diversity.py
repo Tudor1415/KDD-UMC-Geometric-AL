@@ -438,6 +438,32 @@ class Inputs:
     center_method: str | None = None
 
 
+def _safe_np_load(path: Path, *, mmap_mode: str | None = None) -> np.ndarray:
+    """Load numpy array, retrying with allow_pickle=True when needed."""
+
+    load_kwargs: Dict[str, object] = {}
+    if mmap_mode is not None:
+        load_kwargs["mmap_mode"] = mmap_mode
+    try:
+        return np.load(path, **load_kwargs)
+    except ValueError as exc:
+        if "allow_pickle" not in str(exc):
+            raise
+        load_kwargs.pop("mmap_mode", None)
+        return np.load(path, allow_pickle=True)
+
+
+def _safe_npz_open(path: Path):
+    """Return an NPZ loader, retrying with allow_pickle=True when required."""
+
+    try:
+        return np.load(path)
+    except ValueError as exc:
+        if "allow_pickle" not in str(exc):
+            raise
+        return np.load(path, allow_pickle=True)
+
+
 def _normalize_center_method(name: str) -> str:
     key = str(name).strip().lower().replace("-", "_")
     if key in {"analytic", "analytical", "analytic_center", "analytical_center", "analyticcenter", "analyticalcenter", "barrier"}:
@@ -524,10 +550,10 @@ def compute_diversity(inp: Inputs) -> Path:
     txn_df = None
     if inp.txn_matrix is not None:
         if inp.txn_matrix.suffix == ".npz":
-            with np.load(inp.txn_matrix) as nz:
+            with _safe_npz_open(inp.txn_matrix) as nz:
                 txn_matrix = nz[list(nz.keys())[0]]  # pick first array
         else:
-            txn_matrix = np.load(inp.txn_matrix, mmap_mode="r")
+            txn_matrix = _safe_np_load(inp.txn_matrix, mmap_mode="r")
         if txn_matrix.ndim != 2:
             raise ValueError("--txn-matrix must contain a 2-D array (n_tx × n_items)")
     elif inp.transactions_csv is not None:

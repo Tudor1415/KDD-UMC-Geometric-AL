@@ -17,7 +17,7 @@ experiment:
   additivity_k: 1
   center_name: chebyshev
   active_learning_budget: 100
-  align_orientation: true
+  align_orientation: false
   tau_max: 1.0e-7
   tau_radius_multiplier: 0.1
   use_gpu: true
