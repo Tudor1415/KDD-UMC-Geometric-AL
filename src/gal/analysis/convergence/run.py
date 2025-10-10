@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import csv
+import json
 import logging
 from pathlib import Path
 from typing import Dict, List, Tuple
@@ -204,17 +205,36 @@ def compute_run_convergence(
     for iteration in iterations:
         rows.append(rows_map.get(iteration, empty_row(iteration, "missing result")))
 
+    config_path = run_dir / "config.json"
+    orientation_enabled = False
+    if config_path.exists():
+        try:
+            cfg_payload = json.loads(config_path.read_text())
+            orientation_enabled = bool(cfg_payload.get("align_orientation"))
+        except Exception:
+            orientation_enabled = False
+
+    if not orientation_enabled:
+        for row in rows:
+            row.pop("orientation_score", None)
+
     fieldnames = [
         "iteration",
         "sphericity",
         "median_cosine_distance",
         "expected_theta",
-        "rho_from_theta",
-        "varR_over_V2_from_theta",
-        "varV_over_V2_from_theta",
-        "orientation_cdf_path",
-        "error",
     ]
+    if orientation_enabled:
+        fieldnames.append("orientation_score")
+    fieldnames.extend(
+        [
+            "rho_from_theta",
+            "varR_over_V2_from_theta",
+            "varV_over_V2_from_theta",
+            "orientation_cdf_path",
+            "error",
+        ]
+    )
 
     output_csv.parent.mkdir(parents=True, exist_ok=True)
     with output_csv.open("w", encoding="utf-8", newline="") as handle:

@@ -22,6 +22,7 @@ class ConvergenceStats:
     sphericity: float
     median_cosine_distance: float
     expected_theta: float
+    orientation_score: float
     orientation_cdf: List[OrientationCDFEntry]
 
 

@@ -108,7 +108,7 @@ def run_orientation_search(
     pair_ids: Dict[Tuple[int, int], int] = {}
     next_pair_id = 0
     # orientation_accept = float(max(0.0, min(1.0, 1.0 - float(tau))))
-    orientation_accept = 0.9
+    orientation_accept = float(max(0.0, min(1.0, 1.0 - float(tau))))
     early_accept = False
 
     def _pair_key(a: Node, b: Node) -> Tuple[int, int]:

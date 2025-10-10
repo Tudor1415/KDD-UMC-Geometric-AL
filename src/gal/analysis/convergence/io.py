@@ -131,6 +131,7 @@ def stats_to_row(iteration: int, stats: ConvergenceStats) -> Dict[str, object]:
             "sphericity": stats.sphericity,
             "median_cosine_distance": stats.median_cosine_distance,
             "expected_theta": stats.expected_theta,
+            "orientation_score": stats.orientation_score,
         }
     )
 
@@ -150,6 +151,7 @@ def stats_to_row(iteration: int, stats: ConvergenceStats) -> Dict[str, object]:
         "sphericity": cleaned.get("sphericity"),
         "median_cosine_distance": cleaned.get("median_cosine_distance"),
         "expected_theta": theta,
+        "orientation_score": cleaned.get("orientation_score"),
         "rho_from_theta": rho_from_theta,
         "varR_over_V2_from_theta": varR_over_V2,
         "varV_over_V2_from_theta": varV_over_V2,
@@ -165,6 +167,7 @@ def empty_row(iteration: int, error: str) -> Dict[str, object]:
         "sphericity": None,
         "median_cosine_distance": None,
         "expected_theta": None,
+        "orientation_score": None,
         "rho_from_theta": None,
         "varR_over_V2_from_theta": None,
         "varV_over_V2_from_theta": None,

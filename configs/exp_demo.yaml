@@ -18,7 +18,7 @@ experiment:
   center_name: chebyshev
   active_learning_budget: 10
   align_orientation: true
-  tau_max: 1.0e-10
+  tau_max: 1.0e-5
   tau_radius_multiplier: 0.1
   use_gpu: true
 

@@ -432,6 +432,7 @@ def _experiment_metadata(
         "tree_method": tree_method,
         "search_strategy": strategy,
         "active_learning_budget": int(cfg.get("experiment", "active_learning_budget", default=cfg.get("global", "n_iter", default=25))),
+        "align_orientation": bool(cfg.get("experiment", "align_orientation", default=False)),
     }
     return json.dumps(data, indent=2)
 

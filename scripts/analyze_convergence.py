@@ -122,6 +122,7 @@ def main(args: Sequence[str] | None = None) -> None:
             "sphericity": stats_result.sphericity,
             "median_cosine_distance": stats_result.median_cosine_distance,
             "expected_theta": stats_result.expected_theta,
+            "orientation_score": stats_result.orientation_score,
         }
     )
 
