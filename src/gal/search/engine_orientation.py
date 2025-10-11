@@ -173,7 +173,7 @@ def run_orientation_search(
         if bounds.lower >= distance_cutoff - eps:
             stats["pruned_lb_point_pairs"] = int(stats["pruned_lb_point_pairs"]) + pair_mass
         if collect_events:
-            _log_event("PRUNED_ORIENTATION", a, b, float(bounds.lower), float(bounds.upper), parent_id)
+            _log_event("PRUNED", a, b, float(bounds.lower), float(bounds.upper), parent_id)
         return
 
         orientation_upper = None
@@ -239,7 +239,7 @@ def run_orientation_search(
             if collect_events:
                 pid = _assign_pair_id(a, b)
                 events.append({
-                    "event_type": "PRUNED",
+                    "event_type": "PRUNED_ORIENTATION",
                     "node_id": int(pid),
                     "parent_id": int(-1),
                     "timestamp": float(time.perf_counter() - t0),

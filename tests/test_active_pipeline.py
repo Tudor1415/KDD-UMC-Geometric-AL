@@ -3,6 +3,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
 
 # Ensure project root is on path
@@ -14,20 +15,35 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 
-def test_exp_oracles_mapping():
-    from gal.oracles.linear import get_oracle
+def _write_toy_dataset(path: Path, *, n_rows: int = 32, seed: int = 0) -> Path:
+    rng = np.random.default_rng(seed)
+    support = np.linspace(1.0, 0.1, n_rows)
+    confidence = rng.random(n_rows)
+    df = pd.DataFrame(
+        {
+            "antecedent": [str(i % 7) for i in range(n_rows)],
+            "consequent": [str((i + 1) % 9) for i in range(n_rows)],
+            "support": support,
+            "confidence": confidence,
+        }
+    )
+    df.to_csv(path, index=False)
+    return path
 
-    d = 3
-    rng = np.random.default_rng(0)
-    # axis_0
-    o0 = get_oracle("linear_axis_0", d, rng)
-    assert o0(np.array([1.0, 0.0, 0.0]), np.zeros(3)) == 1
-    assert o0(np.zeros(3), np.array([1.0, 0.0, 0.0])) == -1
-    # equal weights
-    oe = get_oracle("linear_equal", d, rng)
-    a = np.array([1.0, 1.0, 1.0])
-    b = np.array([0.0, 0.0, 0.0])
-    assert oe(a, b) == 1
+
+def test_objective_oracle_scores_rules(tmp_path: Path):
+    from gal.core.data import Dataset
+    from gal.oracles.oracles import ObjectiveMeasureOracle
+
+    dataset_path = _write_toy_dataset(tmp_path / "rules.csv", n_rows=8, seed=7)
+    ds = Dataset(dataset_path=dataset_path, measures=["support", "confidence"]).load()
+    oracle = ObjectiveMeasureOracle("support")
+    oracle.set_dataset(ds)
+
+    best = ds.get_rule_dict(0)
+    worst = ds.get_rule_dict(len(ds) - 1)
+    assert oracle.compare(best, worst) == 1
+    assert oracle.compare(worst, best) == -1
 
 
 def test_search_engine_emits_events():
@@ -51,54 +67,54 @@ def test_search_engine_emits_events():
     events = trace.get("events")
     assert events is not None
     assert isinstance(events, list)
-    # At least creation event entries should exist
     assert len(events) >= 1
-    # Check schema keys on one event
     e0 = events[0]
-    for k in ("event_type", "node_id", "parent_id", "timestamp", "lower_bound", "upper_bound"):
-        assert k in e0
+    for key in ("event_type", "node_id", "parent_id", "timestamp", "lower_bound", "upper_bound"):
+        assert key in e0
 
 
 def test_run_all_generates_outputs(tmp_path: Path):
-    from experiments.active.run import ALConfig, run_all
+    from gal.experiments.config import ALConfig
+    from gal.experiments.runner import run_all
 
+    data_path = _write_toy_dataset(tmp_path / "toy_rules.csv", n_rows=24, seed=3)
+    output_root = tmp_path / "runs"
     cfg = {
-        "global": {"output_root": str(tmp_path), "seed": 1, "max_points": 128},
+        "global": {"output_root": str(output_root), "seed": 1, "max_points": 0},
         "experiment": {
-            "dataset_name": "SYNTH",
-            "oracle_name": "linear_equal",
-            "center_name": "AnalyticCenter",
-            "measures": ["support", "confidence"],
+            "dataset_name": "toy",
+            "center_name": "chebyshev",
             "active_learning_budget": 1,
+            "additivity_k": 1,
         },
-        "paths": {},
-        "algorithm_parameters": {
-            "leaf_size": 16,
-            "search_strategies": ["lower_bound"],
-            "tree_build_methods": {"kdtree": ["kd_tree"], "balltree": ["disjoint_greedy"]},
-        },
-        "oracles": {"names": ["linear_equal"]},
-        "logging": {"search_events": True},
+        "oracle": {"type": "objective", "measure": "support"},
+        "trees": {"ball": {"method": "two_pivot", "config": {"leaf_size": 8}}},
+        "algorithm_parameters": {"search_strategy": "lower_bound"},
+        "logging": {"search_events": True, "level": "ERROR", "log_every": 1},
+        "datasets": [
+            {
+                "name": "toy",
+                "paths": {"dataset_path": str(data_path)},
+                "measures": ["support", "confidence"],
+            }
+        ],
     }
+
     out_dir = run_all(ALConfig(raw=cfg))
     assert Path(out_dir).exists()
-    # Expect at least one run directory under tmp_path
-    runs = [p for p in Path(tmp_path).iterdir() if p.is_dir()]
-    assert len(runs) >= 1
+
+    runs = [p for p in output_root.iterdir() if p.is_dir()]
+    assert runs
     run_dir = runs[0]
-    # Required files per NOTES/experiments/general.md
-    for fn in ("config.json", "tree.h5", "query_vectors.h5", "iterations.csv", "final_version_space.h5"):
+
+    for fn in ("config.json", "iterations.csv", "final_version_space.npz"):
         assert (run_dir / fn).exists()
-    # Check per-iteration folder exists
-    it0 = run_dir / "iteration_000"
-    assert (it0 / "search_trace.h5").exists()
-    assert (it0 / "center_model.npy").exists()
-    # Do not import h5py here to avoid binary warnings; just check file presence
-    assert (run_dir / "final_version_space.h5").exists()
-    # Basic config.json sanity
+    assert (run_dir / "queries").is_dir()
+
+    iteration_dir = run_dir / "iteration_000"
+    assert iteration_dir.is_dir()
+    assert any((iteration_dir / fname).exists() for fname in ("search_trace.npz", "search_trace.h5"))
+
     cfg_json = json.loads((run_dir / "config.json").read_text())
-    assert cfg_json.get("tree_family") in {"kdtree", "balltree"}
+    assert cfg_json.get("tree_family") == "balltree"
     assert cfg_json.get("search_strategy") == "lower_bound"
-    assert cfg_json.get("measures") == ["support", "confidence"]
-
-

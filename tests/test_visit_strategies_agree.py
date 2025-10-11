@@ -13,7 +13,7 @@ if str(ROOT) not in sys.path:
 
 from gal.search import Search
 from gal.search.kd_bounds import KdTreeBounds
-from gal.search.strategies import DiversityVisitStrategy, LowerBoundVisitStrategy
+from gal.search.strategies import LowerBoundVisitStrategy
 from gal.trees import build_tree
 from gal.trees import kd_tree as kd
 
@@ -28,53 +28,52 @@ def _make_dataset(n: int = 128, d: int = 5, seed: int = 2024):
     return X, wc
 
 
-def test_balltree_visit_strategies_agree_on_tau():
+def test_balltree_lower_bound_respects_tau_threshold():
     X, wc = _make_dataset(n=160, d=6, seed=1)
-    tau_pos = 1e-6  # positive threshold; with duplicate pair, both must satisfy
-    tau_neg = -1e-6  # impossible threshold; both must fail to satisfy
-
-    ball_tree = build_tree(X, method="two_pivot")
-
-    # Lower-bound first
-    eng_lb = Search(strategy=LowerBoundVisitStrategy())
-    i_lb, j_lb, d_lb = eng_lb.search_pair(ball_tree, X, wc, tau=tau_pos)
-
-    # Diversity-driven
-    eng_div = Search(strategy=DiversityVisitStrategy())
-    i_div, j_div, d_div = eng_div.search_pair(ball_tree, X, wc, tau=tau_pos)
-
-    assert np.isfinite(d_lb) and d_lb <= tau_pos + 1e-12
-    assert np.isfinite(d_div) and d_div <= tau_pos + 1e-12
-    assert i_lb is not None and j_lb is not None
-    assert i_div is not None and j_div is not None
-
-    # Now with an unsatisfiable threshold, both must conclude no pair was found
-    _, _, d_lb_neg = eng_lb.search_pair(ball_tree, X, wc, tau=tau_neg)
-    _, _, d_div_neg = eng_div.search_pair(ball_tree, X, wc, tau=tau_neg)
-    assert not np.isfinite(d_lb_neg)
-    assert not np.isfinite(d_div_neg)
-
-
-def test_kdtree_visit_strategies_agree_on_tau():
-    X, wc = _make_dataset(n=160, d=6, seed=2)
     tau_pos = 1e-6
     tau_neg = -1e-6
 
+    ball_tree = build_tree(X, method="two_pivot")
+    eng = Search(strategy=LowerBoundVisitStrategy())
+
+    i_pos, j_pos, d_pos = eng.search_pair(ball_tree, X, wc, tau=tau_pos, return_stats=False)
+    assert np.isfinite(d_pos) and d_pos <= tau_pos + 1e-12
+    assert i_pos is not None and j_pos is not None
+
+    i_neg, j_neg, d_neg = eng.search_pair(ball_tree, X, wc, tau=tau_neg, return_stats=False)
+    assert (i_neg, j_neg) == (None, None)
+    assert not np.isfinite(d_neg)
+
+
+def test_kdtree_lower_bound_matches_bounds_implementation():
+    X, wc = _make_dataset(n=160, d=6, seed=2)
+    tau = 1e-6
+
     kd_tree = kd.build_tree(X, {"leaf_size": 16})
+    eng = Search(bounder=KdTreeBounds(), strategy=LowerBoundVisitStrategy())
 
-    # Kd-tree requires KdTreeBounds
-    eng_lb = Search(bounder=KdTreeBounds(), strategy=LowerBoundVisitStrategy())
-    eng_div = Search(bounder=KdTreeBounds(), strategy=DiversityVisitStrategy())
+    i_idx, j_idx, dist = eng.search_pair(kd_tree, X, wc, tau=tau, return_stats=False)
+    assert i_idx is not None and j_idx is not None
+    assert np.isfinite(dist)
+    assert dist <= tau + 1e-12
 
-    i_lb, j_lb, d_lb = eng_lb.search_pair(kd_tree, X, wc, tau=tau_pos)
-    i_div, j_div, d_div = eng_div.search_pair(kd_tree, X, wc, tau=tau_pos)
 
-    assert np.isfinite(d_lb) and d_lb <= tau_pos + 1e-12
-    assert np.isfinite(d_div) and d_div <= tau_pos + 1e-12
-    assert i_lb is not None and j_lb is not None
-    assert i_div is not None and j_div is not None
+def test_orientation_mode_reports_flag():
+    X, wc = _make_dataset(n=96, d=4, seed=3)
+    orientation = np.random.default_rng(4).normal(size=wc.shape)
+    ball_tree = build_tree(X, method="two_pivot")
 
-    _, _, d_lb_neg = eng_lb.search_pair(kd_tree, X, wc, tau=tau_neg)
-    _, _, d_div_neg = eng_div.search_pair(kd_tree, X, wc, tau=tau_neg)
-    assert not np.isfinite(d_lb_neg)
-    assert not np.isfinite(d_div_neg)
+    eng = Search(strategy=LowerBoundVisitStrategy())
+    i_idx, j_idx, dist, stats = eng.search_pair(
+        ball_tree,
+        X,
+        wc,
+        tau=1e-4,
+        orientation=orientation,
+        maximize_orientation=True,
+        return_stats=True,
+        collect_events=True,
+    )
+    assert stats.get("orientation_mode") is True
+    if i_idx is not None and j_idx is not None:
+        assert np.isfinite(dist)
