@@ -147,6 +147,16 @@ python -m scripts.main
 python -m sota.learning_to_rank.choquet_rank
 ```
 
+## Documentation
+
+- The rendered docs under `docs/_build/html/index.html` (build with `make html`)
+  provide an end-to-end walkthrough of the toolkit.
+- Start with `docs/source/learning_procedure.rst` (see the *Understanding the
+  learning procedure* page in the HTML build) for a detailed explanation of the
+  active learning loop, its configuration knobs, and logged artefacts.
+- The API reference under `docs/source/api/` complements the narrative pages with
+  function-level details pulled from docstrings.
+
 
 ## Layout at a Glance
 

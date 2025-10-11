@@ -10,6 +10,10 @@ space of weight vectors. Each iteration selects a pair of points using the
 configured tree and visit strategy, asks the oracle for a sign, adds a linear
 constraint, and recomputes the chosen polyhedral centre.
 
+If you need a line-by-line description of the inner loop, consult
+:doc:`../learning_procedure`, which expands on how datasets, trees, centres, and
+constraint projections interact.
+
 How to Run
 ----------
 

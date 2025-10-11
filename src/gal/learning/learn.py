@@ -1,23 +1,30 @@
 """learn.py
 ==========
-An *active‑learning* loop that iteratively tightens a half‑space description
-of an unknown direction **q⋆**.  At each round we:
+Detailed implementation of the active-learning loop used across the Geometry-
+Aware Learning (GAL) toolkit.  The module exposes `learning_loop`, which takes
+care of streaming artefacts to disk, interacting with the branch-and-bound
+search engine, and maintaining the version-space polytope, and
+`project_constraint`, which converts full Möbius constraints into the projected
+space understood by the chosen centre function.
 
-1.   **center selection** – given the current feasible region
-     `P = {q : A q ≤ b}` choose a center `c` via an arbitrary `center_fn` –
-     e.g. `poly_centers.chebyshev_center`, `analytical_center`, …
-2.   **Uncertainty sampling** – over all data points stored in a Ball‑Tree we
-     find a pair `(a, b)` whose difference vector is *most ambiguous* wrt `c`
-     using the best‑first search from *simple_GeometricTree.py* (minimises
-     `|⟨a − b, c⟩| / ‖a − b‖`).
-3.   **Oracle query** – ask the user‑supplied `oracle(a, b)` for the sign
-     `y ∈ {−1,+1}` of the true, hidden direction: `y = sign(⟨a − b, q⋆⟩)`.
-4.   **Constraint update** – append the linear constraint
-     `y · (a − b)ᵀ q ≥ 0`, i.e. `A ← [A ; y·(a−b)ᵀ]`, `b ← [b ; 0]`.
+Execution outline for :func:`learning_loop` (refer to inline comments for the
+line-by-line trace):
 
-The function stops after `n_iter` rounds and returns the final center and the
-expanded polyhedron.  A `report_hook(iter_idx, center, radius)` callback can be
-used for live monitoring / plotting.
+1. Initialise on-disk logging helpers so every iteration is captured.
+2. Copy the initial constraint system `(A0, b0)` and compute the starting
+   polyhedral centre and radius.
+3. For each iteration:
+   a. Stop early when the radius collapses or the search cannot find a pair.
+   b. Derive the admissible ambiguity threshold `tau` from the current radius.
+   c. Optionally align the search with the farthest feasible point.
+   d. Query the dual-tree search for the most ambiguous pair `(i, j)`.
+   e. Ask the oracle for the sign and project the resulting constraint.
+   f. Append the constraint, recompute the centre, and persist artefacts.
+4. Flush all open streams and write the final version-space snapshot.
+
+Every helper invoked here is documented in :mod:`gal.learning.learn_helpers`;
+the Sphinx page ``learning_procedure`` cross-references this module with a
+conceptual walkthrough.
 """
 
 from __future__ import annotations
@@ -44,7 +51,27 @@ from .learn_helpers import (
 
 
 def project_constraint(h: np.ndarray) -> Tuple[np.ndarray, float]:
-    """Return (row, rhs) for constraint vector expressed in Möbius basis."""
+    """Project a Möbius-space constraint into the reduced coordinate system.
+
+    Parameters
+    ----------
+    h:
+        Full constraint vector expressed in the Möbius basis. The last entry
+        enforces the sum-to-one condition and becomes the right-hand side after
+        projection.
+
+    Returns
+    -------
+    row, rhs:
+        ``row`` is the projected constraint coefficients (last column removed);
+        ``rhs`` is the scalar right-hand side created from the dropped entry.
+
+    Notes
+    -----
+    The projection mirrors :func:`gal.core.space.CapacitySpace.project`.  The
+    helper is intentionally separate so tests can exercise the algebra
+    independently.
+    """
 
     vec = np.asarray(h, dtype=float).reshape(-1)
     if vec.size == 0:
@@ -74,21 +101,66 @@ def learning_loop(
     align_orientation: bool = False,
     use_gpu: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Active learning loop with on-disk logging and search traces.
+    """Execute the active-learning loop and stream diagnostics to ``exp_dir``.
 
-    Persists per-iteration queries and snapshots as NPZ files under `exp_dir`.
+    Parameters
+    ----------
+    tree:
+        Geometry-aware tree (ball tree or kd-tree) built on top of ``X`` for
+        dual-tree search.
+    X:
+        Augmented rule matrix supplied to the search engine.
+    space:
+        Capacity-space helper providing ``expand_center`` and ``project``.
+    A0, b0:
+        Initial version-space half-space description.
+    center_fn:
+        Callable that returns the projected centre for a given ``(A, b)`` pair.
+    n_iter:
+        Maximum number of iterations before the loop stops.
+    tau_cap, tau_multiplier:
+        Parameters controlling the ambiguity threshold forwarded to the search
+        engine (``tau = min(radius * tau_multiplier, tau_cap)``).
+    exp_dir:
+        Output directory for CSV and NPZ artefacts.
+    oracle_compare:
+        Oracle callback returning ``{-1, 0, +1}`` when comparing two vectors.
+    collect_events:
+        Toggle for saving per-iteration search traces.
+    log_every, log_level:
+        Logging cadence and verbosity.
+    search_strategy:
+        String identifier resolved through
+        :func:`gal.search.strategies.get_strategy`.
+    engine:
+        Optional pre-built :class:`gal.search.engine.Search` instance.
+    align_orientation:
+        When true, attempts to align the search with the farthest feasible point.
+    use_gpu:
+        Requests the CUDA backend; silently falls back to NumPy when unavailable.
+
+    Returns
+    -------
+    A, b:
+        Final constraint matrices containing every oracle-imposed inequality.
     """
-    # Outputs: iterations.csv and queries/ (NPZ-based, no h5py)
+    # Prepare on-disk logging folders and files so partial runs still leave
+    # inspectable artefacts.
     csv_writer, it_csv, q_dir = _init_streaming_outputs(exp_dir)
 
-    # Init version space
+    # Work with local copies of the constraint matrices to avoid mutating the
+    # caller's arrays.
     A = np.asarray(A0, dtype=float).copy()
     b = np.asarray(b0, dtype=float).copy()
 
     logger = logging.getLogger(__name__)
 
     def _compute_center_state(iter_idx: Optional[int] = None) -> Optional[Tuple[np.ndarray, np.ndarray, float]]:
-        """Return the projected/expanded center and radius or log and abort."""
+        """Return the projected centre, expanded centre, and Chebyshev radius.
+
+        Encapsulates centre computation so both the initialisation phase and
+        the per-iteration updates share identical error handling and logging.
+        """
 
         try:
             proj = np.asarray(center_fn(A, b), dtype=float)
@@ -104,6 +176,8 @@ def learning_loop(
         radius_val = _chebyshev_radius(A, b, proj)
         return proj, full, radius_val
 
+    # Establish the starting centre and radius; abort immediately if the
+    # polyhedron is infeasible.
     initial_state = _compute_center_state()
     if initial_state is None:
         it_csv.close()
@@ -112,14 +186,18 @@ def learning_loop(
 
     center_proj, center_full, radius = initial_state
 
+    # Prepare the search engine and cache optional callbacks used for bookkeeping.
     engine = _ensure_search_engine(engine, search_strategy, X)
     register_query = getattr(engine.strategy, "register_queries", None)
     register_pair = getattr(engine, "register_seen_pair", None)
 
     for it in range(n_iter):
+        # Track iteration run-time to add precise timestamps to the CSV output.
         t_start = time.time()
         if not (np.isfinite(radius) and radius > 0):
             break
+        # The admissible ambiguity threshold is bounded above by ``tau_cap`` so
+        # early iterations remain selective.
         tau = min(radius * float(tau_multiplier), float(tau_cap))
         if log_level <= logging.DEBUG and (it % log_every == 0):
             logging.getLogger(__name__).debug(
@@ -128,6 +206,8 @@ def learning_loop(
                 tau,
                 float(radius),
             )
+        # When orientation alignment is enabled, approximate the direction of
+        # greatest uncertainty via a farthest-point LP.
         orientation_vec: Optional[np.ndarray] = None
         if align_orientation and np.isfinite(radius) and radius > 0:
             farthest_proj, _ = _farthest_point_socp(A, b, center_proj)
@@ -151,6 +231,9 @@ def learning_loop(
                     "Iter %d: SOCP farthest-point solver did not return a point; orientation alignment disabled",
                     it,
                 )
+        # Execute the dual-tree branch-and-bound search for the most ambiguous
+        # pair.  ``stats`` bundles optional diagnostics (orientation score,
+        # trace events, bound counters).
         i, j, dist, stats = engine.search_pair(
             tree,
             X,
@@ -164,6 +247,7 @@ def learning_loop(
         )
         best_orientation = stats.get("best_orientation") if isinstance(stats, dict) else None
 
+        # Create the iteration sub-directory and append a row to iterations.csv.
         iter_dir = _log_iteration(
             it,
             i,
@@ -175,7 +259,8 @@ def learning_loop(
             exp_dir=exp_dir,
         )
 
-        # Save search events (NPZ)
+        # Optionally persist the detailed event trace emitted by the search
+        # engine; down-stream analysis scripts consume this structure.
         if collect_events:
             events = list(stats.get("trace", {}).get("events", []))  # type: ignore[arg-type]
             _export_search_events_npz(iter_dir / "search_trace.npz", events)  # type: ignore[arg-type]
@@ -183,6 +268,8 @@ def learning_loop(
         if i is None or j is None:
             break
 
+        # Retrieve the candidate vectors and build the difference used for the
+        # oracle query and constraint projection.
         q_a, q_b = X[int(i)], X[int(j)]
         diff = q_a - q_b
 
@@ -191,14 +278,19 @@ def learning_loop(
         if best_orientation is not None and math.isfinite(float(best_orientation)):
             orientation_score = float(best_orientation)
 
+        # Feed the encountered queries back to the search strategy when it
+        # exposes feedback hooks (used by some diversity-aware strategies).
         if callable(register_query):
             register_query(np.vstack([q_a, q_b]))
         if callable(register_pair):
             register_pair(int(i), int(j))
 
+        # Query the oracle exactly once per iteration.
         y = oracle_compare(q_a, q_b)
 
         if y != 0:
+            # Non-zero oracle response tightens the polytope with a new
+            # half-space derived from the difference vector.
             constraint = -float(y) * diff
 
             proj_row, proj_rhs = space.project(constraint)
@@ -223,8 +315,12 @@ def learning_loop(
 
             center_proj, center_full, radius = updated_state
         else:
+            # A neutral vote leaves ``A`` and ``b`` untouched, but we still
+            # recompute the radius so the next iteration has an up-to-date tau.
             radius = _chebyshev_radius(A, b, center_proj)
 
+        # Regardless of oracle outcome, persist the query metadata and the
+        # updated centre snapshot.
         _record_query_npz(
             it=it,
             diff=diff,
@@ -237,12 +333,14 @@ def learning_loop(
             t_start=t_start,
             orientation_score=orientation_score,
         )
+        # Store the full-dimensional centre (plus radius/tau) for quick replays.
         _save_center_snapshot(iter_dir, center_full, float(radius), float(tau))
 
-    # Close CSV stream
+    # Close the CSV stream to ensure all rows reach disk before returning.
     it_csv.close()
 
-    # Final constraints snapshot (NPZ only)
+    # Write the terminal version-space snapshot so downstream tooling can
+    # inspect or resume from the final `(A, b)`.
     _finalize_version_space_npz(exp_dir, A, b)
 
     return A, b

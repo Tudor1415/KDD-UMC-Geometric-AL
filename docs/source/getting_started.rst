@@ -122,8 +122,8 @@ Next steps
 
 * Explore the :doc:`api/index` section for detailed module documentation.
 * Review :doc:`project_layout` for a high-level map of the repository.
+* Read :doc:`learning_procedure` for a step-by-step breakdown of the active learning loop.
 * Check the ``benchmark_outputs/`` directory after running experiments to
   inspect generated CSV files and plots.
-
 
 

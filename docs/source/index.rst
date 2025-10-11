@@ -21,6 +21,7 @@ Contents
    :caption: User Guide
 
    getting_started
+   learning_procedure
    ball_tree_builders
    experiments/active
    experiments/rq1
