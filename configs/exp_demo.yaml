@@ -16,7 +16,7 @@ logging:
 experiment:
   additivity_k: 2
   center_name: chebyshev
-  active_learning_budget: 100
+  active_learning_budget: 10
   align_orientation: true
   tau_max: 1.0e-7
   tau_radius_multiplier: 0.1

@@ -100,6 +100,7 @@ def _compute_stats(ev: Dict[str, np.ndarray]) -> Dict[str, float | int]:
             "pruned_total": 0,
             "pruned_lb": 0,
             "pruned_dom": 0,
+            "pruned_orientation": 0,
             "pruned_ratio": 0.0,
             "gap_median": np.nan,
             "gap_p95": np.nan,
@@ -119,11 +120,13 @@ def _compute_stats(ev: Dict[str, np.ndarray]) -> Dict[str, float | int]:
 
     created = (et == "CREATED")
     expanded = (et == "EXPANDED")
-    pruned = (et == "PRUNED")
+    pruned_mask = np.isin(et, ("PRUNED", "PRUNED_ORIENTATION"))
+    pruned_standard = (et == "PRUNED")
+    pruned_orientation = (et == "PRUNED_ORIENTATION")
 
     # Dominance prunes are logged with NaN bounds; LB prunes have finite bounds
-    pruned_dom = pruned & (np.isnan(lb) | np.isnan(ub))
-    pruned_lb = pruned & (~pruned_dom)
+    pruned_dom = pruned_standard & (np.isnan(lb) | np.isnan(ub))
+    pruned_lb = pruned_standard & (~pruned_dom)
 
     # Gap only for finite bounds
     finite = np.isfinite(lb) & np.isfinite(ub)
@@ -163,17 +166,18 @@ def _compute_stats(ev: Dict[str, np.ndarray]) -> Dict[str, float | int]:
     lifetimes_arr = np.array(lifetimes, dtype=float) if lifetimes else np.array([], dtype=float)
 
     n_created = int(created.sum())
-    n_pruned = int(pruned.sum())
+    n_pruned = int(pruned_mask.sum())
     return {
         "created": n_created,
         "expanded": int(expanded.sum()),
         "pruned_total": n_pruned,
         "pruned_lb": int(pruned_lb.sum()),
         "pruned_dom": int(pruned_dom.sum()),
+        "pruned_orientation": int(pruned_orientation.sum()),
         "pruned_ratio": float(n_pruned / n_created) if n_created > 0 else 0.0,
         "gap_median": float(np.nanmedian(gap)) if np.isfinite(gap).any() else np.nan,
         "gap_p95": _safe_percentile(gap, 95.0),
-        "time_to_50pct_prunes": _safe_percentile(t[pruned], 50.0) if n_pruned > 0 else np.nan,
+        "time_to_50pct_prunes": _safe_percentile(t[pruned_mask], 50.0) if n_pruned > 0 else np.nan,
         "time_last_event": float(np.nanmax(t)) if t.size else np.nan,
         "avg_branching_factor": float(np.nanmean(bf_values)) if bf_values.size else np.nan,
         "median_branching_factor": float(np.nanmedian(bf_values)) if bf_values.size else np.nan,

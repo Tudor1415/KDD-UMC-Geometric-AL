@@ -110,6 +110,7 @@ def _record_query_npz(
     diff: np.ndarray,
     q_dir: Path,
     csv_writer: csv.writer,
+    csv_file: Any,
     y: int,
     i: int,
     j: int,
@@ -134,6 +135,7 @@ def _record_query_npz(
         time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(t_start)) + f".{int((t_start%1)*1000):03d}Z",
         time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(t_end)) + f".{int((t_end%1)*1000):03d}Z",
     ])
+    csv_file.flush()  # stream stats immediately for long-running experiments
 
 
 def _save_center_snapshot(iter_dir: Path, center_full: np.ndarray, radius: float, tau: float) -> None:

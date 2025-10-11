@@ -15,7 +15,7 @@ from .bounds import BoundContext
 from .context import SearchContext
 from .leaf_eval import exact_leaf_eval, exact_leaf_self
 from .priority import normalize_priority
-from .tree_utils import descendant_size, gather_leaf_indices, node_is_leaf, dominates
+from .tree_utils import descendant_size, gather_leaf_indices, node_is_leaf
 from ..utils import ArrayBackend
 
 
@@ -29,7 +29,6 @@ def run_orientation_search(
     orientation: np.ndarray,
     backend: ArrayBackend,
     return_stats: bool,
-    dominance_prune: bool,
     eps: float,
     time_checkpoints: Optional[Sequence[float]],
     calls_checkpoints: Optional[Sequence[int]],
@@ -169,19 +168,13 @@ def run_orientation_search(
 
         pair_mass = mass(a, b)
 
-        if dominance_prune and dominates(a, b, eps=eps):
-            stats["pruned_dom_point_pairs"] = int(stats["pruned_dom_point_pairs"]) + pair_mass
-            if collect_events:
-                _log_event("PRUNED", a, b, float("nan"), float("nan"), parent_id)
-            return
-
         bounds = search.bounder(a, b, bound_context)
         distance_cutoff = tau
         if bounds.lower >= distance_cutoff - eps:
             stats["pruned_lb_point_pairs"] = int(stats["pruned_lb_point_pairs"]) + pair_mass
-            if collect_events:
-                _log_event("PRUNED", a, b, float(bounds.lower), float(bounds.upper), parent_id)
-            return
+        if collect_events:
+            _log_event("PRUNED_ORIENTATION", a, b, float(bounds.lower), float(bounds.upper), parent_id)
+        return
 
         orientation_upper = None
         if bounds.orientation is not None:
@@ -194,7 +187,7 @@ def run_orientation_search(
         ):
             stats["pruned_orientation_point_pairs"] = int(stats["pruned_orientation_point_pairs"]) + pair_mass
             if collect_events:
-                _log_event("PRUNED", a, b, float(bounds.lower), float(bounds.upper), parent_id)
+                _log_event("PRUNED_ORIENTATION", a, b, float(bounds.lower), float(bounds.upper), parent_id)
             return
 
         raw_score = search.strategy.priority(a, b, bounds, mass=pair_mass)

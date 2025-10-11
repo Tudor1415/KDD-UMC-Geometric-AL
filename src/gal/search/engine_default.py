@@ -16,7 +16,7 @@ from .context import SearchContext
 from .leaf_eval import exact_leaf_eval, exact_leaf_self
 from ..utils import ArrayBackend
 from .priority import normalize_priority
-from .tree_utils import descendant_size, gather_leaf_indices, node_is_leaf, dominates
+from .tree_utils import descendant_size, gather_leaf_indices, node_is_leaf
 
 
 def run_default_search(
@@ -28,7 +28,6 @@ def run_default_search(
     backend: ArrayBackend,
     tau: float,
     return_stats: bool,
-    dominance_prune: bool,
     eps: float,
     time_checkpoints: Optional[Sequence[float]],
     calls_checkpoints: Optional[Sequence[int]],
@@ -150,12 +149,6 @@ def run_default_search(
         visited.add(key)
 
         pair_mass = mass(a, b)
-
-        if dominance_prune and dominates(a, b, eps=eps):
-            stats["pruned_dom_point_pairs"] = int(stats["pruned_dom_point_pairs"]) + pair_mass
-            if collect_events:
-                _log_event("PRUNED", a, b, float("nan"), float("nan"), parent_id)
-            return
 
         bounds = search.bounder(a, b, bound_context)
         if bounds.lower >= min(best_distance, tau) - eps:
