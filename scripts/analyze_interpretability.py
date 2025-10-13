@@ -111,10 +111,19 @@ def _resolve_path(base_dir: Path, override: Path | None, value: Any) -> Path | N
     if not value:
         return None
 
-    candidate = Path(str(value))
-    if candidate.is_absolute():
-        return candidate
-    return (base_dir / candidate).resolve()
+    raw = Path(str(value))
+    candidates: List[Path] = []
+    if raw.is_absolute():
+        candidates.append(raw)
+    else:
+        candidates.append((base_dir / raw).resolve())
+        candidates.append((Path.cwd() / raw).resolve())
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    return candidates[0] if candidates else raw
 
 
 def _coerce_bool(value: Any) -> bool:
@@ -420,3 +429,4 @@ def main() -> None:  # pragma: no cover
 
 if __name__ == "__main__":  # pragma: no cover
     main()
+
