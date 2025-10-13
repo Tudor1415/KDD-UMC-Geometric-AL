@@ -22,7 +22,12 @@ except ImportError:  # pragma: no cover - environment without GPU support
 import numpy as np
 import pandas as pd
 import torch
-from pgmpy.estimators import BayesianEstimator, BicScore, HillClimbSearch, TreeSearch
+from pgmpy.estimators import BayesianEstimator, HillClimbSearch, TreeSearch
+try:
+    from pgmpy.estimators import BicScore
+except ImportError:
+    from pgmpy.estimators import BIC as BicScore  # pgmpy>=0.1.26 renamed BicScore
+
 from pgmpy.models import BayesianNetwork
 
 
