@@ -3,10 +3,10 @@
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
-<link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="next" title="Mining" href="mining.html" /><link rel="prev" title="Centre solvers" href="centers.html" />
+<link rel="index" title="Index" href="../genindex.html" /><link rel="search" title="Search" href="../search.html" /><link rel="next" title="Metrics and measures" href="metrics.html" /><link rel="prev" title="Learning" href="learning.html" />
 
     <!-- Generated with Sphinx 7.1.2 and Furo 2024.08.06 -->
-        <title>Learning - Geometry-Aware Learning 0.1.0 documentation</title>
+        <title>Mining - Geometry-Aware Learning 0.1.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo.css?v=354aac6f" />
     <link rel="stylesheet" type="text/css" href="../_static/styles/furo-extensions.css?v=302659d7" />
@@ -217,8 +217,8 @@
 <li class="toctree-l2"><a class="reference internal" href="trees.html">Ball-tree APIs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="search.html">Search APIs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="centers.html">Centre solvers</a></li>
-<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Learning</a></li>
-<li class="toctree-l2"><a class="reference internal" href="mining.html">Mining</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning.html">Learning</a></li>
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Mining</a></li>
 <li class="toctree-l2"><a class="reference internal" href="metrics.html">Metrics and measures</a></li>
 <li class="toctree-l2"><a class="reference internal" href="oracles.html">Oracles and priors</a></li>
 <li class="toctree-l2"><a class="reference internal" href="utils.html">Utility helpers</a></li>
@@ -248,7 +248,7 @@
         </a>
         <div class="content-icon-container">
           <div class="view-this-page">
-  <a class="muted-link" href="../_sources/api/learning.rst.txt" title="View this page">
+  <a class="muted-link" href="../_sources/api/mining.rst.txt" title="View this page">
     <svg><use href="#svg-eye"></use></svg>
     <span class="visually-hidden">View this page</span>
   </a>
@@ -268,97 +268,30 @@
           </label>
         </div>
         <article role="main" id="furo-main-content">
-          <section id="module-gal.learning.learn">
-<span id="learning"></span><h1>Learning<a class="headerlink" href="#module-gal.learning.learn" title="Permalink to this heading">¶</a></h1>
-<section id="learn-py">
-<h2>learn.py<a class="headerlink" href="#learn-py" title="Permalink to this heading">¶</a></h2>
-<p>Detailed implementation of the active-learning loop used across the Geometry-
-Aware Learning (GAL) toolkit.  The module exposes <cite>learning_loop</cite>, which takes
-care of streaming artefacts to disk, interacting with the branch-and-bound
-search engine, and maintaining the version-space polytope, and
-<cite>project_constraint</cite>, which converts full Möbius constraints into the projected
-space understood by the chosen centre function.</p>
-<p>Execution outline for <a class="reference internal" href="#gal.learning.learn.learning_loop" title="gal.learning.learn.learning_loop"><code class="xref py py-func docutils literal notranslate"><span class="pre">learning_loop()</span></code></a> (refer to inline comments for the
-line-by-line trace):</p>
-<ol class="arabic simple">
-<li><p>Initialise on-disk logging helpers so every iteration is captured.</p></li>
-<li><p>Copy the initial constraint system <cite>(A0, b0)</cite> and compute the starting
-polyhedral centre and radius.</p></li>
-<li><p>For each iteration:
-a. Stop early when the radius collapses or the search cannot find a pair.
-b. Derive the admissible ambiguity threshold <cite>tau</cite> from the current radius.
-c. Optionally align the search with the farthest feasible point.
-d. Query the dual-tree search for the most ambiguous pair <cite>(i, j)</cite>.
-e. Ask the oracle for the sign and project the resulting constraint.
-f. Append the constraint, recompute the centre, and persist artefacts.</p></li>
-<li><p>Flush all open streams and write the final version-space snapshot.</p></li>
-</ol>
-<p>Every helper invoked here is documented in <code class="xref py py-mod docutils literal notranslate"><span class="pre">gal.learning.learn_helpers</span></code>;
-the Sphinx page <code class="docutils literal notranslate"><span class="pre">learning_procedure</span></code> cross-references this module with a
-conceptual walkthrough.</p>
+          <section id="module-gal.mining.miner">
+<span id="mining"></span><h1>Mining<a class="headerlink" href="#module-gal.mining.miner" title="Permalink to this heading">¶</a></h1>
+<p>Batch-mine Minimal-Non-Redundant rules with the choco-mining CLI and
+<em>automatically</em> convert any binary CSV datasets to .dat first.
+Temporary .dat files produced from CSVs are removed right after use.</p>
+<section id="usage">
+<h2>Usage<a class="headerlink" href="#usage" title="Permalink to this heading">¶</a></h2>
+<p>python miner.py &lt;dataset-folder&gt; &lt;cli-fat-jar&gt; [support] [confidence]</p>
 </section>
-<dl class="py function">
-<dt class="sig sig-object py" id="gal.learning.learn.project_constraint">
-<span class="sig-prename descclassname"><span class="pre">gal.learning.learn.</span></span><span class="sig-name descname"><span class="pre">project_constraint</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">h</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/gal/learning/learn.html#project_constraint"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gal.learning.learn.project_constraint" title="Permalink to this definition">¶</a></dt>
-<dd><p>Project a Möbius-space constraint into the reduced coordinate system.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>h</strong> – Full constraint vector expressed in the Möbius basis. The last entry
-enforces the sum-to-one condition and becomes the right-hand side after
-projection.</p>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">row</span></code> is the projected constraint coefficients (last column removed);
-<code class="docutils literal notranslate"><span class="pre">rhs</span></code> is the scalar right-hand side created from the dropped entry.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>row, rhs</p>
-</dd>
-</dl>
-<p class="rubric">Notes</p>
-<p>The projection mirrors <code class="xref py py-func docutils literal notranslate"><span class="pre">gal.core.space.CapacitySpace.project()</span></code>.  The
-helper is intentionally separate so tests can exercise the algebra
-independently.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="gal.mining.miner.MNRBatchMiner">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">gal.mining.miner.</span></span><span class="sig-name descname"><span class="pre">MNRBatchMiner</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">jar_path</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">support</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">10</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">confidence</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">99</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gal/mining/miner.html#MNRBatchMiner"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gal.mining.miner.MNRBatchMiner" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<dl class="py method">
+<dt class="sig sig-object py" id="gal.mining.miner.MNRBatchMiner.csv_to_dat">
+<em class="property"><span class="pre">static</span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">csv_to_dat</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">csv_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dat_file</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference internal" href="../_modules/gal/mining/miner.html#MNRBatchMiner.csv_to_dat"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gal.mining.miner.MNRBatchMiner.csv_to_dat" title="Permalink to this definition">¶</a></dt>
+<dd><p>Convert a <em>binary</em> CSV (0/1) to Pasquier-style .dat</p>
 </dd></dl>
 
-<dl class="py function">
-<dt class="sig sig-object py" id="gal.learning.learn.learning_loop">
-<span class="sig-prename descclassname"><span class="pre">gal.learning.learn.</span></span><span class="sig-name descname"><span class="pre">learning_loop</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tree</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">X</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">space</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">A0</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">b0</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">center_fn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Callable</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_iter</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tau_cap</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">tau_multiplier</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">exp_dir</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">oracle_compare</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">int</span><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">collect_events</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">log_every</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">log_level</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">search_strategy</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">engine</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="search.html#gal.search.engine.Search" title="gal.search.engine.Search"><span class="pre">Search</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">align_orientation</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_gpu</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/gal/learning/learn.html#learning_loop"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gal.learning.learn.learning_loop" title="Permalink to this definition">¶</a></dt>
-<dd><p>Execute the active-learning loop and stream diagnostics to <code class="docutils literal notranslate"><span class="pre">exp_dir</span></code>.</p>
-<dl class="field-list simple">
-<dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><ul class="simple">
-<li><p><strong>tree</strong> – Geometry-aware tree (ball tree or kd-tree) built on top of <code class="docutils literal notranslate"><span class="pre">X</span></code> for
-dual-tree search.</p></li>
-<li><p><strong>X</strong> – Augmented rule matrix supplied to the search engine.</p></li>
-<li><p><strong>space</strong> – Capacity-space helper providing <code class="docutils literal notranslate"><span class="pre">expand_center</span></code> and <code class="docutils literal notranslate"><span class="pre">project</span></code>.</p></li>
-<li><p><strong>A0</strong> – Initial version-space half-space description.</p></li>
-<li><p><strong>b0</strong> – Initial version-space half-space description.</p></li>
-<li><p><strong>center_fn</strong> – Callable that returns the projected centre for a given <code class="docutils literal notranslate"><span class="pre">(A,</span> <span class="pre">b)</span></code> pair.</p></li>
-<li><p><strong>n_iter</strong> – Maximum number of iterations before the loop stops.</p></li>
-<li><p><strong>tau_cap</strong> – Parameters controlling the ambiguity threshold forwarded to the search
-engine (<code class="docutils literal notranslate"><span class="pre">tau</span> <span class="pre">=</span> <span class="pre">min(radius</span> <span class="pre">*</span> <span class="pre">tau_multiplier,</span> <span class="pre">tau_cap)</span></code>).</p></li>
-<li><p><strong>tau_multiplier</strong> – Parameters controlling the ambiguity threshold forwarded to the search
-engine (<code class="docutils literal notranslate"><span class="pre">tau</span> <span class="pre">=</span> <span class="pre">min(radius</span> <span class="pre">*</span> <span class="pre">tau_multiplier,</span> <span class="pre">tau_cap)</span></code>).</p></li>
-<li><p><strong>exp_dir</strong> – Output directory for CSV and NPZ artefacts.</p></li>
-<li><p><strong>oracle_compare</strong> – Oracle callback returning <code class="docutils literal notranslate"><span class="pre">{-1,</span> <span class="pre">0,</span> <span class="pre">+1}</span></code> when comparing two vectors.</p></li>
-<li><p><strong>collect_events</strong> – Toggle for saving per-iteration search traces.</p></li>
-<li><p><strong>log_every</strong> – Logging cadence and verbosity.</p></li>
-<li><p><strong>log_level</strong> – Logging cadence and verbosity.</p></li>
-<li><p><strong>search_strategy</strong> – String identifier resolved through
-<a class="reference internal" href="search.html#gal.search.strategies.get_strategy" title="gal.search.strategies.get_strategy"><code class="xref py py-func docutils literal notranslate"><span class="pre">gal.search.strategies.get_strategy()</span></code></a>.</p></li>
-<li><p><strong>engine</strong> – Optional pre-built <a class="reference internal" href="search.html#gal.search.engine.Search" title="gal.search.engine.Search"><code class="xref py py-class docutils literal notranslate"><span class="pre">gal.search.engine.Search</span></code></a> instance.</p></li>
-<li><p><strong>align_orientation</strong> – When true, attempts to align the search with the farthest feasible point.</p></li>
-<li><p><strong>use_gpu</strong> – Requests the CUDA backend; silently falls back to NumPy when unavailable.</p></li>
-</ul>
-</dd>
-<dt class="field-even">Returns<span class="colon">:</span></dt>
-<dd class="field-even"><p>Final constraint matrices containing every oracle-imposed inequality.</p>
-</dd>
-<dt class="field-odd">Return type<span class="colon">:</span></dt>
-<dd class="field-odd"><p>A, b</p>
-</dd>
-</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="gal.mining.miner.MNRBatchMiner.run_all">
+<span class="sig-name descname"><span class="pre">run_all</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">data_root</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">out_root</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">glob</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'*'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">recursive</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gal/mining/miner.html#MNRBatchMiner.run_all"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gal.mining.miner.MNRBatchMiner.run_all" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
 </dd></dl>
 
 </section>
@@ -368,23 +301,23 @@ engine (<code class="docutils literal notranslate"><span class="pre">tau</span> 
       <footer>
         
         <div class="related-pages">
-          <a class="next-page" href="mining.html">
+          <a class="next-page" href="metrics.html">
               <div class="page-info">
                 <div class="context">
                   <span>Next</span>
                 </div>
-                <div class="title">Mining</div>
+                <div class="title">Metrics and measures</div>
               </div>
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
             </a>
-          <a class="prev-page" href="centers.html">
+          <a class="prev-page" href="learning.html">
               <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
               <div class="page-info">
                 <div class="context">
                   <span>Previous</span>
                 </div>
                 
-                <div class="title">Centre solvers</div>
+                <div class="title">Learning</div>
                 
               </div>
             </a>
@@ -418,10 +351,13 @@ engine (<code class="docutils literal notranslate"><span class="pre">tau</span> 
         <div class="toc-tree-container">
           <div class="toc-tree">
             <ul>
-<li><a class="reference internal" href="#">Learning</a><ul>
-<li><a class="reference internal" href="#learn-py">learn.py</a></li>
-<li><a class="reference internal" href="#gal.learning.learn.project_constraint"><code class="docutils literal notranslate"><span class="pre">project_constraint()</span></code></a></li>
-<li><a class="reference internal" href="#gal.learning.learn.learning_loop"><code class="docutils literal notranslate"><span class="pre">learning_loop()</span></code></a></li>
+<li><a class="reference internal" href="#">Mining</a><ul>
+<li><a class="reference internal" href="#usage">Usage</a></li>
+<li><a class="reference internal" href="#gal.mining.miner.MNRBatchMiner"><code class="docutils literal notranslate"><span class="pre">MNRBatchMiner</span></code></a><ul>
+<li><a class="reference internal" href="#gal.mining.miner.MNRBatchMiner.csv_to_dat"><code class="docutils literal notranslate"><span class="pre">MNRBatchMiner.csv_to_dat()</span></code></a></li>
+<li><a class="reference internal" href="#gal.mining.miner.MNRBatchMiner.run_all"><code class="docutils literal notranslate"><span class="pre">MNRBatchMiner.run_all()</span></code></a></li>
+</ul>
+</li>
 </ul>
 </li>
 </ul>

@@ -13,6 +13,7 @@ source of truth.
    search
    centers
    learning
+   mining
    metrics
    oracles
    utils

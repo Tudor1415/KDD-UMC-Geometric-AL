@@ -1,7 +1,7 @@
-Learning
-========
+Mining
+======
 
-.. automodule:: gal.learning.learn
+.. automodule:: gal.mining.miner
    :members:
    :undoc-members:
    :show-inheritance:

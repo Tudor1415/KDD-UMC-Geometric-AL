@@ -205,6 +205,7 @@
   <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../getting_started.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../learning_procedure.html">Understanding the learning procedure</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../ball_tree_builders.html">Ball-tree builders</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../experiments/active.html">Active Learning Runner</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../experiments/rq1.html">Experiment RQ1: Anytime BnB</a></li>
@@ -216,7 +217,8 @@
 <li class="toctree-l2"><a class="reference internal" href="trees.html">Ball-tree APIs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="search.html">Search APIs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="centers.html">Centre solvers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="learning.html">Learning and mining</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning.html">Learning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mining.html">Mining</a></li>
 <li class="toctree-l2"><a class="reference internal" href="metrics.html">Metrics and measures</a></li>
 <li class="toctree-l2"><a class="reference internal" href="oracles.html">Oracles and priors</a></li>
 <li class="toctree-l2"><a class="reference internal" href="utils.html">Utility helpers</a></li>
@@ -274,6 +276,7 @@ source of truth.</p>
 <div class="toctree-wrapper compound">
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="core.html">Core utilities</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="core.html#gal.core.data.augment_with_minimums"><code class="docutils literal notranslate"><span class="pre">augment_with_minimums()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="core.html#gal.core.data.Dataset"><code class="docutils literal notranslate"><span class="pre">Dataset</span></code></a></li>
 </ul>
 </li>
@@ -290,16 +293,10 @@ source of truth.</p>
 <li class="toctree-l2"><a class="reference internal" href="search.html#gal.search.BoundsResult"><code class="docutils literal notranslate"><span class="pre">BoundsResult</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="search.html#gal.search.BoundsStrategy"><code class="docutils literal notranslate"><span class="pre">BoundsStrategy</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="search.html#gal.search.KdTreeBounds"><code class="docutils literal notranslate"><span class="pre">KdTreeBounds</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="search.html#gal.search.DiversityVisitStrategy"><code class="docutils literal notranslate"><span class="pre">DiversityVisitStrategy</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="search.html#gal.search.LowerBoundVisitStrategy"><code class="docutils literal notranslate"><span class="pre">LowerBoundVisitStrategy</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="search.html#gal.search.Search"><code class="docutils literal notranslate"><span class="pre">Search</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="search.html#gal.search.VisitStrategy"><code class="docutils literal notranslate"><span class="pre">VisitStrategy</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="search.html#gal.search.search_pair"><code class="docutils literal notranslate"><span class="pre">search_pair()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="search.html#gal.search.AngularBounds"><code class="docutils literal notranslate"><span class="pre">AngularBounds</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="search.html#gal.search.Bounds"><code class="docutils literal notranslate"><span class="pre">Bounds</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="search.html#gal.search.LowerBoundObjective"><code class="docutils literal notranslate"><span class="pre">LowerBoundObjective</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="search.html#gal.search.VisitingObjective"><code class="docutils literal notranslate"><span class="pre">VisitingObjective</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="search.html#gal.search.engine.SearchContext"><code class="docutils literal notranslate"><span class="pre">SearchContext</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="search.html#gal.search.engine.Search"><code class="docutils literal notranslate"><span class="pre">Search</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="search.html#gal.search.engine.search_pair"><code class="docutils literal notranslate"><span class="pre">search_pair()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="search.html#gal.search.bounds.BoundContext"><code class="docutils literal notranslate"><span class="pre">BoundContext</span></code></a></li>
@@ -308,7 +305,6 @@ source of truth.</p>
 <li class="toctree-l2"><a class="reference internal" href="search.html#gal.search.bounds.BallTreeBounds"><code class="docutils literal notranslate"><span class="pre">BallTreeBounds</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="search.html#gal.search.strategies.VisitStrategy"><code class="docutils literal notranslate"><span class="pre">VisitStrategy</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="search.html#gal.search.strategies.LowerBoundVisitStrategy"><code class="docutils literal notranslate"><span class="pre">LowerBoundVisitStrategy</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="search.html#gal.search.strategies.DiversityVisitStrategy"><code class="docutils literal notranslate"><span class="pre">DiversityVisitStrategy</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="search.html#gal.search.strategies.get_strategy"><code class="docutils literal notranslate"><span class="pre">get_strategy()</span></code></a></li>
 </ul>
 </li>
@@ -318,14 +314,18 @@ source of truth.</p>
 <li class="toctree-l2"><a class="reference internal" href="centers.html#gal.centers.poly_centers.minkowski_center"><code class="docutils literal notranslate"><span class="pre">minkowski_center()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="centers.html#gal.centers.poly_centers.volumetric_center"><code class="docutils literal notranslate"><span class="pre">volumetric_center()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="centers.html#gal.centers.poly_centers.mse_center"><code class="docutils literal notranslate"><span class="pre">mse_center()</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="centers.html#gal.centers.poly_centers.hit_and_run_centroid"><code class="docutils literal notranslate"><span class="pre">hit_and_run_centroid()</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="learning.html">Learning and mining</a><ul>
+<li class="toctree-l1"><a class="reference internal" href="learning.html">Learning</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="learning.html#learn-py">learn.py</a></li>
 <li class="toctree-l2"><a class="reference internal" href="learning.html#gal.learning.learn.project_constraint"><code class="docutils literal notranslate"><span class="pre">project_constraint()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="learning.html#gal.learning.learn.learn"><code class="docutils literal notranslate"><span class="pre">learn()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="learning.html#usage">Usage</a></li>
-<li class="toctree-l2"><a class="reference internal" href="learning.html#gal.learning.miner.MNRBatchMiner"><code class="docutils literal notranslate"><span class="pre">MNRBatchMiner</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning.html#gal.learning.learn.learning_loop"><code class="docutils literal notranslate"><span class="pre">learning_loop()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="mining.html">Mining</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="mining.html#usage">Usage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mining.html#gal.mining.miner.MNRBatchMiner"><code class="docutils literal notranslate"><span class="pre">MNRBatchMiner</span></code></a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="metrics.html">Metrics and measures</a><ul>
@@ -342,17 +342,6 @@ source of truth.</p>
 <li class="toctree-l2"><a class="reference internal" href="metrics.html#gal.metrics.measures.revsupport"><code class="docutils literal notranslate"><span class="pre">revsupport()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="metrics.html#gal.metrics.measures.margin_of_error_confidence"><code class="docutils literal notranslate"><span class="pre">margin_of_error_confidence()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="metrics.html#gal.metrics.metrics.compute_ranking_metrics"><code class="docutils literal notranslate"><span class="pre">compute_ranking_metrics()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="metrics.html#gal.metrics.rule_metrics.apply_smoothing"><code class="docutils literal notranslate"><span class="pre">apply_smoothing()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="metrics.html#gal.metrics.rule_metrics.confidence"><code class="docutils literal notranslate"><span class="pre">confidence()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="metrics.html#gal.metrics.rule_metrics.lift"><code class="docutils literal notranslate"><span class="pre">lift()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="metrics.html#gal.metrics.rule_metrics.cosine"><code class="docutils literal notranslate"><span class="pre">cosine()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="metrics.html#gal.metrics.rule_metrics.phi"><code class="docutils literal notranslate"><span class="pre">phi()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="metrics.html#gal.metrics.rule_metrics.kruskal"><code class="docutils literal notranslate"><span class="pre">kruskal()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="metrics.html#gal.metrics.rule_metrics.yuleQ"><code class="docutils literal notranslate"><span class="pre">yuleQ()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="metrics.html#gal.metrics.rule_metrics.added_value"><code class="docutils literal notranslate"><span class="pre">added_value()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="metrics.html#gal.metrics.rule_metrics.certainty"><code class="docutils literal notranslate"><span class="pre">certainty()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="metrics.html#gal.metrics.rule_metrics.support"><code class="docutils literal notranslate"><span class="pre">support()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="metrics.html#gal.metrics.rule_metrics.revsupport"><code class="docutils literal notranslate"><span class="pre">revsupport()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="metrics.html#gal.metrics.rule_metrics.compute_metrics"><code class="docutils literal notranslate"><span class="pre">compute_metrics()</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="metrics.html#gal.metrics.rule_metrics.main"><code class="docutils literal notranslate"><span class="pre">main()</span></code></a></li>
 </ul>
@@ -361,6 +350,7 @@ source of truth.</p>
 <li class="toctree-l2"><a class="reference internal" href="oracles.html#gal.oracles.oracles.Oracle"><code class="docutils literal notranslate"><span class="pre">Oracle</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="oracles.html#gal.oracles.oracles.ObjectiveMeasureOracle"><code class="docutils literal notranslate"><span class="pre">ObjectiveMeasureOracle</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="oracles.html#gal.oracles.oracles.SumOracle"><code class="docutils literal notranslate"><span class="pre">SumOracle</span></code></a></li>
+<li class="toctree-l2"><a class="reference internal" href="oracles.html#gal.oracles.oracles.ChoquetOracle"><code class="docutils literal notranslate"><span class="pre">ChoquetOracle</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="oracles.html#gal.oracles.oracles.SurpriseOracle"><code class="docutils literal notranslate"><span class="pre">SurpriseOracle</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="oracles.html#gal.oracles.oracles.MDLOracle"><code class="docutils literal notranslate"><span class="pre">MDLOracle</span></code></a></li>
 <li class="toctree-l2"><a class="reference internal" href="oracles.html#gal.oracles.oracles.NoisyOracle"><code class="docutils literal notranslate"><span class="pre">NoisyOracle</span></code></a></li>
@@ -371,12 +361,7 @@ source of truth.</p>
 <li class="toctree-l2"><a class="reference internal" href="oracles.html#gal.oracles.priors.ChowLiuPrior"><code class="docutils literal notranslate"><span class="pre">ChowLiuPrior</span></code></a></li>
 </ul>
 </li>
-<li class="toctree-l1"><a class="reference internal" href="utils.html">Utility helpers</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="utils.html#gal.utils.helpers.augment_with_minimums"><code class="docutils literal notranslate"><span class="pre">augment_with_minimums()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="utils.html#gal.utils.helpers.k_additive_constraints"><code class="docutils literal notranslate"><span class="pre">k_additive_constraints()</span></code></a></li>
-<li class="toctree-l2"><a class="reference internal" href="utils.html#gal.utils.helpers.enumerate_subsets"><code class="docutils literal notranslate"><span class="pre">enumerate_subsets()</span></code></a></li>
-</ul>
-</li>
+<li class="toctree-l1"><a class="reference internal" href="utils.html">Utility helpers</a></li>
 </ul>
 </div>
 </section>
