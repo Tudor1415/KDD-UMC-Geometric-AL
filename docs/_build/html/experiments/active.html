@@ -205,6 +205,8 @@
   <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../getting_started.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../learning_procedure.html">Understanding the learning procedure</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../logging.html">Logging and instrumentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../ball_tree_builders.html">Ball-tree builders</a></li>
 <li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Active Learning Runner</a></li>
 <li class="toctree-l1"><a class="reference internal" href="rq1.html">Experiment RQ1: Anytime BnB</a></li>
@@ -216,7 +218,8 @@
 <li class="toctree-l2"><a class="reference internal" href="../api/trees.html">Ball-tree APIs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/search.html">Search APIs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/centers.html">Centre solvers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/learning.html">Learning and mining</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/learning.html">Learning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/mining.html">Mining</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/metrics.html">Metrics and measures</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/oracles.html">Oracles and priors</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/utils.html">Utility helpers</a></li>
@@ -275,6 +278,9 @@ iterative branch-and-bound search to query an oracle and shrink a version
 space of weight vectors. Each iteration selects a pair of points using the
 configured tree and visit strategy, asks the oracle for a sign, adds a linear
 constraint, and recomputes the chosen polyhedral centre.</p>
+<p>If you need a line-by-line description of the inner loop, consult
+<a class="reference internal" href="../learning_procedure.html"><span class="doc">Understanding the learning procedure</span></a>, which expands on how datasets, trees, centres, and
+constraint projections interact.</p>
 </section>
 <section id="how-to-run">
 <h2>How to Run<a class="headerlink" href="#how-to-run" title="Permalink to this heading">¶</a></h2>
@@ -374,7 +380,8 @@ the single-run path.</p></li>
 <p>Each run writes a timestamped directory under <code class="docutils literal notranslate"><span class="pre">global.output_root</span></code> with:</p>
 <ul class="simple">
 <li><p><code class="docutils literal notranslate"><span class="pre">config.json</span></code>: Run metadata and algorithm parameters.</p></li>
-<li><p><code class="docutils literal notranslate"><span class="pre">oracle.pkl</span></code>: Pickled oracle description (name, weights, dimension).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">oracle.pkl</span></code>: Pickled scoring-oracle object with a <code class="docutils literal notranslate"><span class="pre">score_dataset</span></code> API
+for downstream analysis tools (e.g., ranking evaluation).</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">tree.h5</span></code>: kd-/ball-tree structure as HDF5 tables.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">query_vectors.h5</span></code>: One dataset per iteration named <code class="docutils literal notranslate"><span class="pre">/query_&lt;k&gt;</span></code>.</p></li>
 <li><p><code class="docutils literal notranslate"><span class="pre">iterations.csv</span></code>: Iteration timeline (indices and timestamps).</p></li>

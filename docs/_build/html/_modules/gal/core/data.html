@@ -1,34 +1,34 @@
 <!doctype html>
-<html class="no-js" lang="en" data-content_root="../../../">
+<html class="no-js" lang="en" data-content_root="">
   <head><meta charset="utf-8"/>
     <meta name="viewport" content="width=device-width,initial-scale=1"/>
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../genindex.html" /><link rel="search" title="Search" href="../../../search.html" />
 
-    <!-- Generated with Sphinx 8.2.3 and Furo 2025.07.19 -->
+    <!-- Generated with Sphinx 7.1.2 and Furo 2024.08.06 -->
         <title>gal.core.data - Geometry-Aware Learning 0.1.0 documentation</title>
-      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=d111a655" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=25af2a20" />
-    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo-extensions.css?v=8dab3a3b" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=354aac6f" />
+    <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo-extensions.css?v=302659d7" />
     
     
 
 
 <style>
   body {
-    --color-code-background: #f2f2f2;
-  --color-code-foreground: #1e1e1e;
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
   
   }
   @media not print {
     body[data-theme="dark"] {
-      --color-code-background: #2b2b2b;
-  --color-code-foreground: #f8f8f2;
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
   
     }
     @media (prefers-color-scheme: dark) {
       body:not([data-theme="light"]) {
-        --color-code-background: #2b2b2b;
-  --color-code-foreground: #f8f8f2;
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
   
       }
     }
@@ -192,6 +192,7 @@
       
       <div class="sidebar-sticky"><a class="sidebar-brand" href="../../../index.html">
   
+  
   <span class="sidebar-brand-text">Geometry-Aware Learning 0.1.0 documentation</span>
   
 </a><form class="sidebar-search-container" method="get" action="../../../search.html" role="search">
@@ -200,13 +201,23 @@
   <input type="hidden" name="area" value="default">
 </form>
 <div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
-  <p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+  <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../getting_started.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../learning_procedure.html">Understanding the learning procedure</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../ball_tree_builders.html">Ball-tree builders</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../experiments/active.html">Active Learning Runner</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../experiments/rq1.html">Experiment RQ1: Anytime BnB</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
 <ul>
 <li class="toctree-l1 has-children"><a class="reference internal" href="../../../api/index.html">API reference</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle navigation of API reference</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/core.html">Core utilities</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/trees.html">Ball-tree APIs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/search.html">Search APIs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/centers.html">Centre solvers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../api/learning.html">Learning and mining</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/learning.html">Learning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/mining.html">Mining</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/metrics.html">Metrics and measures</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/oracles.html">Oracles and priors</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/utils.html">Utility helpers</a></li>
@@ -253,6 +264,8 @@
           <h1>Source code for gal.core.data</h1><div class="highlight"><pre>
 <span></span><span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
+<span class="kn">import</span><span class="w"> </span><span class="nn">itertools</span>
+
 <span class="c1"># data.py</span>
 <span class="c1"># ===============================</span>
 <span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
@@ -280,9 +293,39 @@
     <span class="k">return</span> <span class="n">wrapper</span>
 
 
-<div class="viewcode-block" id="Dataset">
-<a class="viewcode-back" href="../../../api/core.html#gal.core.data.Dataset">[docs]</a>
-<span class="k">class</span><span class="w"> </span><span class="nc">Dataset</span><span class="p">:</span>
+<div class="viewcode-block" id="augment_with_minimums"><a class="viewcode-back" href="../../../api/core.html#gal.core.data.augment_with_minimums">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">augment_with_minimums</span><span class="p">(</span>
+    <span class="n">X</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+    <span class="n">k</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">return_index_map</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">List</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]]]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Augment input samples with minimums over all subsets up to size k.&quot;&quot;&quot;</span>
+    <span class="n">X</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asanyarray</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">X</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;X must be a 2-D array (samples x features)&#39;</span><span class="p">)</span>
+
+    <span class="n">m</span><span class="p">,</span> <span class="n">n</span> <span class="o">=</span> <span class="n">X</span><span class="o">.</span><span class="n">shape</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="mi">1</span> <span class="o">&lt;=</span> <span class="n">k</span> <span class="o">&lt;=</span> <span class="n">n</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s1">&#39;k must satisfy 1 &lt;= k &lt;= n_features&#39;</span><span class="p">)</span>
+
+    <span class="n">subset_list</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">new_columns</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">r</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="n">k</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">comb</span> <span class="ow">in</span> <span class="n">itertools</span><span class="o">.</span><span class="n">combinations</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">n</span><span class="p">),</span> <span class="n">r</span><span class="p">):</span>
+            <span class="n">subset_list</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">comb</span><span class="p">)</span>
+            <span class="n">new_columns</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">X</span><span class="p">[:,</span> <span class="n">comb</span><span class="p">],</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">))</span>
+
+    <span class="k">if</span> <span class="n">new_columns</span><span class="p">:</span>
+        <span class="n">X_aug</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">hstack</span><span class="p">([</span><span class="n">X</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">col</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="n">new_columns</span><span class="p">])</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">X_aug</span> <span class="o">=</span> <span class="n">X</span><span class="o">.</span><span class="n">copy</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">return_index_map</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">X_aug</span><span class="p">,</span> <span class="n">subset_list</span>
+    <span class="k">return</span> <span class="n">X_aug</span></div>
+
+
+<div class="viewcode-block" id="Dataset"><a class="viewcode-back" href="../../../api/core.html#gal.core.data.Dataset">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">Dataset</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <span class="sd">    CSV-based association-rule set plus optional artefacts.</span>
 
@@ -308,7 +351,8 @@
         <span class="n">measures</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">float_dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float32</span><span class="p">,</span>
-        <span class="n">max_rows</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="mi">100_000</span><span class="p">,</span>
+        <span class="n">max_rows</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">drop_duplicate_measure_vectors</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">dataset_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">dataset_path</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">transactions_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">transactions_path</span><span class="p">)</span> <span class="k">if</span> <span class="n">transactions_path</span> <span class="k">else</span> <span class="kc">None</span>
@@ -320,7 +364,10 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">float_dtype</span> <span class="o">=</span> <span class="n">float_dtype</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">measures</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">measures</span><span class="p">)</span> <span class="k">if</span> <span class="n">measures</span> <span class="k">else</span> <span class="p">[]</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">all_measures</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">max_rows</span> <span class="o">=</span> <span class="n">max_rows</span>
+        <span class="k">if</span> <span class="n">max_rows</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="nb">int</span><span class="p">(</span><span class="n">max_rows</span><span class="p">)</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;max_rows must be positive when provided&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">max_rows</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">max_rows</span><span class="p">)</span> <span class="k">if</span> <span class="n">max_rows</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">drop_duplicate_measure_vectors</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">drop_duplicate_measure_vectors</span><span class="p">)</span>
 
         <span class="c1"># filled by load()</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
@@ -333,12 +380,14 @@
         <span class="bp">self</span><span class="o">.</span><span class="n">_n_rules</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_loaded</span> <span class="o">=</span> <span class="kc">False</span>
 
+        <span class="c1"># basic load diagnostics</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rows_read</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">duplicates_dropped</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
     <span class="c1"># -------------------------------------------------------------- load</span>
-<div class="viewcode-block" id="Dataset.load">
-<a class="viewcode-back" href="../../../api/core.html#gal.core.data.Dataset.load">[docs]</a>
-    <span class="k">def</span><span class="w"> </span><span class="nf">load</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Dataset&quot;</span><span class="p">:</span>
+<div class="viewcode-block" id="Dataset.load"><a class="viewcode-back" href="../../../api/core.html#gal.core.data.Dataset.load">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">load</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Dataset&quot;</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Read the rule CSV, drop duplicate measure-vectors (keep first),</span>
+<span class="sd">        Read the rule CSV, optionally drop duplicate measure-vectors,</span>
 <span class="sd">        and propagate that selection everywhere (points, helper maps,</span>
 <span class="sd">        rule-item matrix).</span>
 <span class="sd">        &quot;&quot;&quot;</span>
@@ -365,17 +414,22 @@
             <span class="n">dtype</span><span class="o">=</span><span class="n">dtype_map</span><span class="p">,</span>
             <span class="n">engine</span><span class="o">=</span><span class="s2">&quot;pyarrow&quot;</span> <span class="k">if</span> <span class="n">use_pyarrow</span> <span class="k">else</span> <span class="s2">&quot;c&quot;</span><span class="p">,</span>
         <span class="p">)</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">use_pyarrow</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_rows</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_rows</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
             <span class="n">read_csv_kw</span><span class="p">[</span><span class="s2">&quot;nrows&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">max_rows</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="o">**</span><span class="n">read_csv_kw</span><span class="p">)</span>
 
-        <span class="c1"># ---------- keep only unique measure-vectors -----------------</span>
-        <span class="n">keep_mask</span> <span class="o">=</span> <span class="o">~</span><span class="bp">self</span><span class="o">.</span><span class="n">df</span><span class="o">.</span><span class="n">duplicated</span><span class="p">(</span><span class="n">subset</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">measures</span><span class="p">,</span> <span class="n">keep</span><span class="o">=</span><span class="s2">&quot;first&quot;</span><span class="p">)</span>
-        <span class="n">keep_mask_np</span> <span class="o">=</span> <span class="n">keep_mask</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>  <span class="c1"># save before reset_index</span>
-        <span class="n">n_loaded_rules</span> <span class="o">=</span> <span class="n">keep_mask_np</span><span class="o">.</span><span class="n">size</span>  <span class="c1"># number of rows read from CSV</span>
-
-        <span class="bp">self</span><span class="o">.</span><span class="n">df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">df</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">keep_mask</span><span class="p">]</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="c1"># ---------- optionally drop duplicate measure-vectors --------</span>
+        <span class="n">n_loaded_rules</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">df</span><span class="p">)</span>
+        <span class="n">keep_mask_np</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">duplicates_dropped</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">drop_duplicate_measure_vectors</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">measures</span><span class="p">:</span>
+            <span class="n">keep_mask</span> <span class="o">=</span> <span class="o">~</span><span class="bp">self</span><span class="o">.</span><span class="n">df</span><span class="o">.</span><span class="n">duplicated</span><span class="p">(</span><span class="n">subset</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">measures</span><span class="p">,</span> <span class="n">keep</span><span class="o">=</span><span class="s2">&quot;first&quot;</span><span class="p">)</span>
+            <span class="n">keep_mask_np</span> <span class="o">=</span> <span class="n">keep_mask</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">()</span>
+            <span class="n">duplicates_dropped</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">n_loaded_rules</span> <span class="o">-</span> <span class="nb">int</span><span class="p">(</span><span class="n">keep_mask_np</span><span class="o">.</span><span class="n">sum</span><span class="p">()))</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">df</span><span class="o">.</span><span class="n">loc</span><span class="p">[</span><span class="n">keep_mask</span><span class="p">]</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">df</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">df</span><span class="o">.</span><span class="n">reset_index</span><span class="p">(</span><span class="n">drop</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 
         <span class="c1"># ---------- rebuild helpers on filtered rules ----------------</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">points</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">df</span><span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">measures</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(</span>
@@ -387,6 +441,8 @@
             <span class="bp">self</span><span class="o">.</span><span class="n">_hash2rows</span><span class="p">[</span><span class="n">_hash_measures</span><span class="p">(</span><span class="n">v</span><span class="p">)]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">_n_rules</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">df</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">rows_read</span> <span class="o">=</span> <span class="n">n_loaded_rules</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">duplicates_dropped</span> <span class="o">=</span> <span class="n">duplicates_dropped</span>
 
         <span class="c1"># ---------- optional transactions CSV ------------------------</span>
         <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">transactions_path</span><span class="p">:</span>
@@ -422,13 +478,15 @@
             <span class="c1"># ---------- apply *same* mask to rows --------------------</span>
             <span class="c1"># first align lengths: take only the rules we actually read</span>
             <span class="n">M_subset</span> <span class="o">=</span> <span class="n">M_full</span><span class="p">[:</span><span class="n">n_loaded_rules</span><span class="p">]</span>
-            <span class="c1"># then drop the duplicate-measure rows</span>
-            <span class="bp">self</span><span class="o">.</span><span class="n">item_rule_map</span> <span class="o">=</span> <span class="n">M_subset</span><span class="p">[</span><span class="n">keep_mask_np</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">keep_mask_np</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="c1"># then drop the duplicate-measure rows</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">item_rule_map</span> <span class="o">=</span> <span class="n">M_subset</span><span class="p">[</span><span class="n">keep_mask_np</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">item_rule_map</span> <span class="o">=</span> <span class="n">M_subset</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">items</span> <span class="o">=</span> <span class="n">items</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
 
         <span class="bp">self</span><span class="o">.</span><span class="n">_loaded</span> <span class="o">=</span> <span class="kc">True</span>
         <span class="k">return</span> <span class="bp">self</span></div>
-
 
     <span class="c1"># -------------------------------------------------------------- helpers</span>
     <span class="nd">@staticmethod</span>
@@ -442,9 +500,7 @@
             <span class="k">return</span> <span class="p">[]</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">entry</span> <span class="k">else</span> <span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">tok</span><span class="o">.</span><span class="n">strip</span><span class="p">())</span> <span class="k">for</span> <span class="n">tok</span> <span class="ow">in</span> <span class="n">entry</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="s2">&quot;,&quot;</span><span class="p">)]</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Cannot parse item list from </span><span class="si">{</span><span class="n">entry</span><span class="si">!r}</span><span class="s2">&quot;</span><span class="p">)</span>
 
-<div class="viewcode-block" id="Dataset.get_rule_dict">
-<a class="viewcode-back" href="../../../api/core.html#gal.core.data.Dataset.get_rule_dict">[docs]</a>
-    <span class="nd">@_needs_load</span>
+<div class="viewcode-block" id="Dataset.get_rule_dict"><a class="viewcode-back" href="../../../api/core.html#gal.core.data.Dataset.get_rule_dict">[docs]</a>    <span class="nd">@_needs_load</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">get_rule_dict</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">idx</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Rule</span><span class="p">:</span>
         <span class="n">row</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">df</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="nb">int</span><span class="p">(</span><span class="n">idx</span><span class="p">)]</span>
         <span class="n">measures_dict</span> <span class="o">=</span> <span class="p">{</span><span class="n">col</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">row</span><span class="p">[</span><span class="n">col</span><span class="p">])</span> <span class="k">for</span> <span class="n">col</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">all_measures</span><span class="p">}</span>
@@ -455,16 +511,13 @@
             <span class="s2">&quot;measures&quot;</span><span class="p">:</span> <span class="n">measures_dict</span><span class="p">,</span>
         <span class="p">}</span></div>
 
-
-<div class="viewcode-block" id="Dataset.vector_to_rule">
-<a class="viewcode-back" href="../../../api/core.html#gal.core.data.Dataset.vector_to_rule">[docs]</a>
-    <span class="nd">@_needs_load</span>
+<div class="viewcode-block" id="Dataset.vector_to_rule"><a class="viewcode-back" href="../../../api/core.html#gal.core.data.Dataset.vector_to_rule">[docs]</a>    <span class="nd">@_needs_load</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">vector_to_rule</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">vec</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Rule</span><span class="p">:</span>
-        <span class="n">rows</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_hash2rows</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">_hash_measures</span><span class="p">(</span><span class="n">vec</span><span class="p">))</span>
+        <span class="n">vec_np</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">vec</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">float_dtype</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">rows</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_hash2rows</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">_hash_measures</span><span class="p">(</span><span class="n">vec_np</span><span class="p">))</span>
         <span class="k">if</span> <span class="ow">not</span> <span class="n">rows</span><span class="p">:</span>
             <span class="k">raise</span> <span class="ne">KeyError</span><span class="p">(</span><span class="s2">&quot;Vector not found in dataset&quot;</span><span class="p">)</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_rule_dict</span><span class="p">(</span><span class="n">rows</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span></div>
-
 
     <span class="nd">@_needs_load</span>
     <span class="k">def</span><span class="w"> </span><span class="fm">__len__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
@@ -498,7 +551,6 @@
             <span class="s2">&quot;Load the transactions file or store the value in a &quot;</span>
             <span class="s2">&quot;&#39;n_transactions&#39; column.&quot;</span>
         <span class="p">)</span></div>
-
 </pre></div>
         </article>
       </div>
@@ -531,9 +583,9 @@
       
     </aside>
   </div>
-</div><script src="../../../_static/documentation_options.js?v=01f34227"></script>
-    <script src="../../../_static/doctools.js?v=9bcbadda"></script>
-    <script src="../../../_static/sphinx_highlight.js?v=dc90522c"></script>
-    <script src="../../../_static/scripts/furo.js?v=46bd48cc"></script>
+</div><script data-url_root="../../../" id="documentation_options" src="../../../_static/documentation_options.js?v=2389946f"></script>
+    <script src="../../../_static/doctools.js?v=888ff710"></script>
+    <script src="../../../_static/sphinx_highlight.js?v=4825356b"></script>
+    <script src="../../../_static/scripts/furo.js?v=5fa4622c"></script>
     </body>
 </html>

@@ -26,29 +26,34 @@ Quick preprocessing pass
 
 Most experiments expect three artefact folders: ``datasets/`` (transactions),
 ``mined_rules/`` (rule CSV files) and ``matrices/`` (rule-item matrices).  Use
-the preprocessing CLI to normalise metrics and create matrices:
+the preprocessing CLI to normalise metrics and rebuild matrices in bulk.  It
+operates on an input *directory* and processes every ``*_mnr.csv`` it finds:
 
 .. code-block:: bash
 
-   python -m scripts.preprocess \
-       --input mined_rules/credit_mnr.csv \
-       --output matrices/ \
-       --normalize --write-binary matrices/
+   python -m scripts.preprocess mined_rules \
+       --datasets datasets \
+       --normalize \
+       --write-binary matrices
 
 Running built-in experiments
 ----------------------------
 
-The refactored entry point lives under ``scripts.main``.  It automatically
-loads every dataset that has matching artefacts and executes the configured set
-of centres, oracles, and metrics:
+The config-driven runner now lives under ``gal.experiments.run``.  Provide a
+YAML file describing datasets, oracle/centre combinations, and logging flags:
 
 .. code-block:: bash
 
-   python -m scripts.main --log-level INFO
+   python -m gal.experiments.run configs/exp_demo.yaml
 
-To benchmark the ball-tree branch-and-bound search, use the explicit benchmark
-script.  Results are streamed to ``benchmark_outputs/ball_tree_benchmark.csv``
-so you can analyse them incrementally.
+It returns the path to the timestamped run directory where all artefacts are
+stored.  Copy ``configs/exp_demo.yaml`` and tweak the ``datasets`` section to
+point at your own rule CSVs or matrices before launching a longer job.
+
+To benchmark the ball-tree branch-and-bound search, the explicit benchmark
+script still lives under ``scripts.benchmarks.ball_tree_benchmark``.  Results are
+streamed to ``benchmark_outputs/ball_tree_benchmark.csv`` so you can analyse
+them incrementally:
 
 .. code-block:: bash
 
@@ -75,6 +80,46 @@ random sampling baseline, use the dedicated runner under ``experiments/rq1``.
 Figures are written under ``global.output_dir`` specified in the YAML. See
 :doc:`experiments/rq1` for a full configuration reference and output details.
 
+Hands-on walkthrough (Mushroom dataset)
+---------------------------------------
+
+The repository ships with a lightweight configuration and sample artefacts so
+you can run an end-to-end experiment immediately.
+
+1. **Regenerate the sample metrics (optional).**  This refreshes the normalised
+   metrics and binary matrices under ``DATA/``::
+
+     python -m scripts.preprocess DATA/mined_rules \
+         --datasets DATA/datasets \
+         --normalize \
+         --write-binary DATA/matrices
+
+2. **Create a working config.**  Copy the demo YAML and adjust the ``datasets``
+   block if you stored artefacts elsewhere::
+
+     cp configs/exp_demo.yaml my_first_run.yaml
+
+   The default file already targets the packaged Mushroom artefacts under
+   ``DATA/`` and writes outputs to ``results/``.
+
+3. **Launch the run and capture the output directory.**
+
+   .. code-block:: bash
+
+      RUN_DIR=$(python -m gal.experiments.run my_first_run.yaml)
+      echo "Results live in: $RUN_DIR"
+
+   Each run produces ``config.json``, ``iterations.csv``, the final version
+   space, and per-iteration folders with search traces and centre snapshots.
+
+4. **Inspect the results.**  The quick commands below confirm the run finished
+   and summarise the first few iterations::
+
+     head -n5 "$RUN_DIR/iterations.csv"
+     python -m scripts.analyze_ranking "$RUN_DIR" \
+         --rules DATA/mined_rules/mushroom_mnr.csv \
+         --topk 10 20
+
 Python API example
 ------------------
 
@@ -87,7 +132,8 @@ iterations.
 
    import numpy as np
    from gal.trees import build_ball_tree
-   from gal.utils.helpers import augment_with_minimums, k_additive_constraints
+   from gal.core.data import augment_with_minimums
+   from gal.core.constraints import k_additive_constraints
    from gal.centers.poly_centers import chebyshev_center
    from gal.learning.learn import learn
 
@@ -123,7 +169,6 @@ Next steps
 * Explore the :doc:`api/index` section for detailed module documentation.
 * Review :doc:`project_layout` for a high-level map of the repository.
 * Read :doc:`learning_procedure` for a step-by-step breakdown of the active learning loop.
+* Consult :doc:`logging` to understand how to configure verbosity and capture search traces.
 * Check the ``benchmark_outputs/`` directory after running experiments to
   inspect generated CSV files and plots.
-
-

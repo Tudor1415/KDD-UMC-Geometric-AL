@@ -203,6 +203,8 @@
   <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="learning_procedure.html">Understanding the learning procedure</a></li>
+<li class="toctree-l1"><a class="reference internal" href="logging.html">Logging and instrumentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="ball_tree_builders.html">Ball-tree builders</a></li>
 <li class="toctree-l1"><a class="reference internal" href="experiments/active.html">Active Learning Runner</a></li>
 <li class="toctree-l1"><a class="reference internal" href="experiments/rq1.html">Experiment RQ1: Anytime BnB</a></li>
@@ -214,7 +216,8 @@
 <li class="toctree-l2"><a class="reference internal" href="api/trees.html">Ball-tree APIs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/search.html">Search APIs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/centers.html">Centre solvers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/learning.html">Learning and mining</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/learning.html">Learning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/mining.html">Mining</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/metrics.html">Metrics and measures</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/oracles.html">Oracles and priors</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/utils.html">Utility helpers</a></li>
@@ -261,31 +264,25 @@
           
 <section class="genindex-section">
   <h1 id="index">Index</h1>
-  <div class="genindex-jumpbox"><a href="#A"><strong>A</strong></a> | <a href="#B"><strong>B</strong></a> | <a href="#C"><strong>C</strong></a> | <a href="#D"><strong>D</strong></a> | <a href="#E"><strong>E</strong></a> | <a href="#F"><strong>F</strong></a> | <a href="#G"><strong>G</strong></a> | <a href="#I"><strong>I</strong></a> | <a href="#K"><strong>K</strong></a> | <a href="#L"><strong>L</strong></a> | <a href="#M"><strong>M</strong></a> | <a href="#N"><strong>N</strong></a> | <a href="#O"><strong>O</strong></a> | <a href="#P"><strong>P</strong></a> | <a href="#R"><strong>R</strong></a> | <a href="#S"><strong>S</strong></a> | <a href="#U"><strong>U</strong></a> | <a href="#V"><strong>V</strong></a> | <a href="#Y"><strong>Y</strong></a></div>
+  <div class="genindex-jumpbox"><a href="#A"><strong>A</strong></a> | <a href="#B"><strong>B</strong></a> | <a href="#C"><strong>C</strong></a> | <a href="#D"><strong>D</strong></a> | <a href="#E"><strong>E</strong></a> | <a href="#F"><strong>F</strong></a> | <a href="#G"><strong>G</strong></a> | <a href="#H"><strong>H</strong></a> | <a href="#I"><strong>I</strong></a> | <a href="#K"><strong>K</strong></a> | <a href="#L"><strong>L</strong></a> | <a href="#M"><strong>M</strong></a> | <a href="#N"><strong>N</strong></a> | <a href="#O"><strong>O</strong></a> | <a href="#P"><strong>P</strong></a> | <a href="#R"><strong>R</strong></a> | <a href="#S"><strong>S</strong></a> | <a href="#T"><strong>T</strong></a> | <a href="#U"><strong>U</strong></a> | <a href="#V"><strong>V</strong></a> | <a href="#X"><strong>X</strong></a> | <a href="#Y"><strong>Y</strong></a></div>
 </section>
 <section id="A" class="genindex-section">
   <h2>A</h2>
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/metrics.html#gal.metrics.measures.added_value">added_value() (in module gal.metrics.measures)</a>
-
-        <ul>
-          <li><a href="api/metrics.html#gal.metrics.rule_metrics.added_value">(in module gal.metrics.rule_metrics)</a>
 </li>
-        </ul></li>
         <li><a href="api/centers.html#gal.centers.poly_centers.analytical_center">analytical_center() (in module gal.centers.poly_centers)</a>
+</li>
+        <li><a href="api/metrics.html#gal.metrics.measures.apply_smoothing">apply_smoothing() (in module gal.metrics.measures)</a>
 </li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api/search.html#gal.search.AngularBounds">AngularBounds (in module gal.search)</a>
+        <li><a href="api/utils.html#gal.utils.array_backend.ArrayBackend">ArrayBackend (class in gal.utils.array_backend)</a>
 </li>
-        <li><a href="api/metrics.html#gal.metrics.measures.apply_smoothing">apply_smoothing() (in module gal.metrics.measures)</a>
-
-        <ul>
-          <li><a href="api/metrics.html#gal.metrics.rule_metrics.apply_smoothing">(in module gal.metrics.rule_metrics)</a>
+        <li><a href="api/utils.html#gal.utils.array_backend.ArrayBackend.asarray">asarray() (gal.utils.array_backend.ArrayBackend method)</a>
 </li>
-        </ul></li>
-        <li><a href="api/utils.html#gal.utils.helpers.augment_with_minimums">augment_with_minimums() (in module gal.utils.helpers)</a>
+        <li><a href="api/core.html#gal.core.data.augment_with_minimums">augment_with_minimums() (in module gal.core.data)</a>
 </li>
     </ul></td>
   </tr></table>
@@ -305,16 +302,16 @@
 </li>
         <li><a href="api/oracles.html#gal.oracles.oracles.BiasedOracle">BiasedOracle (class in gal.oracles.oracles)</a>
 </li>
+        <li><a href="api/utils.html#gal.utils.array_backend.ArrayBackend.bool_scalar">bool_scalar() (gal.utils.array_backend.ArrayBackend method)</a>
+</li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/search.html#gal.search.BoundContext">BoundContext (class in gal.search)</a>
 
         <ul>
           <li><a href="api/search.html#gal.search.bounds.BoundContext">(class in gal.search.bounds)</a>
 </li>
         </ul></li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api/search.html#gal.search.Bounds">Bounds (in module gal.search)</a>
-</li>
         <li><a href="api/search.html#gal.search.BoundsResult">BoundsResult (class in gal.search)</a>
 
         <ul>
@@ -336,12 +333,10 @@
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/metrics.html#gal.metrics.measures.certainty">certainty() (in module gal.metrics.measures)</a>
-
-        <ul>
-          <li><a href="api/metrics.html#gal.metrics.rule_metrics.certainty">(in module gal.metrics.rule_metrics)</a>
 </li>
-        </ul></li>
         <li><a href="api/centers.html#gal.centers.poly_centers.chebyshev_center">chebyshev_center() (in module gal.centers.poly_centers)</a>
+</li>
+        <li><a href="api/oracles.html#gal.oracles.oracles.ChoquetOracle">ChoquetOracle (class in gal.oracles.oracles)</a>
 </li>
         <li><a href="api/oracles.html#gal.oracles.priors.ChowLiuPrior">ChowLiuPrior (class in gal.oracles.priors)</a>
 </li>
@@ -370,18 +365,10 @@
         <li><a href="api/metrics.html#gal.metrics.metrics.compute_ranking_metrics">compute_ranking_metrics() (in module gal.metrics.metrics)</a>
 </li>
         <li><a href="api/metrics.html#gal.metrics.measures.confidence">confidence() (in module gal.metrics.measures)</a>
-
-        <ul>
-          <li><a href="api/metrics.html#gal.metrics.rule_metrics.confidence">(in module gal.metrics.rule_metrics)</a>
 </li>
-        </ul></li>
         <li><a href="api/metrics.html#gal.metrics.measures.cosine">cosine() (in module gal.metrics.measures)</a>
-
-        <ul>
-          <li><a href="api/metrics.html#gal.metrics.rule_metrics.cosine">(in module gal.metrics.rule_metrics)</a>
 </li>
-        </ul></li>
-        <li><a href="api/learning.html#gal.learning.miner.MNRBatchMiner.csv_to_dat">csv_to_dat() (gal.learning.miner.MNRBatchMiner static method)</a>
+        <li><a href="api/mining.html#gal.mining.miner.MNRBatchMiner.csv_to_dat">csv_to_dat() (gal.mining.miner.MNRBatchMiner static method)</a>
 </li>
     </ul></td>
   </tr></table>
@@ -394,14 +381,6 @@
         <li><a href="api/core.html#gal.core.data.Dataset">Dataset (class in gal.core.data)</a>
 </li>
     </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api/search.html#gal.search.DiversityVisitStrategy">DiversityVisitStrategy (class in gal.search)</a>
-
-        <ul>
-          <li><a href="api/search.html#gal.search.strategies.DiversityVisitStrategy">(class in gal.search.strategies)</a>
-</li>
-        </ul></li>
-    </ul></td>
   </tr></table>
 </section>
 
@@ -409,8 +388,6 @@
   <h2>E</h2>
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api/utils.html#gal.utils.helpers.enumerate_subsets">enumerate_subsets() (in module gal.utils.helpers)</a>
-</li>
         <li><a href="api/oracles.html#gal.oracles.priors.BayesianNetworkPrior.expected">expected() (gal.oracles.priors.BayesianNetworkPrior method)</a>
 
         <ul>
@@ -481,20 +458,6 @@
 </li>
         </ul></li>
         <li>
-    gal.learning.merge
-
-        <ul>
-          <li><a href="api/learning.html#module-gal.learning.merge">module</a>
-</li>
-        </ul></li>
-        <li>
-    gal.learning.miner
-
-        <ul>
-          <li><a href="api/learning.html#module-gal.learning.miner">module</a>
-</li>
-        </ul></li>
-        <li>
     gal.metrics.measures
 
         <ul>
@@ -513,6 +476,13 @@
 
         <ul>
           <li><a href="api/metrics.html#module-gal.metrics.rule_metrics">module</a>
+</li>
+        </ul></li>
+        <li>
+    gal.mining.miner
+
+        <ul>
+          <li><a href="api/mining.html#module-gal.mining.miner">module</a>
 </li>
         </ul></li>
         <li>
@@ -616,10 +586,10 @@
 </li>
         </ul></li>
         <li>
-    gal.utils.helpers
+    gal.utils.array_backend
 
         <ul>
-          <li><a href="api/utils.html#module-gal.utils.helpers">module</a>
+          <li><a href="api/utils.html#module-gal.utils.array_backend">module</a>
 </li>
         </ul></li>
         <li><a href="api/trees.html#gal.trees.GeometricTree">GeometricTree (class in gal.trees)</a>
@@ -628,9 +598,21 @@
           <li><a href="api/trees.html#gal.trees.common.GeometricTree">(class in gal.trees.common)</a>
 </li>
         </ul></li>
+        <li><a href="api/utils.html#gal.utils.array_backend.get_array_backend">get_array_backend() (in module gal.utils.array_backend)</a>
+</li>
         <li><a href="api/core.html#gal.core.data.Dataset.get_rule_dict">get_rule_dict() (gal.core.data.Dataset method)</a>
 </li>
         <li><a href="api/search.html#gal.search.strategies.get_strategy">get_strategy() (in module gal.search.strategies)</a>
+</li>
+    </ul></td>
+  </tr></table>
+</section>
+
+<section id="H" class="genindex-section">
+  <h2>H</h2>
+  <table style="width: 100%" class="indextable genindextable"><tr>
+    <td style="width: 33%; vertical-align: top;"><ul>
+        <li><a href="api/centers.html#gal.centers.poly_centers.hit_and_run_centroid">hit_and_run_centroid() (in module gal.centers.poly_centers)</a>
 </li>
     </ul></td>
   </tr></table>
@@ -650,18 +632,12 @@
   <h2>K</h2>
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api/utils.html#gal.utils.helpers.k_additive_constraints">k_additive_constraints() (in module gal.utils.helpers)</a>
-</li>
         <li><a href="api/search.html#gal.search.KdTreeBounds">KdTreeBounds (class in gal.search)</a>
 </li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/metrics.html#gal.metrics.measures.kruskal">kruskal() (in module gal.metrics.measures)</a>
-
-        <ul>
-          <li><a href="api/metrics.html#gal.metrics.rule_metrics.kruskal">(in module gal.metrics.rule_metrics)</a>
 </li>
-        </ul></li>
     </ul></td>
   </tr></table>
 </section>
@@ -670,19 +646,13 @@
   <h2>L</h2>
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api/learning.html#gal.learning.learn.learn">learn() (in module gal.learning.learn)</a>
+        <li><a href="api/learning.html#gal.learning.learn.learning_loop">learning_loop() (in module gal.learning.learn)</a>
 </li>
         <li><a href="api/metrics.html#gal.metrics.measures.lift">lift() (in module gal.metrics.measures)</a>
-
-        <ul>
-          <li><a href="api/metrics.html#gal.metrics.rule_metrics.lift">(in module gal.metrics.rule_metrics)</a>
 </li>
-        </ul></li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/core.html#gal.core.data.Dataset.load">load() (gal.core.data.Dataset method)</a>
-</li>
-        <li><a href="api/search.html#gal.search.LowerBoundObjective">LowerBoundObjective (in module gal.search)</a>
 </li>
         <li><a href="api/search.html#gal.search.LowerBoundVisitStrategy">LowerBoundVisitStrategy (class in gal.search)</a>
 
@@ -706,7 +676,7 @@
 </li>
         <li><a href="api/centers.html#gal.centers.poly_centers.minkowski_center">minkowski_center() (in module gal.centers.poly_centers)</a>
 </li>
-        <li><a href="api/learning.html#gal.learning.miner.MNRBatchMiner">MNRBatchMiner (class in gal.learning.miner)</a>
+        <li><a href="api/mining.html#gal.mining.miner.MNRBatchMiner">MNRBatchMiner (class in gal.mining.miner)</a>
 </li>
         <li>
     module
@@ -718,15 +688,13 @@
 </li>
           <li><a href="api/learning.html#module-gal.learning.learn">gal.learning.learn</a>
 </li>
-          <li><a href="api/learning.html#module-gal.learning.merge">gal.learning.merge</a>
-</li>
-          <li><a href="api/learning.html#module-gal.learning.miner">gal.learning.miner</a>
-</li>
           <li><a href="api/metrics.html#module-gal.metrics.measures">gal.metrics.measures</a>
 </li>
           <li><a href="api/metrics.html#module-gal.metrics.metrics">gal.metrics.metrics</a>
 </li>
           <li><a href="api/metrics.html#module-gal.metrics.rule_metrics">gal.metrics.rule_metrics</a>
+</li>
+          <li><a href="api/mining.html#module-gal.mining.miner">gal.mining.miner</a>
 </li>
           <li><a href="api/oracles.html#module-gal.oracles.oracles">gal.oracles.oracles</a>
 </li>
@@ -756,7 +724,7 @@
 </li>
           <li><a href="api/trees.html#module-gal.trees.two_pivot">gal.trees.two_pivot</a>
 </li>
-          <li><a href="api/utils.html#module-gal.utils.helpers">gal.utils.helpers</a>
+          <li><a href="api/utils.html#module-gal.utils.array_backend">gal.utils.array_backend</a>
 </li>
           <li><a href="api/utils.html#module-utils.geometry">utils.geometry</a>
 </li>
@@ -779,14 +747,16 @@
     <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/core.html#gal.core.data.Dataset.n_transactions">n_transactions (gal.core.data.Dataset property)</a>
 </li>
+        <li><a href="api/utils.html#gal.utils.array_backend.ArrayBackend.name">name (gal.utils.array_backend.ArrayBackend attribute)</a>
+</li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/trees.html#gal.trees.Node">Node (class in gal.trees)</a>
 
         <ul>
           <li><a href="api/trees.html#gal.trees.common.Node">(class in gal.trees.common)</a>
 </li>
         </ul></li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/oracles.html#gal.oracles.oracles.NoisyOracle">NoisyOracle (class in gal.oracles.oracles)</a>
 </li>
     </ul></td>
@@ -812,20 +782,12 @@
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/metrics.html#gal.metrics.measures.phi">phi() (in module gal.metrics.measures)</a>
-
-        <ul>
-          <li><a href="api/metrics.html#gal.metrics.rule_metrics.phi">(in module gal.metrics.rule_metrics)</a>
 </li>
-        </ul></li>
         <li><a href="api/oracles.html#gal.oracles.priors.Prior">Prior (class in gal.oracles.priors)</a>
 </li>
-        <li><a href="api/search.html#gal.search.DiversityVisitStrategy.priority">priority() (gal.search.DiversityVisitStrategy method)</a>
+        <li><a href="api/search.html#gal.search.LowerBoundVisitStrategy.priority">priority() (gal.search.LowerBoundVisitStrategy method)</a>
 
         <ul>
-          <li><a href="api/search.html#gal.search.LowerBoundVisitStrategy.priority">(gal.search.LowerBoundVisitStrategy method)</a>
-</li>
-          <li><a href="api/search.html#gal.search.strategies.DiversityVisitStrategy.priority">(gal.search.strategies.DiversityVisitStrategy method)</a>
-</li>
           <li><a href="api/search.html#gal.search.strategies.LowerBoundVisitStrategy.priority">(gal.search.strategies.LowerBoundVisitStrategy method)</a>
 </li>
           <li><a href="api/search.html#gal.search.strategies.VisitStrategy.priority">(gal.search.strategies.VisitStrategy method)</a>
@@ -847,15 +809,11 @@
     <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/oracles.html#gal.oracles.oracles.ObjectiveMeasureOracle.random">random() (gal.oracles.oracles.ObjectiveMeasureOracle static method)</a>
 </li>
-        <li><a href="api/metrics.html#gal.metrics.measures.revsupport">revsupport() (in module gal.metrics.measures)</a>
-
-        <ul>
-          <li><a href="api/metrics.html#gal.metrics.rule_metrics.revsupport">(in module gal.metrics.rule_metrics)</a>
-</li>
-        </ul></li>
     </ul></td>
     <td style="width: 33%; vertical-align: top;"><ul>
-        <li><a href="api/learning.html#gal.learning.miner.MNRBatchMiner.run_all">run_all() (gal.learning.miner.MNRBatchMiner method)</a>
+        <li><a href="api/metrics.html#gal.metrics.measures.revsupport">revsupport() (in module gal.metrics.measures)</a>
+</li>
+        <li><a href="api/mining.html#gal.mining.miner.MNRBatchMiner.run_all">run_all() (gal.mining.miner.MNRBatchMiner method)</a>
 </li>
     </ul></td>
   </tr></table>
@@ -865,9 +823,13 @@
   <h2>S</h2>
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
+        <li><a href="api/utils.html#gal.utils.array_backend.ArrayBackend.scalar">scalar() (gal.utils.array_backend.ArrayBackend method)</a>
+</li>
         <li><a href="api/oracles.html#gal.oracles.oracles.BiasedOracle.score">score() (gal.oracles.oracles.BiasedOracle method)</a>
 
         <ul>
+          <li><a href="api/oracles.html#gal.oracles.oracles.ChoquetOracle.score">(gal.oracles.oracles.ChoquetOracle method)</a>
+</li>
           <li><a href="api/oracles.html#gal.oracles.oracles.MDLOracle.score">(gal.oracles.oracles.MDLOracle method)</a>
 </li>
           <li><a href="api/oracles.html#gal.oracles.oracles.NoisyOracle.score">(gal.oracles.oracles.NoisyOracle method)</a>
@@ -884,6 +846,8 @@
         <li><a href="api/oracles.html#gal.oracles.oracles.BiasedOracle.score_dataset">score_dataset() (gal.oracles.oracles.BiasedOracle method)</a>
 
         <ul>
+          <li><a href="api/oracles.html#gal.oracles.oracles.ChoquetOracle.score_dataset">(gal.oracles.oracles.ChoquetOracle method)</a>
+</li>
           <li><a href="api/oracles.html#gal.oracles.oracles.MDLOracle.score_dataset">(gal.oracles.oracles.MDLOracle method)</a>
 </li>
           <li><a href="api/oracles.html#gal.oracles.oracles.NoisyOracle.score_dataset">(gal.oracles.oracles.NoisyOracle method)</a>
@@ -897,34 +861,34 @@
           <li><a href="api/oracles.html#gal.oracles.oracles.SurpriseOracle.score_dataset">(gal.oracles.oracles.SurpriseOracle method)</a>
 </li>
         </ul></li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/search.html#gal.search.Search">Search (class in gal.search)</a>
 
         <ul>
           <li><a href="api/search.html#gal.search.engine.Search">(class in gal.search.engine)</a>
 </li>
         </ul></li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/search.html#gal.search.search_pair">search_pair() (in module gal.search)</a>
 
         <ul>
           <li><a href="api/search.html#gal.search.engine.search_pair">(in module gal.search.engine)</a>
 </li>
         </ul></li>
-        <li><a href="api/search.html#gal.search.engine.SearchContext">SearchContext (class in gal.search.engine)</a>
-</li>
-        <li><a href="api/oracles.html#gal.oracles.oracles.MDLOracle.set_dataset">set_dataset() (gal.oracles.oracles.MDLOracle method)</a>
+        <li><a href="api/oracles.html#gal.oracles.oracles.ChoquetOracle.set_dataset">set_dataset() (gal.oracles.oracles.ChoquetOracle method)</a>
 
         <ul>
+          <li><a href="api/oracles.html#gal.oracles.oracles.MDLOracle.set_dataset">(gal.oracles.oracles.MDLOracle method)</a>
+</li>
           <li><a href="api/oracles.html#gal.oracles.oracles.Oracle.set_dataset">(gal.oracles.oracles.Oracle method)</a>
 </li>
           <li><a href="api/oracles.html#gal.oracles.oracles.SurpriseOracle.set_dataset">(gal.oracles.oracles.SurpriseOracle method)</a>
 </li>
         </ul></li>
-        <li><a href="api/search.html#gal.search.DiversityVisitStrategy.setup">setup() (gal.search.DiversityVisitStrategy method)</a>
+        <li><a href="api/search.html#gal.search.LowerBoundVisitStrategy.setup">setup() (gal.search.LowerBoundVisitStrategy method)</a>
 
         <ul>
-          <li><a href="api/search.html#gal.search.strategies.DiversityVisitStrategy.setup">(gal.search.strategies.DiversityVisitStrategy method)</a>
+          <li><a href="api/search.html#gal.search.strategies.LowerBoundVisitStrategy.setup">(gal.search.strategies.LowerBoundVisitStrategy method)</a>
 </li>
           <li><a href="api/search.html#gal.search.strategies.VisitStrategy.setup">(gal.search.strategies.VisitStrategy method)</a>
 </li>
@@ -934,12 +898,18 @@
         <li><a href="api/oracles.html#gal.oracles.oracles.SumOracle">SumOracle (class in gal.oracles.oracles)</a>
 </li>
         <li><a href="api/metrics.html#gal.metrics.measures.support">support() (in module gal.metrics.measures)</a>
-
-        <ul>
-          <li><a href="api/metrics.html#gal.metrics.rule_metrics.support">(in module gal.metrics.rule_metrics)</a>
 </li>
-        </ul></li>
         <li><a href="api/oracles.html#gal.oracles.oracles.SurpriseOracle">SurpriseOracle (class in gal.oracles.oracles)</a>
+</li>
+    </ul></td>
+  </tr></table>
+</section>
+
+<section id="T" class="genindex-section">
+  <h2>T</h2>
+  <table style="width: 100%" class="indextable genindextable"><tr>
+    <td style="width: 33%; vertical-align: top;"><ul>
+        <li><a href="api/utils.html#gal.utils.array_backend.ArrayBackend.to_cpu">to_cpu() (gal.utils.array_backend.ArrayBackend method)</a>
 </li>
     </ul></td>
   </tr></table>
@@ -982,17 +952,25 @@
     <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/core.html#gal.core.data.Dataset.vector_to_rule">vector_to_rule() (gal.core.data.Dataset method)</a>
 </li>
-        <li><a href="api/search.html#gal.search.VisitingObjective">VisitingObjective (in module gal.search)</a>
-</li>
-    </ul></td>
-    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/search.html#gal.search.VisitStrategy">VisitStrategy (class in gal.search)</a>
 
         <ul>
           <li><a href="api/search.html#gal.search.strategies.VisitStrategy">(class in gal.search.strategies)</a>
 </li>
         </ul></li>
+    </ul></td>
+    <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/centers.html#gal.centers.poly_centers.volumetric_center">volumetric_center() (in module gal.centers.poly_centers)</a>
+</li>
+    </ul></td>
+  </tr></table>
+</section>
+
+<section id="X" class="genindex-section">
+  <h2>X</h2>
+  <table style="width: 100%" class="indextable genindextable"><tr>
+    <td style="width: 33%; vertical-align: top;"><ul>
+        <li><a href="api/utils.html#gal.utils.array_backend.ArrayBackend.xp">xp (gal.utils.array_backend.ArrayBackend attribute)</a>
 </li>
     </ul></td>
   </tr></table>
@@ -1003,11 +981,7 @@
   <table style="width: 100%" class="indextable genindextable"><tr>
     <td style="width: 33%; vertical-align: top;"><ul>
         <li><a href="api/metrics.html#gal.metrics.measures.yuleQ">yuleQ() (in module gal.metrics.measures)</a>
-
-        <ul>
-          <li><a href="api/metrics.html#gal.metrics.rule_metrics.yuleQ">(in module gal.metrics.rule_metrics)</a>
 </li>
-        </ul></li>
     </ul></td>
   </tr></table>
 </section>

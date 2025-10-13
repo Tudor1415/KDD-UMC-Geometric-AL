@@ -5,7 +5,7 @@
     <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../genindex.html" /><link rel="search" title="Search" href="../../../search.html" />
 
     <!-- Generated with Sphinx 7.1.2 and Furo 2024.08.06 -->
-        <title>gal.metrics.rule_metrics - Geometry-Aware Learning 0.1.0 documentation</title>
+        <title>gal.utils.array_backend - Geometry-Aware Learning 0.1.0 documentation</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=8f2a1f02" />
     <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo.css?v=354aac6f" />
     <link rel="stylesheet" type="text/css" href="../../../_static/styles/furo-extensions.css?v=302659d7" />
@@ -205,6 +205,7 @@
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../../getting_started.html">Getting started</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../learning_procedure.html">Understanding the learning procedure</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../logging.html">Logging and instrumentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../ball_tree_builders.html">Ball-tree builders</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../experiments/active.html">Active Learning Runner</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../experiments/rq1.html">Experiment RQ1: Anytime BnB</a></li>
@@ -261,88 +262,93 @@
           </label>
         </div>
         <article role="main" id="furo-main-content">
-          <h1>Source code for gal.metrics.rule_metrics</h1><div class="highlight"><pre>
-<span></span><span class="ch">#!/usr/bin/env python3</span>
+          <h1>Source code for gal.utils.array_backend</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Helpers for selecting NumPy or PyTorch array backends at runtime.&quot;&quot;&quot;</span>
+
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">argparse</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Callable</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 
-<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">measures</span>
-
-<span class="c1"># -----------------------------------------------------------------------------</span>
-<span class="c1"># Association-rule measures (vectorised)</span>
-<span class="c1"># -----------------------------------------------------------------------------</span>
-<span class="n">MEASURE_FUNCS</span> <span class="o">=</span> <span class="p">[</span>
-    <span class="p">(</span><span class="s2">&quot;support&quot;</span><span class="p">,</span> <span class="n">measures</span><span class="o">.</span><span class="n">support</span><span class="p">),</span>
-    <span class="p">(</span><span class="s2">&quot;confidence&quot;</span><span class="p">,</span> <span class="n">measures</span><span class="o">.</span><span class="n">confidence</span><span class="p">),</span>
-    <span class="p">(</span><span class="s2">&quot;lift&quot;</span><span class="p">,</span> <span class="n">measures</span><span class="o">.</span><span class="n">lift</span><span class="p">),</span>
-    <span class="p">(</span><span class="s2">&quot;cosine&quot;</span><span class="p">,</span> <span class="n">measures</span><span class="o">.</span><span class="n">cosine</span><span class="p">),</span>
-    <span class="p">(</span><span class="s2">&quot;phi&quot;</span><span class="p">,</span> <span class="n">measures</span><span class="o">.</span><span class="n">phi</span><span class="p">),</span>
-    <span class="p">(</span><span class="s2">&quot;kruskal&quot;</span><span class="p">,</span> <span class="n">measures</span><span class="o">.</span><span class="n">kruskal</span><span class="p">),</span>
-    <span class="p">(</span><span class="s2">&quot;yuleQ&quot;</span><span class="p">,</span> <span class="n">measures</span><span class="o">.</span><span class="n">yuleQ</span><span class="p">),</span>
-    <span class="p">(</span><span class="s2">&quot;added_value&quot;</span><span class="p">,</span> <span class="n">measures</span><span class="o">.</span><span class="n">added_value</span><span class="p">),</span>
-    <span class="p">(</span><span class="s2">&quot;certainty&quot;</span><span class="p">,</span> <span class="n">measures</span><span class="o">.</span><span class="n">certainty</span><span class="p">),</span>
-    <span class="p">(</span><span class="s2">&quot;revsupport&quot;</span><span class="p">,</span> <span class="n">measures</span><span class="o">.</span><span class="n">revsupport</span><span class="p">),</span>
-<span class="p">]</span>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 
-<div class="viewcode-block" id="compute_metrics"><a class="viewcode-back" href="../../../api/metrics.html#gal.metrics.rule_metrics.compute_metrics">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">compute_metrics</span><span class="p">(</span><span class="n">df</span><span class="p">:</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">,</span> <span class="n">n</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">smooth_counts</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">pd</span><span class="o">.</span><span class="n">DataFrame</span><span class="p">:</span>
-    <span class="n">x</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;supportX&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
-    <span class="n">y</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;supportY&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
-    <span class="n">z</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="s2">&quot;supportZ&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">to_numpy</span><span class="p">(</span><span class="nb">float</span><span class="p">)</span>
-    <span class="n">total_transactions</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">n</span><span class="p">)</span>
+<div class="viewcode-block" id="ArrayBackend"><a class="viewcode-back" href="../../../api/utils.html#gal.utils.array_backend.ArrayBackend">[docs]</a><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ArrayBackend</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Minimal facade over NumPy/PyTorch operations used in the search code.&quot;&quot;&quot;</span>
 
-    <span class="k">for</span> <span class="n">column</span><span class="p">,</span> <span class="n">func</span> <span class="ow">in</span> <span class="n">MEASURE_FUNCS</span><span class="p">:</span>
-        <span class="n">df</span><span class="p">[</span><span class="n">column</span><span class="p">]</span> <span class="o">=</span> <span class="n">func</span><span class="p">(</span>
-            <span class="n">x</span><span class="p">,</span>
-            <span class="n">y</span><span class="p">,</span>
-            <span class="n">z</span><span class="p">,</span>
-            <span class="n">total_transactions</span><span class="p">,</span>
-            <span class="n">smooth_counts</span><span class="o">=</span><span class="n">smooth_counts</span><span class="p">,</span>
-        <span class="p">)</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">xp</span><span class="p">:</span> <span class="n">Any</span>
+    <span class="n">_asarray</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">],</span> <span class="n">Any</span><span class="p">]</span>
+    <span class="n">_to_cpu</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">Any</span><span class="p">],</span> <span class="n">Any</span><span class="p">]</span>
 
-    <span class="k">return</span> <span class="n">df</span></div>
+<div class="viewcode-block" id="ArrayBackend.asarray"><a class="viewcode-back" href="../../../api/utils.html#gal.utils.array_backend.ArrayBackend.asarray">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">asarray</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">array</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_asarray</span><span class="p">(</span><span class="n">array</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ArrayBackend.to_cpu"><a class="viewcode-back" href="../../../api/utils.html#gal.utils.array_backend.ArrayBackend.to_cpu">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">to_cpu</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">array</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_to_cpu</span><span class="p">(</span><span class="n">array</span><span class="p">)</span></div>
+
+<div class="viewcode-block" id="ArrayBackend.scalar"><a class="viewcode-back" href="../../../api/utils.html#gal.utils.array_backend.ArrayBackend.scalar">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">scalar</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">floating</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">integer</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="n">value_cpu</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_cpu</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value_cpu</span><span class="p">,</span> <span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="nb">int</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">floating</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">integer</span><span class="p">)):</span>
+            <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">value_cpu</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">value_cpu</span><span class="p">)</span><span class="o">.</span><span class="n">item</span><span class="p">())</span></div>
+
+<div class="viewcode-block" id="ArrayBackend.bool_scalar"><a class="viewcode-back" href="../../../api/utils.html#gal.utils.array_backend.ArrayBackend.bool_scalar">[docs]</a>    <span class="k">def</span><span class="w"> </span><span class="nf">bool_scalar</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">scalar</span><span class="p">(</span><span class="n">value</span><span class="p">))</span></div></div>
 
 
-<div class="viewcode-block" id="main"><a class="viewcode-back" href="../../../api/metrics.html#gal.metrics.rule_metrics.main">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">main</span><span class="p">():</span>
-    <span class="n">ap</span> <span class="o">=</span> <span class="n">argparse</span><span class="o">.</span><span class="n">ArgumentParser</span><span class="p">(</span><span class="n">description</span><span class="o">=</span><span class="s2">&quot;Update rule CSV with quality measures&quot;</span><span class="p">)</span>
-    <span class="n">ap</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span><span class="s2">&quot;csv_path&quot;</span><span class="p">,</span> <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Path to the rule CSV to overwrite&quot;</span><span class="p">)</span>
-    <span class="n">ap</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-        <span class="s2">&quot;-N&quot;</span><span class="p">,</span>
-        <span class="s2">&quot;--transactions&quot;</span><span class="p">,</span>
-        <span class="nb">type</span><span class="o">=</span><span class="nb">int</span><span class="p">,</span>
-        <span class="n">required</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
-        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Total number of transactions (n)&quot;</span><span class="p">,</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_numpy_backend</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">ArrayBackend</span><span class="p">:</span>
+    <span class="k">return</span> <span class="n">ArrayBackend</span><span class="p">(</span>
+        <span class="n">name</span><span class="o">=</span><span class="s2">&quot;cpu&quot;</span><span class="p">,</span>
+        <span class="n">xp</span><span class="o">=</span><span class="n">np</span><span class="p">,</span>
+        <span class="n">_asarray</span><span class="o">=</span><span class="k">lambda</span> <span class="n">array</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">array</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">),</span>
+        <span class="n">_to_cpu</span><span class="o">=</span><span class="k">lambda</span> <span class="n">array</span><span class="p">:</span> <span class="n">array</span><span class="p">,</span>
     <span class="p">)</span>
-    <span class="n">ap</span><span class="o">.</span><span class="n">add_argument</span><span class="p">(</span>
-        <span class="s2">&quot;--smooth&quot;</span><span class="p">,</span>
-        <span class="nb">type</span><span class="o">=</span><span class="nb">float</span><span class="p">,</span>
-        <span class="n">default</span><span class="o">=</span><span class="mf">0.0</span><span class="p">,</span>
-        <span class="n">help</span><span class="o">=</span><span class="s2">&quot;Smoothing constant (default 0 - no smoothing)&quot;</span><span class="p">,</span>
-    <span class="p">)</span>
-    <span class="n">args</span> <span class="o">=</span> <span class="n">ap</span><span class="o">.</span><span class="n">parse_args</span><span class="p">()</span>
-
-    <span class="n">csv_file</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">args</span><span class="o">.</span><span class="n">csv_path</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
-    <span class="k">if</span> <span class="ow">not</span> <span class="n">csv_file</span><span class="o">.</span><span class="n">is_file</span><span class="p">():</span>
-        <span class="k">raise</span> <span class="ne">FileNotFoundError</span><span class="p">(</span><span class="n">csv_file</span><span class="p">)</span>
-
-    <span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="n">csv_file</span><span class="p">)</span>
-    <span class="n">existing_columns</span> <span class="o">=</span> <span class="nb">set</span><span class="p">(</span><span class="n">df</span><span class="o">.</span><span class="n">columns</span><span class="p">)</span>
-    <span class="n">updated</span> <span class="o">=</span> <span class="n">compute_metrics</span><span class="p">(</span><span class="n">df</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">transactions</span><span class="p">,</span> <span class="n">args</span><span class="o">.</span><span class="n">smooth</span><span class="p">)</span>
-
-    <span class="c1"># Overwrite in place</span>
-    <span class="n">updated</span><span class="o">.</span><span class="n">to_csv</span><span class="p">(</span><span class="n">csv_file</span><span class="p">,</span> <span class="n">index</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
-    <span class="n">added_columns</span> <span class="o">=</span> <span class="p">[</span><span class="n">c</span> <span class="k">for</span> <span class="n">c</span> <span class="ow">in</span> <span class="n">updated</span><span class="o">.</span><span class="n">columns</span> <span class="k">if</span> <span class="n">c</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">existing_columns</span><span class="p">]</span>
-    <span class="nb">print</span><span class="p">(</span>
-        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">csv_file</span><span class="si">}</span><span class="s2"> updated with </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">added_columns</span><span class="p">)</span><span class="si">}</span><span class="s2"> new measure columns.&quot;</span>
-    <span class="p">)</span></div>
 
 
-<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">&quot;__main__&quot;</span><span class="p">:</span>
-    <span class="n">main</span><span class="p">()</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">_torch_backend</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="n">ArrayBackend</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>  <span class="c1"># type: ignore</span>
+    <span class="k">except</span> <span class="ne">ImportError</span><span class="p">:</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;PyTorch not available; falling back to NumPy backend.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">torch</span><span class="o">.</span><span class="n">cuda</span><span class="o">.</span><span class="n">is_available</span><span class="p">():</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">warning</span><span class="p">(</span><span class="s2">&quot;CUDA not available; falling back to NumPy backend.&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="n">device</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">(</span><span class="s2">&quot;cuda&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_asarray</span><span class="p">(</span><span class="n">array</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">as_tensor</span><span class="p">(</span><span class="n">array</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">torch</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_to_cpu</span><span class="p">(</span><span class="n">array</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">array</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">array</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">array</span>
+
+    <span class="k">return</span> <span class="n">ArrayBackend</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;torch&quot;</span><span class="p">,</span> <span class="n">xp</span><span class="o">=</span><span class="n">torch</span><span class="p">,</span> <span class="n">_asarray</span><span class="o">=</span><span class="n">_asarray</span><span class="p">,</span> <span class="n">_to_cpu</span><span class="o">=</span><span class="n">_to_cpu</span><span class="p">)</span>
+
+
+<span class="n">_CPU_BACKEND</span> <span class="o">=</span> <span class="n">_numpy_backend</span><span class="p">()</span>
+
+
+<div class="viewcode-block" id="get_array_backend"><a class="viewcode-back" href="../../../api/utils.html#gal.utils.array_backend.get_array_backend">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">get_array_backend</span><span class="p">(</span><span class="n">use_gpu</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ArrayBackend</span><span class="p">:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">use_gpu</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">_CPU_BACKEND</span>
+    <span class="n">torch_backend</span> <span class="o">=</span> <span class="n">_torch_backend</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">torch_backend</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">_CPU_BACKEND</span>
+    <span class="k">return</span> <span class="n">torch_backend</span></div>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;ArrayBackend&quot;</span><span class="p">,</span> <span class="s2">&quot;get_array_backend&quot;</span><span class="p">]</span>
 </pre></div>
         </article>
       </div>

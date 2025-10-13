@@ -119,7 +119,7 @@ The runner consumes a YAML file with these top-level sections. The example
   - ``values``: A list controlling Choquet additivity augmentation:
 
     - Integer ``k >= 1``: augments features via
-      ``gal.utils.helpers.augment_with_minimums(X, k)``. ``k=1`` means no
+      ``gal.core.data.augment_with_minimums(X, k)``. ``k=1`` means no
       augmentation.
     - Dict ``{n: int, k: int}``: first slice the dataset to ``n`` rows, then
       apply ``k``-additivity as above. Useful to keep run-times bounded while

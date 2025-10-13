@@ -205,6 +205,8 @@
   <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
 <ul class="current">
 <li class="toctree-l1"><a class="reference internal" href="../getting_started.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../learning_procedure.html">Understanding the learning procedure</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../logging.html">Logging and instrumentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../ball_tree_builders.html">Ball-tree builders</a></li>
 <li class="toctree-l1"><a class="reference internal" href="active.html">Active Learning Runner</a></li>
 <li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Experiment RQ1: Anytime BnB</a></li>
@@ -216,7 +218,8 @@
 <li class="toctree-l2"><a class="reference internal" href="../api/trees.html">Ball-tree APIs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/search.html">Search APIs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/centers.html">Centre solvers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../api/learning.html">Learning and mining</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/learning.html">Learning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../api/mining.html">Mining</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/metrics.html">Metrics and measures</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/oracles.html">Oracles and priors</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../api/utils.html">Utility helpers</a></li>
@@ -387,7 +390,7 @@ a fraction of T_max to evaluate <a class="reference external" href="mailto:A&#37
 <li><p><code class="docutils literal notranslate"><span class="pre">values</span></code>: A list controlling Choquet additivity augmentation:</p>
 <ul>
 <li><p>Integer <code class="docutils literal notranslate"><span class="pre">k</span> <span class="pre">&gt;=</span> <span class="pre">1</span></code>: augments features via
-<code class="docutils literal notranslate"><span class="pre">gal.utils.helpers.augment_with_minimums(X,</span> <span class="pre">k)</span></code>. <code class="docutils literal notranslate"><span class="pre">k=1</span></code> means no
+<code class="docutils literal notranslate"><span class="pre">gal.core.data.augment_with_minimums(X,</span> <span class="pre">k)</span></code>. <code class="docutils literal notranslate"><span class="pre">k=1</span></code> means no
 augmentation.</p></li>
 <li><p>Dict <code class="docutils literal notranslate"><span class="pre">{n:</span> <span class="pre">int,</span> <span class="pre">k:</span> <span class="pre">int}</span></code>: first slice the dataset to <code class="docutils literal notranslate"><span class="pre">n</span></code> rows, then
 apply <code class="docutils literal notranslate"><span class="pre">k</span></code>-additivity as above. Useful to keep run-times bounded while

@@ -204,7 +204,9 @@
   <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../../getting_started.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../learning_procedure.html">Understanding the learning procedure</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../ball_tree_builders.html">Ball-tree builders</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../experiments/active.html">Active Learning Runner</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../experiments/rq1.html">Experiment RQ1: Anytime BnB</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
@@ -214,7 +216,8 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../api/trees.html">Ball-tree APIs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/search.html">Search APIs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/centers.html">Centre solvers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../api/learning.html">Learning and mining</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/learning.html">Learning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/mining.html">Mining</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/metrics.html">Metrics and measures</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/oracles.html">Oracles and priors</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/utils.html">Utility helpers</a></li>
@@ -288,13 +291,15 @@
     <span class="n">wc</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
     <span class="n">eps</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-12</span>
     <span class="c1"># Optional per-query cache (e.g., projection-intervals per node and center)</span>
-    <span class="n">proj_cache</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]]</span> <span class="o">=</span> <span class="kc">None</span></div>
+    <span class="n">proj_cache</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]]</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">orientation</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span></div>
 
 
 <div class="viewcode-block" id="BoundsResult"><a class="viewcode-back" href="../../../api/search.html#gal.search.BoundsResult">[docs]</a><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
 <span class="k">class</span><span class="w"> </span><span class="nc">BoundsResult</span><span class="p">:</span>
     <span class="n">lower</span><span class="p">:</span> <span class="nb">float</span>
-    <span class="n">upper</span><span class="p">:</span> <span class="nb">float</span></div>
+    <span class="n">upper</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">orientation</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span></div>
 
 
 <div class="viewcode-block" id="BoundsStrategy"><a class="viewcode-back" href="../../../api/search.html#gal.search.BoundsStrategy">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">BoundsStrategy</span><span class="p">(</span><span class="n">Generic</span><span class="p">[</span><span class="n">TNode</span><span class="p">]):</span>
@@ -309,7 +314,10 @@
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">context</span><span class="p">:</span> <span class="n">BoundContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">BoundsResult</span><span class="p">:</span>
         <span class="n">lower</span><span class="p">,</span> <span class="n">upper</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bounds_ball_pair</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">context</span><span class="o">.</span><span class="n">wc</span><span class="p">,</span> <span class="n">context</span><span class="o">.</span><span class="n">eps</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">BoundsResult</span><span class="p">(</span><span class="n">lower</span><span class="o">=</span><span class="n">lower</span><span class="p">,</span> <span class="n">upper</span><span class="o">=</span><span class="n">upper</span><span class="p">)</span>
+        <span class="n">orientation_bounds</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">if</span> <span class="n">context</span><span class="o">.</span><span class="n">orientation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">orientation_bounds</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_bounds_orientation</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">context</span><span class="o">.</span><span class="n">orientation</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">BoundsResult</span><span class="p">(</span><span class="n">lower</span><span class="o">=</span><span class="n">lower</span><span class="p">,</span> <span class="n">upper</span><span class="o">=</span><span class="n">upper</span><span class="p">,</span> <span class="n">orientation</span><span class="o">=</span><span class="n">orientation_bounds</span><span class="p">)</span>
 
     <span class="nd">@staticmethod</span>
     <span class="k">def</span><span class="w"> </span><span class="nf">_bounds_ball_pair</span><span class="p">(</span><span class="n">a</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">wc</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">eps</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-12</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
@@ -339,6 +347,26 @@
             <span class="n">num</span> <span class="o">=</span> <span class="n">gamma</span> <span class="o">*</span> <span class="nb">abs</span><span class="p">(</span><span class="n">delta</span> <span class="o">+</span> <span class="n">rho</span> <span class="o">*</span> <span class="n">gamma</span><span class="p">)</span>
             <span class="n">denom</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">d</span> <span class="o">*</span> <span class="n">gamma</span> <span class="o">+</span> <span class="n">rho</span> <span class="o">*</span> <span class="n">wc</span><span class="p">))</span>
         <span class="n">upper</span> <span class="o">=</span> <span class="n">num</span> <span class="o">/</span> <span class="nb">max</span><span class="p">(</span><span class="n">denom</span><span class="p">,</span> <span class="n">eps</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">lower</span><span class="p">,</span> <span class="n">upper</span>
+    
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_bounds_orientation</span><span class="p">(</span><span class="n">a</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">orientation</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Orientation-based bounds on d_wc(f1, f2) for all f1 in Ba and f2 in Bb.&quot;&quot;&quot;</span>
+        <span class="n">c1</span><span class="p">,</span> <span class="n">r1</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">center</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">radius</span><span class="p">)</span>
+        <span class="n">c2</span><span class="p">,</span> <span class="n">r2</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">center</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="n">b</span><span class="o">.</span><span class="n">radius</span><span class="p">)</span>
+        <span class="n">rho</span> <span class="o">=</span> <span class="n">r1</span> <span class="o">+</span> <span class="n">r2</span>
+        <span class="n">d</span> <span class="o">=</span> <span class="n">c2</span> <span class="o">-</span> <span class="n">c1</span>
+        <span class="n">orientation_vec</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">orientation</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="nb">float</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+        <span class="n">orient_norm</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">orientation_vec</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">orient_norm</span> <span class="o">==</span> <span class="mf">0.0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="mf">0.0</span><span class="p">,</span> <span class="mf">0.0</span>
+
+        <span class="n">proj</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">d</span><span class="p">,</span> <span class="n">orientation_vec</span><span class="p">))</span>
+        <span class="n">span</span> <span class="o">=</span> <span class="n">rho</span> <span class="o">*</span> <span class="n">orient_norm</span>
+
+        <span class="n">lower</span> <span class="o">=</span> <span class="n">proj</span> <span class="o">-</span> <span class="n">span</span>
+        <span class="n">upper</span> <span class="o">=</span> <span class="n">proj</span> <span class="o">+</span> <span class="n">span</span>
 
         <span class="k">return</span> <span class="n">lower</span><span class="p">,</span> <span class="n">upper</span></div>
 </pre></div>

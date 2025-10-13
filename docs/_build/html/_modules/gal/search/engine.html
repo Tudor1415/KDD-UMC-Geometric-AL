@@ -204,6 +204,7 @@
   <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../../../getting_started.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../learning_procedure.html">Understanding the learning procedure</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../ball_tree_builders.html">Ball-tree builders</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../experiments/active.html">Active Learning Runner</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../../experiments/rq1.html">Experiment RQ1: Anytime BnB</a></li>
@@ -215,7 +216,8 @@
 <li class="toctree-l2"><a class="reference internal" href="../../../api/trees.html">Ball-tree APIs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/search.html">Search APIs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/centers.html">Centre solvers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="../../../api/learning.html">Learning and mining</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/learning.html">Learning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../api/mining.html">Mining</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/metrics.html">Metrics and measures</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/oracles.html">Oracles and priors</a></li>
 <li class="toctree-l2"><a class="reference internal" href="../../../api/utils.html">Utility helpers</a></li>
@@ -264,26 +266,19 @@
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
 
-<span class="kn">import</span><span class="w"> </span><span class="nn">heapq</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">math</span>
-<span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">itertools</span><span class="w"> </span><span class="kn">import</span> <span class="n">count</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Iterable</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">,</span> <span class="n">Tuple</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Dict</span><span class="p">,</span> <span class="n">Optional</span><span class="p">,</span> <span class="n">Sequence</span><span class="p">,</span> <span class="n">Tuple</span>
 
 <span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
 
 <span class="kn">from</span><span class="w"> </span><span class="nn">..trees.common</span><span class="w"> </span><span class="kn">import</span> <span class="n">GeometricTree</span><span class="p">,</span> <span class="n">Node</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.bounds</span><span class="w"> </span><span class="kn">import</span> <span class="n">BallTreeBounds</span><span class="p">,</span> <span class="n">BoundContext</span><span class="p">,</span> <span class="n">BoundsStrategy</span>
-<span class="kn">from</span><span class="w"> </span><span class="nn">.strategies</span><span class="w"> </span><span class="kn">import</span> <span class="n">DiversityVisitStrategy</span><span class="p">,</span> <span class="n">VisitStrategy</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">get_array_backend</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.bounds</span><span class="w"> </span><span class="kn">import</span> <span class="n">BallTreeBounds</span><span class="p">,</span> <span class="n">BoundsStrategy</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.engine_default</span><span class="w"> </span><span class="kn">import</span> <span class="n">run_default_search</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.engine_orientation</span><span class="w"> </span><span class="kn">import</span> <span class="n">run_orientation_search</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.strategies</span><span class="w"> </span><span class="kn">import</span> <span class="n">VisitStrategy</span><span class="p">,</span> <span class="n">LowerBoundVisitStrategy</span>
 
-
-<div class="viewcode-block" id="SearchContext"><a class="viewcode-back" href="../../../api/search.html#gal.search.SearchContext">[docs]</a><span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
-<span class="k">class</span><span class="w"> </span><span class="nc">SearchContext</span><span class="p">:</span>
-    <span class="n">data</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
-    <span class="n">wc</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
-    <span class="n">tau</span><span class="p">:</span> <span class="nb">float</span>
-    <span class="n">eps</span><span class="p">:</span> <span class="nb">float</span></div>
+<span class="n">logger</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
 
 
 <div class="viewcode-block" id="Search"><a class="viewcode-back" href="../../../api/search.html#gal.search.Search">[docs]</a><span class="k">class</span><span class="w"> </span><span class="nc">Search</span><span class="p">:</span>
@@ -296,98 +291,12 @@
         <span class="n">strategy</span><span class="p">:</span> <span class="n">VisitStrategy</span><span class="p">[</span><span class="n">Node</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">bounder</span> <span class="o">=</span> <span class="n">bounder</span> <span class="ow">or</span> <span class="n">BallTreeBounds</span><span class="p">()</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">strategy</span> <span class="o">=</span> <span class="n">strategy</span> <span class="ow">or</span> <span class="n">DiversityVisitStrategy</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">strategy</span> <span class="o">=</span> <span class="n">strategy</span> <span class="ow">or</span> <span class="n">LowerBoundVisitStrategy</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_seen_pairs</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
 
-    <span class="nd">@staticmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">_node_is_leaf</span><span class="p">(</span><span class="n">node</span><span class="p">:</span> <span class="n">Node</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-        <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">is_leaf</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">node</span><span class="o">.</span><span class="n">children</span><span class="p">)</span>
-
-    <span class="nd">@staticmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">_descendant_size</span><span class="p">(</span><span class="n">node</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">cache</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-        <span class="n">node_id</span> <span class="o">=</span> <span class="nb">id</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
-        <span class="k">if</span> <span class="n">node_id</span> <span class="ow">in</span> <span class="n">cache</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">cache</span><span class="p">[</span><span class="n">node_id</span><span class="p">]</span>
-        <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">indices</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">Search</span><span class="o">.</span><span class="n">_node_is_leaf</span><span class="p">(</span><span class="n">node</span><span class="p">):</span>
-            <span class="n">size</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">indices</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">size</span> <span class="o">=</span> <span class="nb">sum</span><span class="p">(</span><span class="n">Search</span><span class="o">.</span><span class="n">_descendant_size</span><span class="p">(</span><span class="n">child</span><span class="p">,</span> <span class="n">cache</span><span class="p">)</span> <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">children</span><span class="p">)</span>
-        <span class="n">cache</span><span class="p">[</span><span class="n">node_id</span><span class="p">]</span> <span class="o">=</span> <span class="n">size</span>
-        <span class="k">return</span> <span class="n">size</span>
-
-    <span class="nd">@staticmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">_gather_leaf_indices</span><span class="p">(</span><span class="n">node</span><span class="p">:</span> <span class="n">Node</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
-        <span class="n">stack</span> <span class="o">=</span> <span class="p">[</span><span class="n">node</span><span class="p">]</span>
-        <span class="n">leaves</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="k">while</span> <span class="n">stack</span><span class="p">:</span>
-            <span class="n">nd</span> <span class="o">=</span> <span class="n">stack</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
-            <span class="k">if</span> <span class="n">Search</span><span class="o">.</span><span class="n">_node_is_leaf</span><span class="p">(</span><span class="n">nd</span><span class="p">)</span> <span class="ow">and</span> <span class="n">nd</span><span class="o">.</span><span class="n">indices</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="n">leaves</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">nd</span><span class="o">.</span><span class="n">indices</span><span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="n">stack</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">nd</span><span class="o">.</span><span class="n">children</span><span class="p">)</span>
-        <span class="k">if</span> <span class="ow">not</span> <span class="n">leaves</span><span class="p">:</span>
-            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([],</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">)</span>
-        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">unique</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span><span class="n">leaves</span><span class="p">)</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">int64</span><span class="p">,</span> <span class="n">copy</span><span class="o">=</span><span class="kc">False</span><span class="p">))</span>
-
-    <span class="nd">@staticmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">_dominates</span><span class="p">(</span><span class="n">a</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">eps</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
-        <span class="n">amin</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">center</span> <span class="o">-</span> <span class="n">a</span><span class="o">.</span><span class="n">radius</span>
-        <span class="n">amax</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">center</span> <span class="o">+</span> <span class="n">a</span><span class="o">.</span><span class="n">radius</span>
-        <span class="n">bmin</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">center</span> <span class="o">-</span> <span class="n">b</span><span class="o">.</span><span class="n">radius</span>
-        <span class="n">bmax</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">center</span> <span class="o">+</span> <span class="n">b</span><span class="o">.</span><span class="n">radius</span>
-        <span class="k">return</span> <span class="nb">bool</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">amin</span> <span class="o">&gt;=</span> <span class="n">bmax</span> <span class="o">-</span> <span class="n">eps</span><span class="p">)</span> <span class="ow">or</span> <span class="n">np</span><span class="o">.</span><span class="n">all</span><span class="p">(</span><span class="n">bmin</span> <span class="o">&gt;=</span> <span class="n">amax</span> <span class="o">-</span> <span class="n">eps</span><span class="p">))</span>
-
-    <span class="nd">@staticmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">_objective_value</span><span class="p">(</span><span class="n">p</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">q</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">wc</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">eps</span><span class="p">:</span> <span class="nb">float</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
-        <span class="n">diff</span> <span class="o">=</span> <span class="n">p</span> <span class="o">-</span> <span class="n">q</span>
-        <span class="n">denom</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">diff</span><span class="p">))</span>
-        <span class="k">if</span> <span class="n">denom</span> <span class="o">&lt;=</span> <span class="n">eps</span><span class="p">:</span>
-            <span class="k">return</span> <span class="mf">0.0</span>
-        <span class="k">return</span> <span class="nb">abs</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">dot</span><span class="p">(</span><span class="n">diff</span><span class="p">,</span> <span class="n">wc</span><span class="p">)))</span> <span class="o">/</span> <span class="n">denom</span>
-
-    <span class="nd">@staticmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">_exact_leaf_eval</span><span class="p">(</span><span class="n">a</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">context</span><span class="p">:</span> <span class="n">SearchContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
-        <span class="n">Ai</span> <span class="o">=</span> <span class="n">a</span><span class="o">.</span><span class="n">indices</span>
-        <span class="n">Bi</span> <span class="o">=</span> <span class="n">b</span><span class="o">.</span><span class="n">indices</span>
-        <span class="k">if</span> <span class="n">Ai</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">Bi</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">Ai</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">Bi</span><span class="o">.</span><span class="n">size</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
-            <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;inf&quot;</span><span class="p">),</span> <span class="mi">0</span>
-        <span class="n">XA</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">Ai</span><span class="p">]</span>
-        <span class="n">XB</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">Bi</span><span class="p">]</span>
-        <span class="n">diff</span> <span class="o">=</span> <span class="n">XA</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">,</span> <span class="p">:]</span> <span class="o">-</span> <span class="n">XB</span><span class="p">[</span><span class="kc">None</span><span class="p">,</span> <span class="p">:,</span> <span class="p">:]</span>
-        <span class="n">num</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">tensordot</span><span class="p">(</span><span class="n">diff</span><span class="p">,</span> <span class="n">context</span><span class="o">.</span><span class="n">wc</span><span class="p">,</span> <span class="n">axes</span><span class="o">=</span><span class="p">(</span><span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">)))</span>
-        <span class="n">denom</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">diff</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
-        <span class="n">denom</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">denom</span><span class="p">,</span> <span class="n">context</span><span class="o">.</span><span class="n">eps</span><span class="p">)</span>
-        <span class="n">dist</span> <span class="o">=</span> <span class="n">num</span> <span class="o">/</span> <span class="n">denom</span>
-        <span class="n">m_idx</span><span class="p">,</span> <span class="n">n_idx</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">unravel_index</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="n">dist</span><span class="p">),</span> <span class="n">dist</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
-        <span class="n">evals</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">Ai</span><span class="o">.</span><span class="n">size</span><span class="p">)</span> <span class="o">*</span> <span class="nb">int</span><span class="p">(</span><span class="n">Bi</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
-        <span class="k">return</span> <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">Ai</span><span class="p">[</span><span class="n">m_idx</span><span class="p">]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">Bi</span><span class="p">[</span><span class="n">n_idx</span><span class="p">])),</span> <span class="nb">float</span><span class="p">(</span><span class="n">dist</span><span class="p">[</span><span class="n">m_idx</span><span class="p">,</span> <span class="n">n_idx</span><span class="p">]),</span> <span class="n">evals</span>
-
-    <span class="nd">@staticmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">_exact_leaf_self</span><span class="p">(</span><span class="n">node</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">context</span><span class="p">:</span> <span class="n">SearchContext</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
-        <span class="n">idx</span> <span class="o">=</span> <span class="n">node</span><span class="o">.</span><span class="n">indices</span>
-        <span class="k">if</span> <span class="n">idx</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">idx</span><span class="o">.</span><span class="n">size</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
-            <span class="k">return</span> <span class="kc">None</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;inf&quot;</span><span class="p">),</span> <span class="mi">0</span>
-        <span class="n">best_pair</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-        <span class="n">best_dist</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;inf&quot;</span><span class="p">)</span>
-        <span class="n">evals</span> <span class="o">=</span> <span class="mi">0</span>
-        <span class="n">XA</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">data</span><span class="p">[</span><span class="n">idx</span><span class="p">]</span>
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">idx</span><span class="o">.</span><span class="n">size</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
-            <span class="n">pi</span> <span class="o">=</span> <span class="n">XA</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
-            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="n">idx</span><span class="o">.</span><span class="n">size</span><span class="p">):</span>
-                <span class="n">pj</span> <span class="o">=</span> <span class="n">XA</span><span class="p">[</span><span class="n">j</span><span class="p">]</span>
-                <span class="n">evals</span> <span class="o">+=</span> <span class="mi">1</span>
-                <span class="n">dist</span> <span class="o">=</span> <span class="n">Search</span><span class="o">.</span><span class="n">_objective_value</span><span class="p">(</span><span class="n">pi</span><span class="p">,</span> <span class="n">pj</span><span class="p">,</span> <span class="n">context</span><span class="o">.</span><span class="n">wc</span><span class="p">,</span> <span class="n">context</span><span class="o">.</span><span class="n">eps</span><span class="p">)</span>
-                <span class="k">if</span> <span class="n">dist</span> <span class="o">&lt;</span> <span class="n">best_dist</span><span class="p">:</span>
-                    <span class="n">best_dist</span> <span class="o">=</span> <span class="n">dist</span>
-                    <span class="n">best_pair</span> <span class="o">=</span> <span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">idx</span><span class="p">[</span><span class="n">i</span><span class="p">]),</span> <span class="nb">int</span><span class="p">(</span><span class="n">idx</span><span class="p">[</span><span class="n">j</span><span class="p">]))</span>
-        <span class="k">return</span> <span class="n">best_pair</span><span class="p">,</span> <span class="n">best_dist</span><span class="p">,</span> <span class="n">evals</span>
-
-    <span class="nd">@staticmethod</span>
-    <span class="k">def</span><span class="w"> </span><span class="nf">_normalize_score</span><span class="p">(</span><span class="n">score</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">score</span><span class="p">,</span> <span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="nb">int</span><span class="p">)):</span>
-            <span class="k">return</span> <span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">score</span><span class="p">),)</span>
-        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">score</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
-            <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">score</span><span class="p">)</span>
-        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">x</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">score</span><span class="p">)</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">register_seen_pair</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">j</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="n">i</span><span class="p">,</span> <span class="n">j</span><span class="p">)</span> <span class="k">if</span> <span class="n">i</span> <span class="o">&lt;=</span> <span class="n">j</span> <span class="k">else</span> <span class="p">(</span><span class="n">j</span><span class="p">,</span> <span class="n">i</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_seen_pairs</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">search_pair</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
@@ -396,14 +305,14 @@
         <span class="n">wc</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
         <span class="o">*</span><span class="p">,</span>
         <span class="n">tau</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;inf&quot;</span><span class="p">),</span>
-        <span class="n">return_stats</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-        <span class="n">dominance_prune</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+        <span class="n">orientation</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">maximize_orientation</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">return_stats</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
         <span class="n">eps</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-12</span><span class="p">,</span>
-        <span class="n">ensure_optimal</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
         <span class="n">time_checkpoints</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
         <span class="n">calls_checkpoints</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-        <span class="n">collect_bound_gaps</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
         <span class="n">collect_events</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">use_gpu</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="nb">float</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]]:</span>
         <span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ascontiguousarray</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
         <span class="n">wc</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">wc</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span>
@@ -414,310 +323,52 @@
         <span class="k">if</span> <span class="n">wc</span><span class="o">.</span><span class="n">size</span> <span class="o">!=</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
             <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;wc must have length equal to X.shape[1]&quot;</span><span class="p">)</span>
 
+        <span class="n">backend</span> <span class="o">=</span> <span class="n">get_array_backend</span><span class="p">(</span><span class="n">use_gpu</span><span class="p">)</span>
+
+        <span class="n">orientation_vec</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">use_orientation</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="k">if</span> <span class="n">orientation</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">orientation_arr</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">asarray</span><span class="p">(</span><span class="n">orientation</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">orientation_arr</span><span class="o">.</span><span class="n">size</span> <span class="o">!=</span> <span class="n">data</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;orientation must match feature dimension&quot;</span><span class="p">)</span>
+            <span class="n">norm2</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">orientation_arr</span><span class="p">))</span>
+            <span class="k">if</span> <span class="n">norm2</span> <span class="o">&gt;</span> <span class="nb">float</span><span class="p">(</span><span class="n">eps</span><span class="p">):</span>
+                <span class="n">orientation_vec</span> <span class="o">=</span> <span class="n">orientation_arr</span> <span class="o">/</span> <span class="n">norm2</span>
+                <span class="n">use_orientation</span> <span class="o">=</span> <span class="nb">bool</span><span class="p">(</span><span class="n">maximize_orientation</span><span class="p">)</span>
+
         <span class="n">root</span> <span class="o">=</span> <span class="n">tree</span><span class="o">.</span><span class="n">root</span> <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">tree</span><span class="p">,</span> <span class="n">GeometricTree</span><span class="p">)</span> <span class="k">else</span> <span class="n">tree</span>
-        <span class="n">context</span> <span class="o">=</span> <span class="n">SearchContext</span><span class="p">(</span><span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span> <span class="n">wc</span><span class="o">=</span><span class="n">wc</span><span class="p">,</span> <span class="n">tau</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">tau</span><span class="p">),</span> <span class="n">eps</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">eps</span><span class="p">))</span>
 
-        <span class="n">leaf_indices</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_gather_leaf_indices</span><span class="p">(</span><span class="n">root</span><span class="p">)</span>
-        <span class="n">total_pairs</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">leaf_indices</span><span class="p">)</span> <span class="o">*</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">leaf_indices</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="mi">2</span><span class="p">)</span>
+        <span class="n">logger</span><span class="o">.</span><span class="n">debug</span><span class="p">(</span><span class="s2">&quot;Starting search with tau=</span><span class="si">%g</span><span class="s2">, orientation=</span><span class="si">%s</span><span class="s2">&quot;</span><span class="p">,</span> <span class="n">tau</span><span class="p">,</span> <span class="s2">&quot;enabled&quot;</span> <span class="k">if</span> <span class="n">use_orientation</span> <span class="k">else</span> <span class="s2">&quot;disabled&quot;</span><span class="p">)</span>
+        
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">use_orientation</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">run_default_search</span><span class="p">(</span>
+                <span class="bp">self</span><span class="p">,</span>
+                <span class="n">root</span><span class="p">,</span>
+                <span class="n">data</span><span class="p">,</span>
+                <span class="n">wc</span><span class="p">,</span>
+                <span class="n">backend</span><span class="o">=</span><span class="n">backend</span><span class="p">,</span>
+                <span class="n">tau</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">tau</span><span class="p">),</span>
+                <span class="n">return_stats</span><span class="o">=</span><span class="n">return_stats</span><span class="p">,</span>
+                <span class="n">eps</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">eps</span><span class="p">),</span>
+                <span class="n">time_checkpoints</span><span class="o">=</span><span class="n">time_checkpoints</span><span class="p">,</span>
+                <span class="n">calls_checkpoints</span><span class="o">=</span><span class="n">calls_checkpoints</span><span class="p">,</span>
+                <span class="n">collect_events</span><span class="o">=</span><span class="n">collect_events</span><span class="p">,</span>
+            <span class="p">)</span>
 
-        <span class="n">stats</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">(</span>
-            <span class="n">total_point_pairs</span><span class="o">=</span><span class="n">total_pairs</span><span class="p">,</span>
-            <span class="n">pruned_lb_point_pairs</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
-            <span class="n">pruned_dom_point_pairs</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
-            <span class="n">pruned_point_pairs</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
-            <span class="n">explored_point_pairs</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
-            <span class="n">objective_evals</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
-            <span class="n">best_origin</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-            <span class="n">best_distance</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-            <span class="n">best_pair</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-        <span class="p">)</span>
-
-        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">leaf_indices</span><span class="p">)</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
-            <span class="n">result</span> <span class="o">=</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;inf&quot;</span><span class="p">))</span>
-            <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;unexplored_point_pairs&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">0</span>
-            <span class="k">return</span> <span class="p">(</span><span class="o">*</span><span class="n">result</span><span class="p">,</span> <span class="n">stats</span><span class="p">)</span> <span class="k">if</span> <span class="n">return_stats</span> <span class="k">else</span> <span class="n">result</span>
-
-        <span class="n">size_cache</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
-
-        <span class="k">def</span><span class="w"> </span><span class="nf">mass</span><span class="p">(</span><span class="n">a</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">Node</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_descendant_size</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">size_cache</span><span class="p">)</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">_descendant_size</span><span class="p">(</span><span class="n">b</span><span class="p">,</span> <span class="n">size_cache</span><span class="p">)</span>
-
-        <span class="n">best_pair</span><span class="p">:</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-        <span class="n">best_distance</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;inf&quot;</span><span class="p">)</span>
-        <span class="c1"># Heap items are tuples ordered for heapq comparisons.</span>
-        <span class="c1"># IMPORTANT: ensure no Node objects appear before a numeric tiebreaker,</span>
-        <span class="c1"># otherwise Python may attempt to compare Node instances when earlier</span>
-        <span class="c1"># fields tie, causing TypeError. Use (score, tie, lb, ub, a, b).</span>
-        <span class="n">heap</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">,</span> <span class="n">Node</span><span class="p">,</span> <span class="n">Node</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="n">visited</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
-        <span class="n">tie</span> <span class="o">=</span> <span class="n">count</span><span class="p">()</span>
-        <span class="c1"># Provide a per-search cache so bounders can reuse per-center computations</span>
-        <span class="n">bound_context</span> <span class="o">=</span> <span class="n">BoundContext</span><span class="p">(</span><span class="n">wc</span><span class="o">=</span><span class="n">wc</span><span class="p">,</span> <span class="n">eps</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">eps</span><span class="p">),</span> <span class="n">proj_cache</span><span class="o">=</span><span class="p">{})</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">strategy</span><span class="o">.</span><span class="n">setup</span><span class="p">(</span><span class="n">root</span><span class="p">,</span> <span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">)</span>
-
-        <span class="c1"># Tracing support (optional)</span>
-        <span class="n">t0</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
-        <span class="n">time_grid</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">time_checkpoints</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">time_checkpoints</span><span class="p">)</span>
-        <span class="n">calls_grid</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">calls_checkpoints</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="nb">list</span><span class="p">(</span><span class="n">calls_checkpoints</span><span class="p">)</span>
-        <span class="n">time_idx</span> <span class="o">=</span> <span class="mi">0</span>
-        <span class="n">calls_idx</span> <span class="o">=</span> <span class="mi">0</span>
-        <span class="n">time_best</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="n">calls_best</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="n">bound_gaps</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
-        <span class="c1"># Track heap size statistics (max size up to each calls checkpoint)</span>
-        <span class="n">heap_size_max</span> <span class="o">=</span> <span class="mi">0</span>
-        <span class="n">calls_heap_max</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
-
-        <span class="c1"># Optional event logging (creation, expansion, pruning)</span>
-        <span class="n">events</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="p">[]</span> <span class="k">if</span> <span class="n">collect_events</span> <span class="k">else</span> <span class="kc">None</span>
-        <span class="n">pair_ids</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
-        <span class="n">next_pair_id</span> <span class="o">=</span> <span class="mi">0</span>
-
-        <span class="k">def</span><span class="w"> </span><span class="nf">_pair_key</span><span class="p">(</span><span class="n">a</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">Node</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
-            <span class="n">ia</span><span class="p">,</span> <span class="n">ib</span> <span class="o">=</span> <span class="nb">id</span><span class="p">(</span><span class="n">a</span><span class="p">),</span> <span class="nb">id</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
-            <span class="k">return</span> <span class="p">(</span><span class="n">ia</span><span class="p">,</span> <span class="n">ib</span><span class="p">)</span> <span class="k">if</span> <span class="n">ia</span> <span class="o">&lt;=</span> <span class="n">ib</span> <span class="k">else</span> <span class="p">(</span><span class="n">ib</span><span class="p">,</span> <span class="n">ia</span><span class="p">)</span>
-
-        <span class="k">def</span><span class="w"> </span><span class="nf">_assign_pair_id</span><span class="p">(</span><span class="n">a</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">Node</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-            <span class="k">nonlocal</span> <span class="n">next_pair_id</span>
-            <span class="n">key</span> <span class="o">=</span> <span class="n">_pair_key</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
-            <span class="n">pid</span> <span class="o">=</span> <span class="n">pair_ids</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">pid</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="n">pid</span> <span class="o">=</span> <span class="n">next_pair_id</span>
-                <span class="n">pair_ids</span><span class="p">[</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="n">pid</span>
-                <span class="n">next_pair_id</span> <span class="o">+=</span> <span class="mi">1</span>
-            <span class="k">return</span> <span class="n">pid</span>
-
-        <span class="k">def</span><span class="w"> </span><span class="nf">_log_event</span><span class="p">(</span><span class="n">ev_type</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">a</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">lb</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">ub</span><span class="p">:</span> <span class="nb">float</span><span class="p">,</span> <span class="n">parent_id</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
-            <span class="k">if</span> <span class="n">events</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="k">return</span> <span class="o">-</span><span class="mi">1</span>
-            <span class="n">pid</span> <span class="o">=</span> <span class="n">_assign_pair_id</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
-            <span class="n">events</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-                <span class="s2">&quot;event_type&quot;</span><span class="p">:</span> <span class="nb">str</span><span class="p">(</span><span class="n">ev_type</span><span class="p">),</span>
-                <span class="s2">&quot;node_id&quot;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">pid</span><span class="p">),</span>
-                <span class="s2">&quot;parent_id&quot;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span> <span class="k">if</span> <span class="n">parent_id</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">parent_id</span><span class="p">),</span>
-                <span class="s2">&quot;timestamp&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span> <span class="o">-</span> <span class="n">t0</span><span class="p">),</span>
-                <span class="s2">&quot;lower_bound&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">lb</span><span class="p">),</span>
-                <span class="s2">&quot;upper_bound&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">ub</span><span class="p">),</span>
-            <span class="p">})</span>
-            <span class="k">return</span> <span class="n">pid</span>
-
-        <span class="k">def</span><span class="w"> </span><span class="nf">record_time_if_needed</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">nonlocal</span> <span class="n">time_idx</span>
-            <span class="k">if</span> <span class="n">time_grid</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="k">return</span>
-            <span class="n">now</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span> <span class="o">-</span> <span class="n">t0</span>
-            <span class="k">while</span> <span class="n">time_idx</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">time_grid</span><span class="p">)</span> <span class="ow">and</span> <span class="n">now</span> <span class="o">&gt;=</span> <span class="nb">float</span><span class="p">(</span><span class="n">time_grid</span><span class="p">[</span><span class="n">time_idx</span><span class="p">]):</span>
-                <span class="n">time_best</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">best_distance</span><span class="p">))</span>
-                <span class="n">time_idx</span> <span class="o">+=</span> <span class="mi">1</span>
-
-        <span class="k">def</span><span class="w"> </span><span class="nf">record_calls_if_needed</span><span class="p">()</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">nonlocal</span> <span class="n">calls_idx</span>
-            <span class="k">if</span> <span class="n">calls_grid</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="k">return</span>
-            <span class="n">cur</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">stats</span><span class="p">[</span><span class="s2">&quot;objective_evals&quot;</span><span class="p">])</span> <span class="k">if</span> <span class="s2">&quot;objective_evals&quot;</span> <span class="ow">in</span> <span class="n">stats</span> <span class="k">else</span> <span class="mi">0</span>
-            <span class="k">while</span> <span class="n">calls_idx</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">calls_grid</span><span class="p">)</span> <span class="ow">and</span> <span class="n">cur</span> <span class="o">&gt;=</span> <span class="nb">int</span><span class="p">(</span><span class="n">calls_grid</span><span class="p">[</span><span class="n">calls_idx</span><span class="p">]):</span>
-                <span class="n">calls_best</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">best_distance</span><span class="p">))</span>
-                <span class="n">calls_heap_max</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">heap_size_max</span><span class="p">))</span>
-                <span class="n">calls_idx</span> <span class="o">+=</span> <span class="mi">1</span>
-
-        <span class="k">def</span><span class="w"> </span><span class="nf">enqueue</span><span class="p">(</span><span class="n">a</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="n">b</span><span class="p">:</span> <span class="n">Node</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">parent_id</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">nonlocal</span> <span class="n">best_distance</span><span class="p">,</span> <span class="n">heap_size_max</span>
-            <span class="k">if</span> <span class="nb">id</span><span class="p">(</span><span class="n">a</span><span class="p">)</span> <span class="o">&gt;</span> <span class="nb">id</span><span class="p">(</span><span class="n">b</span><span class="p">):</span>
-                <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">b</span><span class="p">,</span> <span class="n">a</span>
-            <span class="n">key</span> <span class="o">=</span> <span class="p">(</span><span class="nb">id</span><span class="p">(</span><span class="n">a</span><span class="p">),</span> <span class="nb">id</span><span class="p">(</span><span class="n">b</span><span class="p">))</span>
-            <span class="k">if</span> <span class="n">key</span> <span class="ow">in</span> <span class="n">visited</span><span class="p">:</span>
-                <span class="k">return</span>
-            <span class="n">visited</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">key</span><span class="p">)</span>
-
-            <span class="n">pair_mass</span> <span class="o">=</span> <span class="n">mass</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
-
-            <span class="k">if</span> <span class="n">dominance_prune</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dominates</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">eps</span><span class="o">=</span><span class="n">eps</span><span class="p">):</span>
-                <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;pruned_dom_point_pairs&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">stats</span><span class="p">[</span><span class="s2">&quot;pruned_dom_point_pairs&quot;</span><span class="p">])</span> <span class="o">+</span> <span class="n">pair_mass</span>
-                <span class="c1"># Log prune with NaN bounds (no bounder invoked)</span>
-                <span class="k">if</span> <span class="n">collect_events</span><span class="p">:</span>
-                    <span class="n">_log_event</span><span class="p">(</span><span class="s2">&quot;PRUNED&quot;</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;nan&quot;</span><span class="p">),</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;nan&quot;</span><span class="p">),</span> <span class="n">parent_id</span><span class="p">)</span>
-                <span class="k">return</span>
-
-            <span class="n">bounds</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">bounder</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">bound_context</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">bounds</span><span class="o">.</span><span class="n">lower</span> <span class="o">&gt;=</span> <span class="nb">min</span><span class="p">(</span><span class="n">best_distance</span><span class="p">,</span> <span class="n">tau</span><span class="p">)</span> <span class="o">-</span> <span class="n">eps</span><span class="p">:</span>
-                <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;pruned_lb_point_pairs&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">stats</span><span class="p">[</span><span class="s2">&quot;pruned_lb_point_pairs&quot;</span><span class="p">])</span> <span class="o">+</span> <span class="n">pair_mass</span>
-                <span class="c1"># Pruned by lower bound at enqueue time</span>
-                <span class="k">if</span> <span class="n">collect_events</span><span class="p">:</span>
-                    <span class="n">_log_event</span><span class="p">(</span><span class="s2">&quot;PRUNED&quot;</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="n">bounds</span><span class="o">.</span><span class="n">lower</span><span class="p">),</span> <span class="nb">float</span><span class="p">(</span><span class="n">bounds</span><span class="o">.</span><span class="n">upper</span><span class="p">),</span> <span class="n">parent_id</span><span class="p">)</span>
-                <span class="k">return</span>
-
-            <span class="c1"># Do not update the incumbent best distance with an upper bound.</span>
-            <span class="c1"># Only exact evaluations are allowed to improve best_distance to avoid</span>
-            <span class="c1"># prematurely terminating under a finite tau without a feasible pair.</span>
-
-            <span class="n">score</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_normalize_score</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">strategy</span><span class="o">.</span><span class="n">priority</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">bounds</span><span class="p">,</span> <span class="n">pair_mass</span><span class="p">))</span>
-            <span class="c1"># Push with a numeric tie-breaker before Node objects to avoid</span>
-            <span class="c1"># comparisons between Node instances when tuple prefixes tie.</span>
-            <span class="n">heapq</span><span class="o">.</span><span class="n">heappush</span><span class="p">(</span><span class="n">heap</span><span class="p">,</span> <span class="p">(</span><span class="n">score</span><span class="p">,</span> <span class="nb">next</span><span class="p">(</span><span class="n">tie</span><span class="p">),</span> <span class="n">bounds</span><span class="o">.</span><span class="n">lower</span><span class="p">,</span> <span class="n">bounds</span><span class="o">.</span><span class="n">upper</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">))</span>
-            <span class="k">if</span> <span class="n">collect_events</span><span class="p">:</span>
-                <span class="n">_log_event</span><span class="p">(</span><span class="s2">&quot;CREATED&quot;</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="n">bounds</span><span class="o">.</span><span class="n">lower</span><span class="p">),</span> <span class="nb">float</span><span class="p">(</span><span class="n">bounds</span><span class="o">.</span><span class="n">upper</span><span class="p">),</span> <span class="n">parent_id</span><span class="p">)</span>
-            <span class="c1"># Update heap size maximum after every push</span>
-            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">heap</span><span class="p">)</span> <span class="o">&gt;</span> <span class="n">heap_size_max</span><span class="p">:</span>
-                <span class="n">heap_size_max</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">heap</span><span class="p">)</span>
-            <span class="n">record_time_if_needed</span><span class="p">()</span>
-
-        <span class="c1"># Even if the root has fewer than two children, we can still evaluate</span>
-        <span class="c1"># within-leaf pairs and/or fall back to exhaustive evaluation.</span>
-
-        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">children</span><span class="p">)):</span>
-            <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">children</span><span class="p">)):</span>
-                <span class="n">enqueue</span><span class="p">(</span><span class="n">root</span><span class="o">.</span><span class="n">children</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">root</span><span class="o">.</span><span class="n">children</span><span class="p">[</span><span class="n">j</span><span class="p">],</span> <span class="n">parent_id</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
-        <span class="c1"># Also explore within-subtree pairs by enqueuing (child, child)</span>
-        <span class="c1"># so that pairs across different leaves under the same branch are considered.</span>
-        <span class="k">for</span> <span class="n">ch</span> <span class="ow">in</span> <span class="n">root</span><span class="o">.</span><span class="n">children</span><span class="p">:</span>
-            <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_node_is_leaf</span><span class="p">(</span><span class="n">ch</span><span class="p">):</span>
-                <span class="n">enqueue</span><span class="p">(</span><span class="n">ch</span><span class="p">,</span> <span class="n">ch</span><span class="p">,</span> <span class="n">parent_id</span><span class="o">=</span><span class="kc">None</span><span class="p">)</span>
-
-        <span class="c1"># If tau is infinite, explore all queued pairs; otherwise stop early when possible.</span>
-        <span class="k">while</span> <span class="n">heap</span> <span class="ow">and</span> <span class="p">(</span><span class="n">math</span><span class="o">.</span><span class="n">isinf</span><span class="p">(</span><span class="n">tau</span><span class="p">)</span> <span class="ow">or</span> <span class="n">best_distance</span> <span class="o">&gt;</span> <span class="n">tau</span> <span class="o">+</span> <span class="n">eps</span><span class="p">):</span>
-            <span class="n">_</span><span class="p">,</span> <span class="n">_</span><span class="p">,</span> <span class="n">lb</span><span class="p">,</span> <span class="n">ub</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span> <span class="o">=</span> <span class="n">heapq</span><span class="o">.</span><span class="n">heappop</span><span class="p">(</span><span class="n">heap</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">collect_bound_gaps</span><span class="p">:</span>
-                <span class="n">gap</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="mf">0.0</span><span class="p">,</span> <span class="n">ub</span> <span class="o">-</span> <span class="n">lb</span><span class="p">))</span>
-                <span class="n">bound_gaps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">gap</span><span class="p">)</span>
-            <span class="k">if</span> <span class="n">lb</span> <span class="o">&gt;=</span> <span class="nb">min</span><span class="p">(</span><span class="n">best_distance</span><span class="p">,</span> <span class="n">tau</span><span class="p">):</span>
-                <span class="c1"># Popped but immediately pruned by updated incumbent/tau</span>
-                <span class="k">if</span> <span class="n">collect_events</span><span class="p">:</span>
-                    <span class="c1"># parent unknown here (already created earlier); set to existing id</span>
-                    <span class="n">pid</span> <span class="o">=</span> <span class="n">_assign_pair_id</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
-                    <span class="n">events</span><span class="o">.</span><span class="n">append</span><span class="p">({</span>
-                        <span class="s2">&quot;event_type&quot;</span><span class="p">:</span> <span class="s2">&quot;PRUNED&quot;</span><span class="p">,</span>
-                        <span class="s2">&quot;node_id&quot;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="n">pid</span><span class="p">),</span>
-                        <span class="s2">&quot;parent_id&quot;</span><span class="p">:</span> <span class="nb">int</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">),</span>
-                        <span class="s2">&quot;timestamp&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span> <span class="o">-</span> <span class="n">t0</span><span class="p">),</span>
-                        <span class="s2">&quot;lower_bound&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">lb</span><span class="p">),</span>
-                        <span class="s2">&quot;upper_bound&quot;</span><span class="p">:</span> <span class="nb">float</span><span class="p">(</span><span class="n">ub</span><span class="p">),</span>
-                    <span class="p">})</span>
-                <span class="k">continue</span>
-
-            <span class="n">a_leaf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_node_is_leaf</span><span class="p">(</span><span class="n">a</span><span class="p">)</span>
-            <span class="n">b_leaf</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_node_is_leaf</span><span class="p">(</span><span class="n">b</span><span class="p">)</span>
-
-            <span class="n">parent_pid</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
-            <span class="k">if</span> <span class="n">collect_events</span><span class="p">:</span>
-                <span class="n">parent_pid</span> <span class="o">=</span> <span class="n">_log_event</span><span class="p">(</span><span class="s2">&quot;EXPANDED&quot;</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="n">lb</span><span class="p">),</span> <span class="nb">float</span><span class="p">(</span><span class="n">ub</span><span class="p">),</span> <span class="kc">None</span><span class="p">)</span>
-
-            <span class="k">if</span> <span class="n">a_leaf</span> <span class="ow">and</span> <span class="n">b_leaf</span><span class="p">:</span>
-                <span class="n">pair_mass</span> <span class="o">=</span> <span class="n">mass</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">)</span>
-                <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;explored_point_pairs&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">stats</span><span class="p">[</span><span class="s2">&quot;explored_point_pairs&quot;</span><span class="p">])</span> <span class="o">+</span> <span class="n">pair_mass</span>
-                <span class="c1"># When both nodes are the same leaf, evaluate within-leaf pairs only once</span>
-                <span class="c1"># to avoid counting i==j pairs.</span>
-                <span class="k">if</span> <span class="n">a</span> <span class="ow">is</span> <span class="n">b</span><span class="p">:</span>
-                    <span class="n">pair</span><span class="p">,</span> <span class="n">dist</span><span class="p">,</span> <span class="n">evals</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exact_leaf_self</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">context</span><span class="p">)</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="n">pair</span><span class="p">,</span> <span class="n">dist</span><span class="p">,</span> <span class="n">evals</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exact_leaf_eval</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">context</span><span class="p">)</span>
-                <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;objective_evals&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">stats</span><span class="p">[</span><span class="s2">&quot;objective_evals&quot;</span><span class="p">])</span> <span class="o">+</span> <span class="n">evals</span>
-                <span class="k">if</span> <span class="n">pair</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">dist</span> <span class="o">&lt;</span> <span class="nb">min</span><span class="p">(</span><span class="n">best_distance</span><span class="p">,</span> <span class="n">tau</span><span class="p">):</span>
-                    <span class="n">best_pair</span> <span class="o">=</span> <span class="n">pair</span>
-                    <span class="n">best_distance</span> <span class="o">=</span> <span class="n">dist</span>
-                    <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;best_origin&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;leaf&quot;</span>
-                <span class="n">record_calls_if_needed</span><span class="p">()</span>
-                <span class="n">record_time_if_needed</span><span class="p">()</span>
-                <span class="k">continue</span>
-
-            <span class="c1"># Special handling when exploring within the same subtree (a is b):</span>
-            <span class="c1"># generate child-pair combinations to cover cross-leaf candidates under this branch.</span>
-            <span class="k">if</span> <span class="n">a</span> <span class="ow">is</span> <span class="n">b</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">a_leaf</span><span class="p">:</span>
-                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">children</span><span class="p">)):</span>
-                    <span class="k">for</span> <span class="n">j</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">i</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">children</span><span class="p">)):</span>
-                        <span class="n">enqueue</span><span class="p">(</span><span class="n">a</span><span class="o">.</span><span class="n">children</span><span class="p">[</span><span class="n">i</span><span class="p">],</span> <span class="n">a</span><span class="o">.</span><span class="n">children</span><span class="p">[</span><span class="n">j</span><span class="p">],</span> <span class="n">parent_id</span><span class="o">=</span><span class="n">parent_pid</span><span class="p">)</span>
-                <span class="c1"># Continue descending within each child as needed</span>
-                <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="n">a</span><span class="o">.</span><span class="n">children</span><span class="p">:</span>
-                    <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_node_is_leaf</span><span class="p">(</span><span class="n">child</span><span class="p">):</span>
-                        <span class="n">enqueue</span><span class="p">(</span><span class="n">child</span><span class="p">,</span> <span class="n">child</span><span class="p">,</span> <span class="n">parent_id</span><span class="o">=</span><span class="n">parent_pid</span><span class="p">)</span>
-            <span class="k">elif</span> <span class="ow">not</span> <span class="n">a_leaf</span> <span class="ow">and</span> <span class="p">(</span><span class="n">b_leaf</span> <span class="ow">or</span> <span class="n">a</span><span class="o">.</span><span class="n">radius</span> <span class="o">&gt;=</span> <span class="n">b</span><span class="o">.</span><span class="n">radius</span><span class="p">):</span>
-                <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="n">a</span><span class="o">.</span><span class="n">children</span><span class="p">:</span>
-                    <span class="n">enqueue</span><span class="p">(</span><span class="n">child</span><span class="p">,</span> <span class="n">b</span><span class="p">,</span> <span class="n">parent_id</span><span class="o">=</span><span class="n">parent_pid</span><span class="p">)</span>
-            <span class="k">else</span><span class="p">:</span>
-                <span class="k">for</span> <span class="n">child</span> <span class="ow">in</span> <span class="n">b</span><span class="o">.</span><span class="n">children</span><span class="p">:</span>
-                    <span class="n">enqueue</span><span class="p">(</span><span class="n">a</span><span class="p">,</span> <span class="n">child</span><span class="p">,</span> <span class="n">parent_id</span><span class="o">=</span><span class="n">parent_pid</span><span class="p">)</span>
-            <span class="n">record_time_if_needed</span><span class="p">()</span>
-
-        <span class="c1"># Evaluate pairs within the same leaf across the whole tree only as a last recourse.</span>
-        <span class="c1"># Policy (applies to all modes):</span>
-        <span class="c1"># - Run the sweep only if no pair was found during BnB (best_pair is None).</span>
-        <span class="c1"># - Otherwise, skip sweeping to avoid upfront within-leaf costs.</span>
-        <span class="c1"># Only sweep when BnB found nothing and there is nothing left to explore.</span>
-        <span class="c1"># This prevents invoking sweeps when an early exit occurred due to bounds.</span>
-        <span class="k">if</span> <span class="n">best_pair</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">heap</span><span class="p">:</span>
-            <span class="n">stack</span> <span class="o">=</span> <span class="p">[</span><span class="n">root</span><span class="p">]</span>
-            <span class="c1"># Early-stop if running under a finite tau: stop once satisfied</span>
-            <span class="n">stop_after_found</span> <span class="o">=</span> <span class="p">(</span><span class="ow">not</span> <span class="n">math</span><span class="o">.</span><span class="n">isinf</span><span class="p">(</span><span class="n">tau</span><span class="p">))</span>
-            <span class="n">done</span> <span class="o">=</span> <span class="kc">False</span>
-            <span class="k">while</span> <span class="n">stack</span> <span class="ow">and</span> <span class="ow">not</span> <span class="n">done</span><span class="p">:</span>
-                <span class="n">node</span> <span class="o">=</span> <span class="n">stack</span><span class="o">.</span><span class="n">pop</span><span class="p">()</span>
-                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_node_is_leaf</span><span class="p">(</span><span class="n">node</span><span class="p">):</span>
-                    <span class="n">pair</span><span class="p">,</span> <span class="n">dist</span><span class="p">,</span> <span class="n">evals</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_exact_leaf_self</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="n">context</span><span class="p">)</span>
-                    <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;objective_evals&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">stats</span><span class="p">[</span><span class="s2">&quot;objective_evals&quot;</span><span class="p">])</span> <span class="o">+</span> <span class="n">evals</span>
-                    <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;explored_point_pairs&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">stats</span><span class="p">[</span><span class="s2">&quot;explored_point_pairs&quot;</span><span class="p">])</span> <span class="o">+</span> <span class="n">evals</span>
-                    <span class="k">if</span> <span class="n">pair</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">dist</span> <span class="o">&lt;</span> <span class="nb">min</span><span class="p">(</span><span class="n">best_distance</span><span class="p">,</span> <span class="n">tau</span><span class="p">):</span>
-                        <span class="n">best_pair</span> <span class="o">=</span> <span class="n">pair</span>
-                        <span class="n">best_distance</span> <span class="o">=</span> <span class="n">dist</span>
-                        <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;best_origin&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;leaf&quot;</span>
-                        <span class="c1"># Under a finite tau, stop once satisfied</span>
-                        <span class="k">if</span> <span class="n">stop_after_found</span> <span class="ow">and</span> <span class="n">best_distance</span> <span class="o">&lt;=</span> <span class="n">tau</span> <span class="o">+</span> <span class="n">eps</span><span class="p">:</span>
-                            <span class="n">done</span> <span class="o">=</span> <span class="kc">True</span>
-                            <span class="k">break</span>
-                <span class="k">else</span><span class="p">:</span>
-                    <span class="c1"># Continue traversing to reach all leaves</span>
-                    <span class="n">stack</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">node</span><span class="o">.</span><span class="n">children</span><span class="p">)</span>
-        <span class="c1"># Optionally run exhaustive verification to ensure the optimal solution.</span>
-        <span class="k">if</span> <span class="n">ensure_optimal</span><span class="p">:</span>
-            <span class="n">data_points</span> <span class="o">=</span> <span class="n">context</span><span class="o">.</span><span class="n">data</span>
-            <span class="n">unique_indices</span> <span class="o">=</span> <span class="n">leaf_indices</span>
-            <span class="k">for</span> <span class="n">idx_a</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">unique_indices</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">):</span>
-                <span class="n">ia</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">unique_indices</span><span class="p">[</span><span class="n">idx_a</span><span class="p">])</span>
-                <span class="n">pa</span> <span class="o">=</span> <span class="n">data_points</span><span class="p">[</span><span class="n">ia</span><span class="p">]</span>
-                <span class="k">for</span> <span class="n">idx_b</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">idx_a</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">unique_indices</span><span class="p">)):</span>
-                    <span class="n">ib</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">unique_indices</span><span class="p">[</span><span class="n">idx_b</span><span class="p">])</span>
-                    <span class="n">pb</span> <span class="o">=</span> <span class="n">data_points</span><span class="p">[</span><span class="n">ib</span><span class="p">]</span>
-                    <span class="n">dist</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_objective_value</span><span class="p">(</span><span class="n">pa</span><span class="p">,</span> <span class="n">pb</span><span class="p">,</span> <span class="n">wc</span><span class="p">,</span> <span class="n">eps</span><span class="p">)</span>
-                    <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;objective_evals&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">stats</span><span class="p">[</span><span class="s2">&quot;objective_evals&quot;</span><span class="p">])</span> <span class="o">+</span> <span class="mi">1</span>
-                    <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;explored_point_pairs&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">stats</span><span class="p">[</span><span class="s2">&quot;explored_point_pairs&quot;</span><span class="p">])</span> <span class="o">+</span> <span class="mi">1</span>
-                    <span class="k">if</span> <span class="n">dist</span> <span class="o">&lt;</span> <span class="nb">min</span><span class="p">(</span><span class="n">best_distance</span><span class="p">,</span> <span class="n">tau</span><span class="p">):</span>
-                        <span class="n">best_pair</span> <span class="o">=</span> <span class="p">(</span><span class="n">ia</span><span class="p">,</span> <span class="n">ib</span><span class="p">)</span>
-                        <span class="n">best_distance</span> <span class="o">=</span> <span class="n">dist</span>
-                        <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;best_origin&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;exhaustive&quot;</span>
-
-        <span class="c1"># Finalize traces</span>
-        <span class="k">if</span> <span class="n">time_grid</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">while</span> <span class="n">time_idx</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">time_grid</span><span class="p">):</span>
-                <span class="n">time_best</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">best_distance</span><span class="p">))</span>
-                <span class="n">time_idx</span> <span class="o">+=</span> <span class="mi">1</span>
-        <span class="k">if</span> <span class="n">calls_grid</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">while</span> <span class="n">calls_idx</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">calls_grid</span><span class="p">):</span>
-                <span class="n">calls_best</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">best_distance</span><span class="p">))</span>
-                <span class="n">calls_heap_max</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="nb">int</span><span class="p">(</span><span class="n">heap_size_max</span><span class="p">))</span>
-                <span class="n">calls_idx</span> <span class="o">+=</span> <span class="mi">1</span>
-
-        <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;best_pair&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">best_pair</span>
-        <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;best_distance&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">best_pair</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">best_distance</span>
-        <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;pruned_point_pairs&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">stats</span><span class="p">[</span><span class="s2">&quot;pruned_lb_point_pairs&quot;</span><span class="p">])</span> <span class="o">+</span> <span class="nb">int</span><span class="p">(</span><span class="n">stats</span><span class="p">[</span><span class="s2">&quot;pruned_dom_point_pairs&quot;</span><span class="p">])</span>
-        <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;unexplored_point_pairs&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;total_point_pairs&quot;</span><span class="p">]</span> <span class="o">-</span> <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;pruned_point_pairs&quot;</span><span class="p">]</span> <span class="o">-</span> <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;explored_point_pairs&quot;</span><span class="p">]</span>
-        <span class="k">if</span> <span class="n">time_grid</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">calls_grid</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">collect_bound_gaps</span> <span class="ow">or</span> <span class="n">collect_events</span><span class="p">:</span>
-            <span class="n">trace</span><span class="p">:</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
-            <span class="k">if</span> <span class="n">time_grid</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="n">trace</span><span class="p">[</span><span class="s2">&quot;time_grid&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="n">time_grid</span><span class="p">))</span>
-                <span class="n">trace</span><span class="p">[</span><span class="s2">&quot;time_best&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="n">time_best</span><span class="p">))</span>
-            <span class="k">if</span> <span class="n">calls_grid</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="n">trace</span><span class="p">[</span><span class="s2">&quot;calls_grid&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="n">calls_grid</span><span class="p">))</span>
-                <span class="n">trace</span><span class="p">[</span><span class="s2">&quot;calls_best&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="n">calls_best</span><span class="p">))</span>
-                <span class="n">trace</span><span class="p">[</span><span class="s2">&quot;calls_heap_max&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="n">calls_heap_max</span><span class="p">))</span>
-            <span class="k">if</span> <span class="n">collect_bound_gaps</span><span class="p">:</span>
-                <span class="n">trace</span><span class="p">[</span><span class="s2">&quot;bound_gaps&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">map</span><span class="p">(</span><span class="nb">float</span><span class="p">,</span> <span class="n">bound_gaps</span><span class="p">))</span>
-            <span class="k">if</span> <span class="n">collect_events</span> <span class="ow">and</span> <span class="n">events</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-                <span class="n">trace</span><span class="p">[</span><span class="s2">&quot;events&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">events</span>
-            <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;trace&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">trace</span>
-
-        <span class="k">if</span> <span class="n">best_pair</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="n">result</span> <span class="o">=</span> <span class="p">(</span><span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;inf&quot;</span><span class="p">))</span>
-        <span class="k">else</span><span class="p">:</span>
-            <span class="n">result</span> <span class="o">=</span> <span class="p">(</span><span class="o">*</span><span class="n">best_pair</span><span class="p">,</span> <span class="n">best_distance</span><span class="p">)</span>
-        <span class="k">return</span> <span class="p">(</span><span class="o">*</span><span class="n">result</span><span class="p">,</span> <span class="n">stats</span><span class="p">)</span> <span class="k">if</span> <span class="n">return_stats</span> <span class="k">else</span> <span class="n">result</span></div>
+        <span class="k">return</span> <span class="n">run_orientation_search</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">root</span><span class="p">,</span>
+            <span class="n">data</span><span class="p">,</span>
+            <span class="n">wc</span><span class="p">,</span>
+            <span class="n">tau</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">tau</span><span class="p">),</span>
+            <span class="n">orientation</span><span class="o">=</span><span class="n">orientation_vec</span><span class="p">,</span>
+            <span class="n">backend</span><span class="o">=</span><span class="n">backend</span><span class="p">,</span>
+            <span class="n">return_stats</span><span class="o">=</span><span class="n">return_stats</span><span class="p">,</span>
+            <span class="n">eps</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">eps</span><span class="p">),</span>
+            <span class="n">time_checkpoints</span><span class="o">=</span><span class="n">time_checkpoints</span><span class="p">,</span>
+            <span class="n">calls_checkpoints</span><span class="o">=</span><span class="n">calls_checkpoints</span><span class="p">,</span>
+            <span class="n">collect_events</span><span class="o">=</span><span class="n">collect_events</span><span class="p">,</span>
+        <span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="search_pair"><a class="viewcode-back" href="../../../api/search.html#gal.search.search_pair">[docs]</a><span class="k">def</span><span class="w"> </span><span class="nf">search_pair</span><span class="p">(</span>
@@ -726,16 +377,16 @@
     <span class="n">wc</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
     <span class="o">*</span><span class="p">,</span>
     <span class="n">tau</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="s2">&quot;inf&quot;</span><span class="p">),</span>
+    <span class="n">orientation</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">maximize_orientation</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">return_stats</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
-    <span class="n">dominance_prune</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">eps</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-12</span><span class="p">,</span>
-    <span class="n">ensure_optimal</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">bounder</span><span class="p">:</span> <span class="n">BoundsStrategy</span><span class="p">[</span><span class="n">Node</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">strategy</span><span class="p">:</span> <span class="n">VisitStrategy</span><span class="p">[</span><span class="n">Node</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">time_checkpoints</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">calls_checkpoints</span><span class="p">:</span> <span class="n">Optional</span><span class="p">[</span><span class="n">Sequence</span><span class="p">[</span><span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
-    <span class="n">collect_bound_gaps</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
     <span class="n">collect_events</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">use_gpu</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="n">Tuple</span><span class="p">[</span><span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="n">Optional</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="nb">float</span><span class="p">,</span> <span class="n">Dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">object</span><span class="p">]]:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Convenience wrapper using the :class:`Search` engine.&quot;&quot;&quot;</span>
 
@@ -745,15 +396,21 @@
         <span class="n">X</span><span class="p">,</span>
         <span class="n">wc</span><span class="p">,</span>
         <span class="n">tau</span><span class="o">=</span><span class="n">tau</span><span class="p">,</span>
+        <span class="n">orientation</span><span class="o">=</span><span class="n">orientation</span><span class="p">,</span>
+        <span class="n">maximize_orientation</span><span class="o">=</span><span class="n">maximize_orientation</span><span class="p">,</span>
         <span class="n">return_stats</span><span class="o">=</span><span class="n">return_stats</span><span class="p">,</span>
-        <span class="n">dominance_prune</span><span class="o">=</span><span class="n">dominance_prune</span><span class="p">,</span>
         <span class="n">eps</span><span class="o">=</span><span class="n">eps</span><span class="p">,</span>
-        <span class="n">ensure_optimal</span><span class="o">=</span><span class="n">ensure_optimal</span><span class="p">,</span>
         <span class="n">time_checkpoints</span><span class="o">=</span><span class="n">time_checkpoints</span><span class="p">,</span>
         <span class="n">calls_checkpoints</span><span class="o">=</span><span class="n">calls_checkpoints</span><span class="p">,</span>
-        <span class="n">collect_bound_gaps</span><span class="o">=</span><span class="n">collect_bound_gaps</span><span class="p">,</span>
         <span class="n">collect_events</span><span class="o">=</span><span class="n">collect_events</span><span class="p">,</span>
+        <span class="n">use_gpu</span><span class="o">=</span><span class="n">use_gpu</span><span class="p">,</span>
     <span class="p">)</span></div>
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span>
+    <span class="s2">&quot;Search&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;search_pair&quot;</span><span class="p">,</span>
+<span class="p">]</span>
 </pre></div>
         </article>
       </div>

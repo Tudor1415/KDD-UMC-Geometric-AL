@@ -1,0 +1,660 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="index" title="Index" href="genindex.html" /><link rel="search" title="Search" href="search.html" /><link rel="next" title="Logging and instrumentation" href="logging.html" /><link rel="prev" title="Getting started" href="getting_started.html" />
+
+    <!-- Generated with Sphinx 7.1.2 and Furo 2024.08.06 -->
+        <title>Understanding the learning procedure - Geometry-Aware Learning 0.1.0 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=354aac6f" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=302659d7" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+<div class="announcement">
+  <aside class="announcement-content">
+     This documentation covers the refactored geometry-aware active learning codebase. 
+  </aside>
+</div>
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="index.html"><div class="brand">Geometry-Aware Learning 0.1.0 documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
+  
+  
+  <span class="sidebar-brand-text">Geometry-Aware Learning 0.1.0 documentation</span>
+  
+</a><form class="sidebar-search-container" method="get" action="search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting started</a></li>
+<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Understanding the learning procedure</a></li>
+<li class="toctree-l1"><a class="reference internal" href="logging.html">Logging and instrumentation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ball_tree_builders.html">Ball-tree builders</a></li>
+<li class="toctree-l1"><a class="reference internal" href="experiments/active.html">Active Learning Runner</a></li>
+<li class="toctree-l1"><a class="reference internal" href="experiments/rq1.html">Experiment RQ1: Anytime BnB</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="api/index.html">API reference</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle navigation of API reference</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="api/core.html">Core utilities</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/trees.html">Ball-tree APIs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/search.html">Search APIs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/centers.html">Centre solvers</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/learning.html">Learning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/mining.html">Mining</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/metrics.html">Metrics and measures</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/oracles.html">Oracles and priors</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/utils.html">Utility helpers</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Additional Resources</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="project_layout.html">Project layout</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="view-this-page">
+  <a class="muted-link" href="_sources/learning_procedure.rst.txt" title="View this page">
+    <svg><use href="#svg-eye"></use></svg>
+    <span class="visually-hidden">View this page</span>
+  </a>
+</div>
+<div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <section id="understanding-the-learning-procedure">
+<h1>Understanding the learning procedure<a class="headerlink" href="#understanding-the-learning-procedure" title="Permalink to this heading">¶</a></h1>
+<p>This guide expands on <code class="xref py py-mod docutils literal notranslate"><span class="pre">gal.learning</span></code> and the active-learning runner so you can
+trace every transformation that happens between a mined-rules CSV and the
+final <code class="docutils literal notranslate"><span class="pre">final_version_space.npz</span></code> artefact.  It follows the same execution path
+as <code class="xref py py-func docutils literal notranslate"><span class="pre">gal.experiments.runner.run_all()</span></code>, surfacing the key data
+structures, configuration knobs, and termination criteria along the way.</p>
+<nav class="contents local" id="contents">
+<ul class="simple">
+<li><p><a class="reference internal" href="#workflow-at-a-glance" id="id1">Workflow at a glance</a></p></li>
+<li><p><a class="reference internal" href="#dataset-ingestion-and-diagnostics" id="id2">Dataset ingestion and diagnostics</a></p></li>
+<li><p><a class="reference internal" href="#feature-augmentation" id="id3">Feature augmentation</a></p></li>
+<li><p><a class="reference internal" href="#capacity-space-and-initial-constraints" id="id4">Capacity space and initial constraints</a></p></li>
+<li><p><a class="reference internal" href="#tree-construction" id="id5">Tree construction</a></p></li>
+<li><p><a class="reference internal" href="#search-engine-and-visit-strategies" id="id6">Search engine and visit strategies</a></p></li>
+<li><p><a class="reference internal" href="#oracle-contract" id="id7">Oracle contract</a></p></li>
+<li><p><a class="reference internal" href="#constraint-projection-and-version-space-updates" id="id8">Constraint projection and version-space updates</a></p></li>
+<li><p><a class="reference internal" href="#stopping-criteria" id="id9">Stopping criteria</a></p></li>
+<li><p><a class="reference internal" href="#runtime-instrumentation" id="id10">Runtime instrumentation</a></p></li>
+<li><p><a class="reference internal" href="#configuration-knobs-cheat-sheet" id="id11">Configuration knobs cheat sheet</a></p></li>
+<li><p><a class="reference internal" href="#extending-or-customising-the-loop" id="id12">Extending or customising the loop</a></p></li>
+</ul>
+</nav>
+<section id="workflow-at-a-glance">
+<h2><a class="toc-backref" href="#id1" role="doc-backlink">Workflow at a glance</a><a class="headerlink" href="#workflow-at-a-glance" title="Permalink to this heading">¶</a></h2>
+<p>The experiment driver orchestrates the loop below.  Each component is documented in
+separate sections so you can drill into the details.</p>
+<ol class="arabic simple">
+<li><p><strong>Dataset ingestion</strong> (<a class="reference internal" href="api/core.html#gal.core.data.Dataset" title="gal.core.data.Dataset"><code class="xref py py-class docutils literal notranslate"><span class="pre">gal.core.data.Dataset</span></code></a>) loads the rule metrics
+into a dense matrix <code class="docutils literal notranslate"><span class="pre">X</span> <span class="pre">∈</span> <span class="pre">ℝ^{n×d}</span></code> and remembers how to convert rows back
+into rule dictionaries.  Optional artefacts (transactions, rule-item matrices)
+tag along for downstream analysis.</p></li>
+<li><p><strong>Feature augmentation</strong> (<a class="reference internal" href="api/core.html#gal.core.data.augment_with_minimums" title="gal.core.data.augment_with_minimums"><code class="xref py py-func docutils literal notranslate"><span class="pre">gal.core.data.augment_with_minimums()</span></code></a>) adds
+all minimum combinations up to <code class="docutils literal notranslate"><span class="pre">additivity_k</span></code> to support Choquet-style
+capacities.</p></li>
+<li><p><strong>Capacity space set-up</strong> (<code class="xref py py-func docutils literal notranslate"><span class="pre">gal.core.constraints.k_additive_constraints()</span></code>,
+<code class="xref py py-class docutils literal notranslate"><span class="pre">gal.core.space.CapacitySpace</span></code>) constructs the initial half-space system
+<code class="docutils literal notranslate"><span class="pre">A₀</span> <span class="pre">x</span> <span class="pre">≤</span> <span class="pre">b₀</span></code> that defines the feasible Möbius coefficients.</p></li>
+<li><p><strong>Tree construction</strong> (<code class="xref py py-func docutils literal notranslate"><span class="pre">gal.trees.build_tree()</span></code>) builds a ball tree over
+the augmented rows.  The tree exposes fast bounding boxes for the search step.</p></li>
+<li><p><strong>Search engine initialisation</strong> (<a class="reference internal" href="api/search.html#gal.search.engine.Search" title="gal.search.engine.Search"><code class="xref py py-class docutils literal notranslate"><span class="pre">gal.search.engine.Search</span></code></a>) binds a
+visit strategy and bounds object that implement branch-and-bound queries.</p></li>
+<li><p><strong>Active-learning loop</strong> (<a class="reference internal" href="api/learning.html#gal.learning.learn.learning_loop" title="gal.learning.learn.learning_loop"><code class="xref py py-func docutils literal notranslate"><span class="pre">gal.learning.learn.learning_loop()</span></code></a>) repeats:</p>
+<ol class="loweralpha simple">
+<li><p>select the current centre with <code class="docutils literal notranslate"><span class="pre">center_fn(A,</span> <span class="pre">b)</span></code>, expand it through the
+capacity space, and compute the Chebyshev radius;</p></li>
+<li><p>run a dual-tree search to find the most ambiguous pair <code class="docutils literal notranslate"><span class="pre">(a,</span> <span class="pre">b)</span></code> using the
+selected strategy and <code class="docutils literal notranslate"><span class="pre">τ</span></code> threshold;</p></li>
+<li><p>ask the oracle for <code class="docutils literal notranslate"><span class="pre">sign(⟨a</span> <span class="pre">−</span> <span class="pre">b,</span> <span class="pre">q⋆⟩)</span></code> and project the resulting inequality
+back into the reduced (projected) space;</p></li>
+<li><p>append the projected row to the version space, stream all artefacts to disk,
+and continue unless a stopping condition fires.</p></li>
+</ol>
+</li>
+</ol>
+</section>
+<section id="dataset-ingestion-and-diagnostics">
+<h2><a class="toc-backref" href="#id2" role="doc-backlink">Dataset ingestion and diagnostics</a><a class="headerlink" href="#dataset-ingestion-and-diagnostics" title="Permalink to this heading">¶</a></h2>
+<p>Datasets are declared in the YAML config through <code class="docutils literal notranslate"><span class="pre">datasets[]</span></code> entries.  Each
+entry is normalised by <code class="xref py py-func docutils literal notranslate"><span class="pre">gal.experiments.config.dataset_entry_from_cfg()</span></code> so
+that consistent defaults apply across runs.</p>
+<p>When <code class="xref py py-func docutils literal notranslate"><span class="pre">gal.experiments.runner._load_dataset()</span></code> executes it:</p>
+<ul class="simple">
+<li><p>reads the rules CSV (PyArrow backend when available) and keeps only numeric
+measuring columns determined by <code class="docutils literal notranslate"><span class="pre">entry.measures</span></code> or the global defaults;</p></li>
+<li><p>optionally drops duplicate rows in measure space (controlled by each dataset
+entry via <code class="docutils literal notranslate"><span class="pre">drop_duplicate_measure_vectors</span></code>);</p></li>
+<li><p>converts the filtered frame into the dense matrix <code class="docutils literal notranslate"><span class="pre">X</span></code> that feeds the rest of
+the pipeline; and</p></li>
+<li><p>tracks <code class="docutils literal notranslate"><span class="pre">rows_read</span></code> / <code class="docutils literal notranslate"><span class="pre">duplicates_dropped</span></code> so logs can report how much
+filtering took place.</p></li>
+</ul>
+<p>If you provide a transactions CSV or rule-item matrix, they are loaded but not
+used directly by the learner—the artefacts are stored on the <code class="xref py py-class docutils literal notranslate"><span class="pre">Dataset</span></code>
+instance for reporting and custom oracles.</p>
+</section>
+<section id="feature-augmentation">
+<h2><a class="toc-backref" href="#id3" role="doc-backlink">Feature augmentation</a><a class="headerlink" href="#feature-augmentation" title="Permalink to this heading">¶</a></h2>
+<p>Many experiments operate over <em>k</em>-additive capacities, so the feature matrix is
+augmented with all minimum combinations of size <code class="docutils literal notranslate"><span class="pre">2…k</span></code>.  The helper
+<a class="reference internal" href="api/core.html#gal.core.data.augment_with_minimums" title="gal.core.data.augment_with_minimums"><code class="xref py py-func docutils literal notranslate"><span class="pre">gal.core.data.augment_with_minimums()</span></code></a> appends one column per subset and
+returns the augmented matrix <code class="docutils literal notranslate"><span class="pre">X_aug</span></code>.  For <code class="docutils literal notranslate"><span class="pre">additivity_k</span> <span class="pre">=</span> <span class="pre">1</span></code> the routine is a
+no-op and <code class="docutils literal notranslate"><span class="pre">X_aug</span></code> equals the original metric matrix.</p>
+<p>The augmentation order mirrors the subset enumeration used to build the version
+space.  If you need the explicit subset list (e.g., to interpret Möbius weights)
+call the helper with <code class="docutils literal notranslate"><span class="pre">return_index_map=True</span></code>.</p>
+</section>
+<section id="capacity-space-and-initial-constraints">
+<h2><a class="toc-backref" href="#id4" role="doc-backlink">Capacity space and initial constraints</a><a class="headerlink" href="#capacity-space-and-initial-constraints" title="Permalink to this heading">¶</a></h2>
+<p>The configuration knob <code class="docutils literal notranslate"><span class="pre">experiment.additivity_k</span></code> feeds directly into
+<code class="xref py py-func docutils literal notranslate"><span class="pre">gal.core.constraints.k_additive_constraints()</span></code>, which emits:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">A₀</span></code> and <code class="docutils literal notranslate"><span class="pre">b₀</span></code> describing the monotone capacity polytope in projected
+coordinates, and</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">proj_index</span></code>—a mapping from subset tuples to their position inside the
+projected vector.</p></li>
+</ul>
+<p>Those outputs populate <code class="xref py py-class docutils literal notranslate"><span class="pre">gal.core.space.CapacitySpace</span></code>.  The class exposes
+two operations the learner uses every iteration:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">space.expand_center(center_proj)</span></code></dt><dd><p>Lifts a projected centre back into the full Möbius coordinate system.  The
+last subset is reconstructed so that the weights sum to one.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">space.project(constraint_full)</span></code></dt><dd><p>Reorders a constraint expressed in the full space and calls
+<a class="reference internal" href="api/learning.html#gal.learning.learn.project_constraint" title="gal.learning.learn.project_constraint"><code class="xref py py-func docutils literal notranslate"><span class="pre">gal.learning.learn.project_constraint()</span></code></a> to drop the last coordinate
+(again, the sum-to-one row).  This projection guarantees that every stored
+inequality matches the dimensionality of <code class="docutils literal notranslate"><span class="pre">center_fn</span></code> and <code class="docutils literal notranslate"><span class="pre">A</span></code>.</p>
+</dd>
+</dl>
+<p>Initial constraints are saved to disk through
+<code class="docutils literal notranslate"><span class="pre">final_version_space.npz</span></code> even when the loop stops immediately.  You can load
+the file and feed <code class="docutils literal notranslate"><span class="pre">A</span></code> / <code class="docutils literal notranslate"><span class="pre">b</span></code> back into <a class="reference internal" href="api/learning.html#gal.learning.learn.learning_loop" title="gal.learning.learn.learning_loop"><code class="xref py py-func docutils literal notranslate"><span class="pre">gal.learning.learn.learning_loop()</span></code></a>
+to resume progress.</p>
+</section>
+<section id="tree-construction">
+<h2><a class="toc-backref" href="#id5" role="doc-backlink">Tree construction</a><a class="headerlink" href="#tree-construction" title="Permalink to this heading">¶</a></h2>
+<p>Active learning uses a dual-tree search to find ambiguous rule pairs.  The tree is
+constructed once per dataset by <code class="xref py py-func docutils literal notranslate"><span class="pre">gal.trees.build_tree()</span></code>.  The default method is
+<code class="docutils literal notranslate"><span class="pre">two_pivot</span></code> but any <a class="reference internal" href="api/trees.html#module-gal.trees" title="gal.trees"><code class="xref py py-mod docutils literal notranslate"><span class="pre">gal.trees</span></code></a> builder listed in
+<code class="docutils literal notranslate"><span class="pre">AVAILABLE_METHODS</span></code> is supported.  The runner records:</p>
+<ul class="simple">
+<li><p>tree family (currently hard-coded to <code class="docutils literal notranslate"><span class="pre">balltree</span></code> for the geometry-aware
+builders),</p></li>
+<li><p>constructor name (e.g., <code class="docutils literal notranslate"><span class="pre">two_pivot</span></code>), and</p></li>
+<li><p>effective <code class="docutils literal notranslate"><span class="pre">leaf_size</span></code> after the builder processes the config.</p></li>
+</ul>
+<p>The search engine only needs the resulting <a class="reference internal" href="api/trees.html#gal.trees.common.GeometricTree" title="gal.trees.common.GeometricTree"><code class="xref py py-class docutils literal notranslate"><span class="pre">gal.trees.common.GeometricTree</span></code></a>
+interface.  The tree stores bounding spheres for every node so bounds stay tight
+throughout the search.</p>
+</section>
+<section id="search-engine-and-visit-strategies">
+<h2><a class="toc-backref" href="#id6" role="doc-backlink">Search engine and visit strategies</a><a class="headerlink" href="#search-engine-and-visit-strategies" title="Permalink to this heading">¶</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">gal.search.engine.Search</span></code> wraps a branch-and-bound queue that accepts
+pluggable <strong>visit strategies</strong> (<a class="reference internal" href="api/search.html#module-gal.search.strategies" title="gal.search.strategies"><code class="xref py py-mod docutils literal notranslate"><span class="pre">gal.search.strategies</span></code></a>) and
+<strong>bounding schemes</strong> (<a class="reference internal" href="api/search.html#module-gal.search.bounds" title="gal.search.bounds"><code class="xref py py-mod docutils literal notranslate"><span class="pre">gal.search.bounds</span></code></a>).  The default configuration mirrors
+the behaviour described in the paper:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="api/search.html#gal.search.bounds.BallTreeBounds" title="gal.search.bounds.BallTreeBounds"><code class="xref py py-class docutils literal notranslate"><span class="pre">gal.search.bounds.BallTreeBounds</span></code></a> maintains angular lower/upper bounds
+for pairwise differences by combining child balls.</p></li>
+<li><p><a class="reference internal" href="api/search.html#gal.search.strategies.LowerBoundVisitStrategy" title="gal.search.strategies.LowerBoundVisitStrategy"><code class="xref py py-class docutils literal notranslate"><span class="pre">gal.search.strategies.LowerBoundVisitStrategy</span></code></a> implements a best-first
+traversal prioritising the smallest absolute inner product with the current
+centre.</p></li>
+</ul>
+<p>Key runtime parameters that travel from the YAML config into
+<a class="reference internal" href="api/learning.html#gal.learning.learn.learning_loop" title="gal.learning.learn.learning_loop"><code class="xref py py-func docutils literal notranslate"><span class="pre">gal.learning.learn.learning_loop()</span></code></a> are:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">tau</span></code></dt><dd><p><code class="docutils literal notranslate"><span class="pre">min(radius</span> <span class="pre">×</span> <span class="pre">tau_multiplier,</span> <span class="pre">tau_cap)</span></code>.  Acts as an admissible bound on
+the ambiguity score.  When the lower bound exceeds <code class="docutils literal notranslate"><span class="pre">τ</span></code> the engine can stop
+early.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">align_orientation</span></code></dt><dd><p>Enables a second search phase that encourages queries aligned with the
+farthest feasible point.  The helper
+<code class="xref py py-func docutils literal notranslate"><span class="pre">gal.learning.learn._farthest_point_socp()</span></code> solves a small LP (via SciPy)
+to find that vector; when the solve fails or SciPy is missing, the alignment
+gracefully degrades to the standard search.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">use_gpu</span></code></dt><dd><p>Requests a CUDA-backed array backend.  <code class="xref py py-func docutils literal notranslate"><span class="pre">gal.utils.get_array_backend()</span></code>
+falls back to NumPy if PyTorch/CUDA are unavailable so GPU runs are optional.</p>
+</dd>
+</dl>
+<p>The engine returns indices <code class="docutils literal notranslate"><span class="pre">(i,</span> <span class="pre">j)</span></code>, the best score achieved so far, and—when
+<code class="docutils literal notranslate"><span class="pre">return_stats</span></code> is true—a dictionary with diagnostic traces (orientation score,
+trace events, bound counters, etc.).</p>
+</section>
+<section id="oracle-contract">
+<h2><a class="toc-backref" href="#id7" role="doc-backlink">Oracle contract</a><a class="headerlink" href="#oracle-contract" title="Permalink to this heading">¶</a></h2>
+<p>Oracles implement <a class="reference internal" href="api/oracles.html#gal.oracles.oracles.Oracle" title="gal.oracles.oracles.Oracle"><code class="xref py py-class docutils literal notranslate"><span class="pre">gal.oracles.oracles.Oracle</span></code></a>.  The runner builds one
+instance per dataset and binds it through <code class="docutils literal notranslate"><span class="pre">oracle.compare_vectors</span></code>.  Two
+contracts matter for the learning loop:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">oracle.set_dataset(ds)</span></code> must run before comparisons so the implementation
+can recover rule metadata (e.g., measure names).</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">compare_vectors(a_vec,</span> <span class="pre">b_vec)</span></code> returns <code class="docutils literal notranslate"><span class="pre">+1</span></code>, <code class="docutils literal notranslate"><span class="pre">-1</span></code>, or <code class="docutils literal notranslate"><span class="pre">0</span></code> and is
+expected to be deterministic for repeatability.</p></li>
+</ul>
+<p>The <code class="docutils literal notranslate"><span class="pre">oracles</span></code> package ships ready-made variants:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="api/oracles.html#gal.oracles.oracles.ObjectiveMeasureOracle" title="gal.oracles.oracles.ObjectiveMeasureOracle"><code class="xref py py-class docutils literal notranslate"><span class="pre">ObjectiveMeasureOracle</span></code></a> – single metric.</p></li>
+<li><p><a class="reference internal" href="api/oracles.html#gal.oracles.oracles.SumOracle" title="gal.oracles.oracles.SumOracle"><code class="xref py py-class docutils literal notranslate"><span class="pre">SumOracle</span></code></a> – sum of multiple metrics.</p></li>
+<li><p><a class="reference internal" href="api/oracles.html#gal.oracles.oracles.MDLOracle" title="gal.oracles.oracles.MDLOracle"><code class="xref py py-class docutils literal notranslate"><span class="pre">MDLOracle</span></code></a> – minimum-description-length prior.</p></li>
+<li><p><a class="reference internal" href="api/oracles.html#gal.oracles.oracles.SurpriseOracle" title="gal.oracles.oracles.SurpriseOracle"><code class="xref py py-class docutils literal notranslate"><span class="pre">SurpriseOracle</span></code></a> – Bayesian surprise based on
+configurable priors.</p></li>
+</ul>
+<p>You can plug your own implementation by deriving from <code class="xref py py-class docutils literal notranslate"><span class="pre">Oracle</span></code>; the runner
+will pick it up automatically if you expose it in the config builder map.</p>
+</section>
+<section id="constraint-projection-and-version-space-updates">
+<h2><a class="toc-backref" href="#id8" role="doc-backlink">Constraint projection and version-space updates</a><a class="headerlink" href="#constraint-projection-and-version-space-updates" title="Permalink to this heading">¶</a></h2>
+<p>Each iteration produces a difference vector <code class="docutils literal notranslate"><span class="pre">δ</span> <span class="pre">=</span> <span class="pre">a</span> <span class="pre">−</span> <span class="pre">b</span></code>.  After querying the
+oracle, the loop forms the half-space:</p>
+<div class="math-wrapper docutils container">
+<div class="math notranslate nohighlight">
+\[y · δ^⊤ q ≥ 0,   where  y = \mathrm{sign}(⟨δ, q⋆⟩).\]</div>
+</div>
+<p>Two code paths take care of dimensionality:</p>
+<ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">space.project(constraint_full)</span></code> reorders and drops the last Möbius
+coordinate so the inequality matches the centre’s working dimension.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">project_constraint</span></code> subtracts the redundant column and adjusts the right-hand
+side.  (The last Möbius coordinate is implicit once the others are known.)</p></li>
+</ol>
+<p>The projected row is concatenated to the existing <code class="docutils literal notranslate"><span class="pre">A</span></code> / <code class="docutils literal notranslate"><span class="pre">b</span></code> matrices.  The
+next centre computation therefore takes every past vote into account.</p>
+</section>
+<section id="stopping-criteria">
+<h2><a class="toc-backref" href="#id9" role="doc-backlink">Stopping criteria</a><a class="headerlink" href="#stopping-criteria" title="Permalink to this heading">¶</a></h2>
+<p>The loop stops as soon as one of these conditions is met:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">radius</span></code> returned by <code class="xref py py-func docutils literal notranslate"><span class="pre">gal.centers._chebyshev_radius()</span></code> is <code class="docutils literal notranslate"><span class="pre">≤</span> <span class="pre">0</span></code> or not
+finite; the version space collapsed to an empty set.</p></li>
+<li><p>The search engine fails to produce a pair (<code class="docutils literal notranslate"><span class="pre">i</span></code> or <code class="docutils literal notranslate"><span class="pre">j</span></code> becomes <code class="docutils literal notranslate"><span class="pre">None</span></code>),
+typically because every candidate violates the <code class="docutils literal notranslate"><span class="pre">τ</span></code> bound.</p></li>
+<li><p>The iteration budget <code class="docutils literal notranslate"><span class="pre">active_learning_budget</span></code> is exhausted.</p></li>
+</ul>
+<p>When the loop breaks, <code class="docutils literal notranslate"><span class="pre">iterations.csv</span></code> is closed, <code class="docutils literal notranslate"><span class="pre">final_version_space.npz</span></code> is
+written, and the function returns <code class="docutils literal notranslate"><span class="pre">A</span></code> / <code class="docutils literal notranslate"><span class="pre">b</span></code> for programmatic inspection.</p>
+</section>
+<section id="runtime-instrumentation">
+<h2><a class="toc-backref" href="#id10" role="doc-backlink">Runtime instrumentation</a><a class="headerlink" href="#runtime-instrumentation" title="Permalink to this heading">¶</a></h2>
+<p>Per iteration the learner streams artefacts to the experiment directory:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">iterations.csv</span></code></dt><dd><p>Structured log with columns <code class="docutils literal notranslate"><span class="pre">iteration_id</span></code>, <code class="docutils literal notranslate"><span class="pre">query_path</span></code>, <code class="docutils literal notranslate"><span class="pre">oracle_response</span></code>,
+<code class="docutils literal notranslate"><span class="pre">i</span></code>, <code class="docutils literal notranslate"><span class="pre">j</span></code>, <code class="docutils literal notranslate"><span class="pre">orientation_score</span></code>, <code class="docutils literal notranslate"><span class="pre">timestamp_start</span></code>, <code class="docutils literal notranslate"><span class="pre">timestamp_end</span></code>.
+Timestamps use UTC ISO-8601 with millisecond precision.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">queries/query_###.npz</span></code></dt><dd><p>Stores the difference vector <code class="docutils literal notranslate"><span class="pre">δ</span></code> under the <code class="docutils literal notranslate"><span class="pre">vector</span></code> key so you can replay
+the exact queries without recomputing trees.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">iteration_###/center_model.npy</span></code></dt><dd><p>Numpy dump of the expanded centre after the update.  The accompanying
+<code class="docutils literal notranslate"><span class="pre">center_model.npz</span></code> contains <code class="docutils literal notranslate"><span class="pre">center</span></code>, <code class="docutils literal notranslate"><span class="pre">radius</span></code>, and <code class="docutils literal notranslate"><span class="pre">tau</span></code> for quick
+tabular analysis.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">iteration_###/search_trace.npz</span></code></dt><dd><p>Present when <code class="docutils literal notranslate"><span class="pre">logging.search_events</span></code> is true.  Holds event arrays
+(<code class="docutils literal notranslate"><span class="pre">event_type</span></code>, <code class="docutils literal notranslate"><span class="pre">node_id</span></code>, <code class="docutils literal notranslate"><span class="pre">lower_bound</span></code>, …) suitable for plotting queue
+dynamics or bound tightness distributions.</p>
+</dd>
+</dl>
+<p>See also <a class="reference internal" href="logging.html"><span class="doc">Logging and instrumentation</span></a> for a configuration-centric view of these artefacts and
+tips on customising the logging pipeline.</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">config.json</span></code></dt><dd><p>Metadata snapshot written once before the loop starts.  Records the oracle
+name, centre, search strategy, tree builder, and budget so downstream tools
+can reconstruct the run configuration.</p>
+</dd>
+</dl>
+</section>
+<section id="configuration-knobs-cheat-sheet">
+<h2><a class="toc-backref" href="#id11" role="doc-backlink">Configuration knobs cheat sheet</a><a class="headerlink" href="#configuration-knobs-cheat-sheet" title="Permalink to this heading">¶</a></h2>
+<p>The most relevant YAML keys (see <code class="docutils literal notranslate"><span class="pre">experiments/config.sample.yaml</span></code>):</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">experiment.active_learning_budget</span></code></dt><dd><p>Maximum number of iterations <span class="math notranslate nohighlight">\(T\)</span>.  Higher values explore more queries at
+the cost of potentially larger runs.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">experiment.tau_max</span></code> and <code class="docutils literal notranslate"><span class="pre">experiment.tau_radius_multiplier</span></code></dt><dd><p>Control the admissible ambiguity threshold.  <code class="docutils literal notranslate"><span class="pre">tau_radius_multiplier</span></code> scales
+the current Chebyshev radius; <code class="docutils literal notranslate"><span class="pre">tau_max</span></code> caps the value so the search does not
+become too permissive early on.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">experiment.center_name</span></code></dt><dd><p>Chooses the polyhedral centre rerun each iteration (analytic, Chebyshev,
+volumetric, Minkowski).  All centres share the same interface
+<code class="docutils literal notranslate"><span class="pre">center_fn(A,</span> <span class="pre">b)</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">experiment.additivity_k</span></code></dt><dd><p>Sets the augmentation order and therefore the dimensionality of the capacity
+space.  <code class="docutils literal notranslate"><span class="pre">1</span></code> keeps the native rule metrics; higher values introduce more
+constraints and typically require higher budgets.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">experiment.align_orientation</span></code></dt><dd><p>Enables farthest-point orientation to diversify queries.  Requires SciPy for
+the fallback LP.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">logging.search_events</span></code></dt><dd><p>Toggle detailed trace capture.  Keep it off for faster runs unless you need
+per-node diagnostics.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">trees.ball.method</span></code> / <code class="docutils literal notranslate"><span class="pre">trees.ball.config</span></code></dt><dd><p>Select a tree builder and pass builder-specific options.  For example,
+<code class="docutils literal notranslate"><span class="pre">{&quot;method&quot;:</span> <span class="pre">&quot;two_pivot&quot;,</span> <span class="pre">&quot;config&quot;:</span> <span class="pre">{&quot;leaf_size&quot;:</span> <span class="pre">64}}</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">oracle.type</span></code> and nested options</dt><dd><p>Pick which oracle factory to invoke (<code class="docutils literal notranslate"><span class="pre">objective</span></code>, <code class="docutils literal notranslate"><span class="pre">sum</span></code>, <code class="docutils literal notranslate"><span class="pre">surprise</span></code>,
+<code class="docutils literal notranslate"><span class="pre">mdl</span></code>).  Each sub-type exposes additional parameters documented in
+<a class="reference internal" href="api/oracles.html#module-gal.oracles.oracles" title="gal.oracles.oracles"><code class="xref py py-mod docutils literal notranslate"><span class="pre">gal.oracles.oracles</span></code></a>.</p>
+</dd>
+</dl>
+</section>
+<section id="extending-or-customising-the-loop">
+<h2><a class="toc-backref" href="#id12" role="doc-backlink">Extending or customising the loop</a><a class="headerlink" href="#extending-or-customising-the-loop" title="Permalink to this heading">¶</a></h2>
+<p>The documented pieces compose cleanly:</p>
+<ul class="simple">
+<li><p><strong>Centres:</strong> implement a callable <code class="docutils literal notranslate"><span class="pre">center_fn(A,</span> <span class="pre">b)</span></code> returning the projected
+centre and pass it through <code class="docutils literal notranslate"><span class="pre">experiment.center_name</span></code> or <code class="docutils literal notranslate"><span class="pre">center_params</span></code>.</p></li>
+<li><p><strong>Search strategies:</strong> subclass <a class="reference internal" href="api/search.html#gal.search.strategies.VisitStrategy" title="gal.search.strategies.VisitStrategy"><code class="xref py py-class docutils literal notranslate"><span class="pre">gal.search.strategies.VisitStrategy</span></code></a>,
+expose it through <a class="reference internal" href="api/search.html#gal.search.strategies.get_strategy" title="gal.search.strategies.get_strategy"><code class="xref py py-func docutils literal notranslate"><span class="pre">gal.search.strategies.get_strategy()</span></code></a>, or inject it by
+creating a custom <a class="reference internal" href="api/search.html#gal.search.engine.Search" title="gal.search.engine.Search"><code class="xref py py-class docutils literal notranslate"><span class="pre">gal.search.engine.Search</span></code></a> in the runner before calling
+<a class="reference internal" href="api/learning.html#gal.learning.learn.learning_loop" title="gal.learning.learn.learning_loop"><code class="xref py py-func docutils literal notranslate"><span class="pre">gal.learning.learn.learning_loop()</span></code></a>.</p></li>
+<li><p><strong>Oracles:</strong> subclass <code class="xref py py-class docutils literal notranslate"><span class="pre">Oracle</span></code>, expose a factory in
+<code class="xref py py-func docutils literal notranslate"><span class="pre">gal.experiments.runner._build_oracle()</span></code>, and reference it in the config.</p></li>
+<li><p><strong>Outputs:</strong> extend <code class="xref py py-mod docutils literal notranslate"><span class="pre">gal.learning.learn_helpers</span></code> to stream additional
+artefacts (e.g., JSON summaries) – the helper centralises file naming so
+new formats follow the same conventions.</p></li>
+</ul>
+<p>Because the loop never mutates the input dataset or tree, you can safely replay
+experiments with tweaked parameters using the same base artefacts.  When in
+doubt, inspect <code class="docutils literal notranslate"><span class="pre">iterations.csv</span></code> alongside the search traces; together they form
+a lossless view of the learning trajectory.</p>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="logging.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Logging and instrumentation</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="getting_started.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Getting started</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2025, Project Contributors
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Understanding the learning procedure</a><ul>
+<li><a class="reference internal" href="#workflow-at-a-glance">Workflow at a glance</a></li>
+<li><a class="reference internal" href="#dataset-ingestion-and-diagnostics">Dataset ingestion and diagnostics</a></li>
+<li><a class="reference internal" href="#feature-augmentation">Feature augmentation</a></li>
+<li><a class="reference internal" href="#capacity-space-and-initial-constraints">Capacity space and initial constraints</a></li>
+<li><a class="reference internal" href="#tree-construction">Tree construction</a></li>
+<li><a class="reference internal" href="#search-engine-and-visit-strategies">Search engine and visit strategies</a></li>
+<li><a class="reference internal" href="#oracle-contract">Oracle contract</a></li>
+<li><a class="reference internal" href="#constraint-projection-and-version-space-updates">Constraint projection and version-space updates</a></li>
+<li><a class="reference internal" href="#stopping-criteria">Stopping criteria</a></li>
+<li><a class="reference internal" href="#runtime-instrumentation">Runtime instrumentation</a></li>
+<li><a class="reference internal" href="#configuration-knobs-cheat-sheet">Configuration knobs cheat sheet</a></li>
+<li><a class="reference internal" href="#extending-or-customising-the-loop">Extending or customising the loop</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script data-url_root="./" id="documentation_options" src="_static/documentation_options.js?v=2389946f"></script>
+    <script src="_static/doctools.js?v=888ff710"></script>
+    <script src="_static/sphinx_highlight.js?v=4825356b"></script>
+    <script src="_static/scripts/furo.js?v=5fa4622c"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    </body>
+</html>

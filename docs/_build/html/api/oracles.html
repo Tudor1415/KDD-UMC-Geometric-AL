@@ -205,7 +205,10 @@
   <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="../getting_started.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../learning_procedure.html">Understanding the learning procedure</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../logging.html">Logging and instrumentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../ball_tree_builders.html">Ball-tree builders</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../experiments/active.html">Active Learning Runner</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../experiments/rq1.html">Experiment RQ1: Anytime BnB</a></li>
 </ul>
 <p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
@@ -215,7 +218,8 @@
 <li class="toctree-l2"><a class="reference internal" href="trees.html">Ball-tree APIs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="search.html">Search APIs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="centers.html">Centre solvers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="learning.html">Learning and mining</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning.html">Learning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="mining.html">Mining</a></li>
 <li class="toctree-l2"><a class="reference internal" href="metrics.html">Metrics and measures</a></li>
 <li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Oracles and priors</a></li>
 <li class="toctree-l2"><a class="reference internal" href="utils.html">Utility helpers</a></li>
@@ -348,6 +352,41 @@ before using <code class="docutils literal notranslate"><span class="pre">compar
 <dl class="py method">
 <dt class="sig sig-object py" id="gal.oracles.oracles.SumOracle.score_dataset">
 <span class="sig-name descname"><span class="pre">score_dataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dataset</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gal/oracles/oracles.html#SumOracle.score_dataset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gal.oracles.oracles.SumOracle.score_dataset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Slow fallback; subclasses can override for speed.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="gal.oracles.oracles.ChoquetOracle">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">gal.oracles.oracles.</span></span><span class="sig-name descname"><span class="pre">ChoquetOracle</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">subsets</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Sequence</span><span class="p"><span class="pre">[</span></span><span class="pre">Iterable</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">str</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="o"><span class="pre">*</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">str</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gal/oracles/oracles.html#ChoquetOracle"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gal.oracles.oracles.ChoquetOracle" title="Permalink to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#gal.oracles.oracles.Oracle" title="gal.oracles.oracles.Oracle"><code class="xref py py-class docutils literal notranslate"><span class="pre">Oracle</span></code></a></p>
+<p>Score rules via a discrete Choquet integral encoded by a Möbius vector.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>subsets</strong> (<em>sequence</em><em> of </em><em>iterables</em><em>, </em><em>optional</em>) – Ordered list of non-empty subsets of the measure index set. Each subset
+can be provided either as indices or measure names. The Möbius weight of
+the <em>j</em>-th subset in this list is <code class="docutils literal notranslate"><span class="pre">j</span> <span class="pre">+</span> <span class="pre">1</span></code>. When omitted, singleton
+subsets are used, in dataset order.</p></li>
+<li><p><strong>name</strong> (<em>str</em><em>, </em><em>optional</em>) – Oracle identifier used in logs / tables.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="gal.oracles.oracles.ChoquetOracle.set_dataset">
+<span class="sig-name descname"><span class="pre">set_dataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dataset</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="core.html#gal.core.data.Dataset" title="gal.core.data.Dataset"><span class="pre">Dataset</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference internal" href="../_modules/gal/oracles/oracles.html#ChoquetOracle.set_dataset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gal.oracles.oracles.ChoquetOracle.set_dataset" title="Permalink to this definition">¶</a></dt>
+<dd><p>Attach a dataset so that vector-level calls become possible.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gal.oracles.oracles.ChoquetOracle.score">
+<span class="sig-name descname"><span class="pre">score</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rule</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">int</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Dict</span><span class="p"><span class="pre">[</span></span><span class="pre">str</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">float</span><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">float</span></span></span><a class="reference internal" href="../_modules/gal/oracles/oracles.html#ChoquetOracle.score"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gal.oracles.oracles.ChoquetOracle.score" title="Permalink to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gal.oracles.oracles.ChoquetOracle.score_dataset">
+<span class="sig-name descname"><span class="pre">score_dataset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">dataset</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="core.html#gal.core.data.Dataset" title="gal.core.data.Dataset"><span class="pre">Dataset</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">ndarray</span></span></span><a class="reference internal" href="../_modules/gal/oracles/oracles.html#ChoquetOracle.score_dataset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gal.oracles.oracles.ChoquetOracle.score_dataset" title="Permalink to this definition">¶</a></dt>
 <dd><p>Slow fallback; subclasses can override for speed.</p>
 </dd></dl>
 
@@ -670,6 +709,12 @@ estimation, and stored as GPU tensors for batched scoring.</p>
 <li><a class="reference internal" href="#gal.oracles.oracles.SumOracle"><code class="docutils literal notranslate"><span class="pre">SumOracle</span></code></a><ul>
 <li><a class="reference internal" href="#gal.oracles.oracles.SumOracle.score"><code class="docutils literal notranslate"><span class="pre">SumOracle.score()</span></code></a></li>
 <li><a class="reference internal" href="#gal.oracles.oracles.SumOracle.score_dataset"><code class="docutils literal notranslate"><span class="pre">SumOracle.score_dataset()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#gal.oracles.oracles.ChoquetOracle"><code class="docutils literal notranslate"><span class="pre">ChoquetOracle</span></code></a><ul>
+<li><a class="reference internal" href="#gal.oracles.oracles.ChoquetOracle.set_dataset"><code class="docutils literal notranslate"><span class="pre">ChoquetOracle.set_dataset()</span></code></a></li>
+<li><a class="reference internal" href="#gal.oracles.oracles.ChoquetOracle.score"><code class="docutils literal notranslate"><span class="pre">ChoquetOracle.score()</span></code></a></li>
+<li><a class="reference internal" href="#gal.oracles.oracles.ChoquetOracle.score_dataset"><code class="docutils literal notranslate"><span class="pre">ChoquetOracle.score_dataset()</span></code></a></li>
 </ul>
 </li>
 <li><a class="reference internal" href="#gal.oracles.oracles.SurpriseOracle"><code class="docutils literal notranslate"><span class="pre">SurpriseOracle</span></code></a><ul>

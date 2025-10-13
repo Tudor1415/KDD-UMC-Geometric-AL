@@ -14,7 +14,8 @@ matter for the new ball-tree and search implementations.
    |   |   |-- trees/          # ball-tree construction strategies
    |   |   |-- search/         # branch-and-bound search engine primitives
    |   |   |-- centers/        # polyhedral centre solvers
-   |   |   |-- learning/       # active-learning loop and data miners
+   |   |   |-- learning/       # active-learning loop
+   |   |   |-- mining/         # offline rule-mining utilities
    |   |   |-- metrics/        # ranking and rule-quality metrics
    |   |   |-- oracles/        # oracle implementations & priors
    |   |   `-- utils/          # feature augmentation helpers

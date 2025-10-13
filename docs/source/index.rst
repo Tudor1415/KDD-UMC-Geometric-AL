@@ -22,6 +22,7 @@ Contents
 
    getting_started
    learning_procedure
+   logging
    ball_tree_builders
    experiments/active
    experiments/rq1

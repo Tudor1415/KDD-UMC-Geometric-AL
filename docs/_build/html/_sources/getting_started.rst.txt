@@ -87,7 +87,8 @@ iterations.
 
    import numpy as np
    from gal.trees import build_ball_tree
-   from gal.utils.helpers import augment_with_minimums, k_additive_constraints
+   from gal.core.data import augment_with_minimums
+   from gal.core.constraints import k_additive_constraints
    from gal.centers.poly_centers import chebyshev_center
    from gal.learning.learn import learn
 
@@ -122,8 +123,7 @@ Next steps
 
 * Explore the :doc:`api/index` section for detailed module documentation.
 * Review :doc:`project_layout` for a high-level map of the repository.
+* Read :doc:`learning_procedure` for a step-by-step breakdown of the active learning loop.
+* Consult :doc:`logging` to understand how to configure verbosity and capture search traces.
 * Check the ``benchmark_outputs/`` directory after running experiments to
   inspect generated CSV files and plots.
-
-
-

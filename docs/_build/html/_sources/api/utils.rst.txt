@@ -1,10 +1,10 @@
 Utility helpers
 ===============
 
-This section lists both the legacy GAL utilities and the new geometry-aware
+This section lists both the in-package utilities and the legacy geometry
 helpers consumed by the ball-tree builders.
 
-.. automodule:: gal.utils.helpers
+.. automodule:: gal.utils.array_backend
    :members:
    :undoc-members:
    :show-inheritance:

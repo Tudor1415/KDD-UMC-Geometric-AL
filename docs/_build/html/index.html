@@ -205,6 +205,8 @@
   <p class="caption" role="heading"><span class="caption-text">User Guide</span></p>
 <ul>
 <li class="toctree-l1"><a class="reference internal" href="getting_started.html">Getting started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="learning_procedure.html">Understanding the learning procedure</a></li>
+<li class="toctree-l1"><a class="reference internal" href="logging.html">Logging and instrumentation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="ball_tree_builders.html">Ball-tree builders</a></li>
 <li class="toctree-l1"><a class="reference internal" href="experiments/active.html">Active Learning Runner</a></li>
 <li class="toctree-l1"><a class="reference internal" href="experiments/rq1.html">Experiment RQ1: Anytime BnB</a></li>
@@ -216,7 +218,8 @@
 <li class="toctree-l2"><a class="reference internal" href="api/trees.html">Ball-tree APIs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/search.html">Search APIs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/centers.html">Centre solvers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/learning.html">Learning and mining</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/learning.html">Learning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/mining.html">Mining</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/metrics.html">Metrics and measures</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/oracles.html">Oracles and priors</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/utils.html">Utility helpers</a></li>
@@ -294,6 +297,30 @@ examples in this documentation assume you installed it in editable mode:</p>
 <li class="toctree-l2"><a class="reference internal" href="getting_started.html#next-steps">Next steps</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="learning_procedure.html">Understanding the learning procedure</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="learning_procedure.html#workflow-at-a-glance">Workflow at a glance</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning_procedure.html#dataset-ingestion-and-diagnostics">Dataset ingestion and diagnostics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning_procedure.html#feature-augmentation">Feature augmentation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning_procedure.html#capacity-space-and-initial-constraints">Capacity space and initial constraints</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning_procedure.html#tree-construction">Tree construction</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning_procedure.html#search-engine-and-visit-strategies">Search engine and visit strategies</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning_procedure.html#oracle-contract">Oracle contract</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning_procedure.html#constraint-projection-and-version-space-updates">Constraint projection and version-space updates</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning_procedure.html#stopping-criteria">Stopping criteria</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning_procedure.html#runtime-instrumentation">Runtime instrumentation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning_procedure.html#configuration-knobs-cheat-sheet">Configuration knobs cheat sheet</a></li>
+<li class="toctree-l2"><a class="reference internal" href="learning_procedure.html#extending-or-customising-the-loop">Extending or customising the loop</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="logging.html">Logging and instrumentation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="logging.html#overview">Overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="logging.html#configuration-controls">Configuration controls</a></li>
+<li class="toctree-l2"><a class="reference internal" href="logging.html#run-artefacts">Run artefacts</a></li>
+<li class="toctree-l2"><a class="reference internal" href="logging.html#customising-log-output">Customising log output</a></li>
+<li class="toctree-l2"><a class="reference internal" href="logging.html#troubleshooting">Troubleshooting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="logging.html#next-steps">Next steps</a></li>
+</ul>
+</li>
 <li class="toctree-l1"><a class="reference internal" href="ball_tree_builders.html">Ball-tree builders</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="ball_tree_builders.html#helper-utilities">Helper utilities</a></li>
 <li class="toctree-l2"><a class="reference internal" href="ball_tree_builders.html#ball-tree-construction-methods">Ball-tree construction methods</a></li>
@@ -331,7 +358,8 @@ examples in this documentation assume you installed it in editable mode:</p>
 <li class="toctree-l2"><a class="reference internal" href="api/trees.html">Ball-tree APIs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/search.html">Search APIs</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/centers.html">Centre solvers</a></li>
-<li class="toctree-l2"><a class="reference internal" href="api/learning.html">Learning and mining</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/learning.html">Learning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api/mining.html">Mining</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/metrics.html">Metrics and measures</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/oracles.html">Oracles and priors</a></li>
 <li class="toctree-l2"><a class="reference internal" href="api/utils.html">Utility helpers</a></li>
