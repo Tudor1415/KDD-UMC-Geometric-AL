@@ -1,5 +1,5 @@
 ﻿#!/usr/bin/env python3
-"""Compute iteration-wise distances between learned centers and oracle weights."""
+"""Compute iteration-wise distances between normalized centers and oracle weights."""
 
 from __future__ import annotations
 
@@ -374,11 +374,18 @@ def _safe_cosine(a: np.ndarray, b: np.ndarray) -> float:
     return float(np.dot(a, b) / (norm_a * norm_b))
 
 
+def _normalized(vec: np.ndarray) -> tuple[np.ndarray | None, float]:
+    norm = float(np.linalg.norm(vec))
+    if norm <= 0.0:
+        return None, norm
+    return vec / norm, norm
+
+
 def compute_interpretability(inp: Inputs) -> Path:
     cfg = ALConfig.load(inp.config_path)
     ds, subsets, _ = _load_dataset(inp, cfg)
     oracle_weights = _oracle_weights(cfg, ds, subsets)
-    oracle_norm = float(np.linalg.norm(oracle_weights))
+    oracle_unit, oracle_norm = _normalized(oracle_weights)
 
     iterations = _list_iterations(inp.run_dir)
     rows: List[Dict[str, Any]] = []
@@ -386,8 +393,11 @@ def compute_interpretability(inp: Inputs) -> Path:
     for iteration in iterations:
         center, radius, tau = _load_center_strict(inp.run_dir, iteration, len(subsets))
         cosine = _safe_cosine(center, oracle_weights)
-        l2 = float(np.linalg.norm(center - oracle_weights))
-        center_norm = float(np.linalg.norm(center))
+        center_unit, center_norm = _normalized(center)
+        if center_unit is not None and oracle_unit is not None:
+            l2 = float(np.linalg.norm(center_unit - oracle_unit))
+        else:
+            l2 = float("nan")
 
         rows.append(
             {
@@ -429,4 +439,3 @@ def main() -> None:  # pragma: no cover
 
 if __name__ == "__main__":  # pragma: no cover
     main()
-

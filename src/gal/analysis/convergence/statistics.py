@@ -9,7 +9,7 @@ from typing import List, Tuple
 import numpy as np
 from scipy import special
 
-from src.gal.centers.poly_centers import (
+from gal.centers.poly_centers import (
     chebyshev_center as _poly_chebyshev_center,
     _hit_and_run_samples,
 )

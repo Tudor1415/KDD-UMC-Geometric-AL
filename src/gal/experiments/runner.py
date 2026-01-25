@@ -21,7 +21,7 @@ from gal.oracles.oracles import ObjectiveMeasureOracle, SumOracle, MDLOracle, Su
 from gal.centers import _center_fn
 from gal.core.space import CapacitySpace
 from gal.core.constraints import k_additive_constraints, enumerate_subsets
-from src.gal.learning.learn import learning_loop
+from gal.learning.learn import learning_loop
 
 
 # ---------------------------------------------------------------------------

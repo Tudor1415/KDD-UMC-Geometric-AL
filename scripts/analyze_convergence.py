@@ -12,13 +12,13 @@ from pathlib import Path
 from typing import Sequence
 
 
-from src.gal.analysis.convergence import (
+from gal.analysis.convergence import (
     compute_all_stats,
     compute_run_convergence,
     load_array,
     parse_anchor,
 )
-from src.gal.analysis.convergence.io import clean_for_json, write_orientation_cdf
+from gal.analysis.convergence.io import clean_for_json, write_orientation_cdf
 
 warnings.filterwarnings("ignore")
 logging.getLogger("gurobipy").setLevel(logging.ERROR)
